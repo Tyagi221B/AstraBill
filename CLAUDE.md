@@ -76,7 +76,10 @@ Default is Sonnet. Opus is the escalation path, not the default. If unsure, stay
 
 ## Resuming a session
 
-Start any new session with:
+**Research / wiki sessions:**
 > "Read wiki/index.md and wiki/overview.md — continuing AstraBill"
 
-That's enough context. Claude reads the index, loads relevant pages on demand.
+**Building sessions (code, schema, architecture):**
+> "Read wiki/index.md, wiki/overview.md, wiki/decision/auth-strategy.md, wiki/decision/database-and-rbac.md, wiki/decision/v1-scope.md — continuing AstraBill, building [X]"
+
+Why: index + overview gives the thesis. Decision pages carry the "never do X" constraints that are easy to miss. Negative decisions (e.g. "never Supabase Auth") must be read from the source file, not inferred from a one-line summary.
