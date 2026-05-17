@@ -55,3 +55,28 @@ When asked to lint:
 - Keep page titles short and specific
 - Log every ingest, query-filed, and lint pass in log.md
 - The user is building for **SMEs** — always keep that lens. Enterprise features are out of scope unless explicitly discussed.
+
+## Model Guide
+
+Two rules. No system needed beyond this:
+
+**Use Sonnet 4.6** (default) for:
+- Writing code (components, API routes, services, schema, tests)
+- Debugging specific errors
+- Research, web searches, wiki updates
+- Anything where speed matters more than depth
+
+**Escalate to Opus 4.7** when:
+- Reviewing a full system for architectural issues ("does this schema make sense end to end?")
+- A bug or design problem has you stuck after 2 attempts
+- Writing security-critical code (auth, RBAC, payment webhooks)
+- A decision is hard to reverse and has large consequences
+
+Default is Sonnet. Opus is the escalation path, not the default. If unsure, stay on Sonnet.
+
+## Resuming a session
+
+Start any new session with:
+> "Read wiki/index.md and wiki/overview.md — continuing AstraBill"
+
+That's enough context. Claude reads the index, loads relevant pages on demand.
