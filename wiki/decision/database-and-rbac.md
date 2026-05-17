@@ -66,6 +66,29 @@ sufficient because there is no untrusted client.
 
 This is real protection, in TypeScript, unit-testable. No SQL policies, no triggers.
 
+### Audit log
+
+Billing software needs a trail: *who* raised this invoice, *who* recorded that
+payment, *who* logged in. The `audit_log` table records every data mutation and
+every auth event — actor, action, entity, a JSONB before/after diff, IP/UA.
+
+It is written **from the service layer, inside the same transaction as the
+mutation** — the audit row and the change commit together or not at all. Not a DB
+trigger (triggers are a "Never" — logic stays in TypeScript), and not
+fire-and-forget (an audit trail with silent gaps is worse than none). The table is
+append-only: nothing ever updates or deletes an `audit_log` row.
+
+### Soft delete
+
+Business data is never hard-deleted. Mutable tables carry `deleted_at timestamptz`;
+the repository layer filters `deleted_at IS NULL` by default. This preserves history
+and keeps the audit trail's entity references valid.
+
+"Delete" composes with the GST immutability rule: a *draft* invoice can be
+soft-deleted; a *finalized* invoice never can — corrections go through a credit
+note. Removing a teammate is a soft delete of their `business_members` row, not the
+shared `users` account.
+
 **RBAC in TypeScript** (where it belongs):
 ```typescript
 // lib/rbac.ts — your single source of truth for permissions

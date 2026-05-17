@@ -66,3 +66,31 @@ Decision: drop RLS entirely. Tenant isolation enforced in the repository layer
 infrastructure.md. Also confirmed table count: 11 (10 business + accounts for
 Google OAuth; no sessions/verification_token/otp_codes). Added GST split columns
 and invoice type enum to the v1-scope schema.
+
+## [2026-05-17] decision | audit log + soft delete added — table count 11 → 12
+
+Schema-build session (Opus 4.7). User added three cross-cutting requirements
+before coding: (1) an audit/activity log of every user action, (2) soft delete,
+(3) standardised error + response handling. The audit log needs a table, so the
+binding table count moved 11 → 12 (11 business tables incl. `audit_log` +
+`accounts`). Updated the DECISIONS.md "V1 tables" row, added "Audit log",
+"Deletes", and "Timestamps" rows. Added rationale sections to database-and-rbac.md
+and refreshed the v1-scope.md table list. Also folded in: `businesses.plan`,
+`created_by` on invoices/payments, `last_login_at`/`last_active_at` on users,
+`round_off` on invoices, `deleted_at` on mutable tables. Schema build follows.
+
+## [2026-05-17] decision | drafts = `invoices.status='draft'`; localStorage for pre-auth; multi-device "for free"
+
+Schema-build session (Opus 4.7). User raised future AI feature: photograph an
+estimate on mobile → OCR → auto-filled draft on desktop. Examined whether this
+needs a separate `drafts` table or Redis-held drafts.
+
+Realised the `invoices` table with `status='draft'` already gives us everything:
+drafts are first-class invoices, multi-device works because they're in Postgres
+and scoped to the business, and future AI features (OCR, suggested GST, auto-
+categorise customer) compose by writing draft `invoices` rows — no new storage
+layer. localStorage holds the pre-auth anonymous form state only (in-session,
+not durable; does not contradict onboarding-flow.md's "no save for anonymous").
+
+Added DECISIONS.md "Drafts" row. Created wiki/decision/drafts-and-multi-device.md.
+Indexed. No contradiction with existing pages.

@@ -12,6 +12,7 @@
 | [decision/market-validation.md](decision/market-validation.md) | decision | Is AstraBill worth building? Yes. Full case with market size, risks, timing |
 | [decision/payment-gateway.md](decision/payment-gateway.md) | decision | Razorpay (Smart Collect + Payment Links). Abstract via PaymentProvider interface. |
 | [decision/onboarding-flow.md](decision/onboarding-flow.md) | decision | No signup first → phone OTP → paid. Feature gating at service layer. |
+| [decision/drafts-and-multi-device.md](decision/drafts-and-multi-device.md) | decision | Drafts = `invoices.status='draft'` rows; localStorage only for the pre-auth window. Multi-device + AI features fall out for free. |
 | [decision/pdf-generation.md](decision/pdf-generation.md) | decision | Dedicated PDF microservice with Puppeteer. Not serverless. Maximum control. |
 | [decision/whatsapp-meta-api.md](decision/whatsapp-meta-api.md) | decision | Use existing Opryon Labs WABA. Same creds for testing, new phone number for prod. |
 | [decision/infrastructure.md](decision/infrastructure.md) | decision | Vercel (Next.js) + Digital Ocean (PDF + cron worker) + Supabase + Razorpay |

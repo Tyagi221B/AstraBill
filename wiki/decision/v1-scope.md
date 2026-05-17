@@ -87,23 +87,26 @@ This is the DocuSign model — nobody complains that DocuSign contracts come fro
 
 ## The Actual V1 Database Tables Needed
 
-**10 business tables.** Every table carries `business_id` (including child tables —
+**11 business tables.** Every table carries `business_id` (including child tables —
 needed because tenant isolation is enforced by query scoping, see
 [[decision/database-and-rbac]]).
 
 ```
-businesses          — name, GSTIN, address, logo, bank details, state_code
-business_members    — userId, businessId, role
-users               — name, phone (nullable, unique-when-present), createdAt
-customers           — businessId, name, phone, GSTIN, address, state_code
-products            — businessId, name, HSN, unit, gstRate, purchasePrice, sellingPrice, stock
+businesses          — name, GSTIN, address, logo, bank details, state_code, plan
+business_members    — userId, businessId, role, deleted_at
+users               — name, phone (nullable, unique-when-present), email, last_login_at, last_active_at
+customers           — businessId, name, phone, GSTIN, address, state_code, deleted_at
+products            — businessId, name, HSN, unit, gstRate, purchasePrice, sellingPrice, stock, deleted_at
 invoices            — businessId, customerId, type, number, status, originalInvoiceId (nullable),
-                      subtotal, cgst, sgst, igst, total, placeOfSupply, dueDate
+                      subtotal, cgst, sgst, igst, roundOff, total, placeOfSupply, issueDate,
+                      dueDate, createdBy, deleted_at
 invoice_line_items  — businessId, invoiceId, productId (nullable), description, qty, unit,
                       unitPrice, gstRate, taxableValue, cgst, sgst, igst, amount
-payments            — businessId, invoiceId, amount, method, razorpayId, paidAt
+payments            — businessId, invoiceId, amount, method, razorpayId, createdBy, paidAt
 whatsapp_messages   — businessId, invoiceId, templateName, messageId, status, sentAt, readAt
 stock_movements     — businessId, productId, type (in/out), qty, invoiceId (nullable), note, createdAt
+audit_log           — businessId (nullable), actorUserId (nullable), action, entityType,
+                      entityId, changes (jsonb), ipAddress, userAgent, createdAt
 ```
 
 Key schema decisions:
@@ -112,13 +115,18 @@ Key schema decisions:
   `invoices` table — no separate tables. `originalInvoiceId` self-references for notes.
 - **GST split columns** (`cgst`/`sgst`/`igst`) on both invoices and line items. Computed
   from `placeOfSupply` vs business `state_code`: intrastate → CGST+SGST, interstate → IGST.
-- Per-`type` invoice numbering series (EST-001, INV-001, CN-001).
+- Per-`type` invoice numbering series (EST-001, INV-001, CN-001), made concurrency-safe
+  with a row lock inside the create transaction — no separate counter table.
+- **`audit_log`** records every mutation + auth event; **soft delete** (`deleted_at`)
+  on mutable tables. See [[decision/database-and-rbac]] for both.
+- **Timestamps**: `timestamptz` (UTC) for instants; Postgres `date` for `issue_date` /
+  `due_date` (calendar dates); convert to IST at the display edge.
 
 **Plus NextAuth adapter: `accounts`** (for the Google OAuth fallback). No `sessions`
 table (JWT strategy). No `verification_token` (no email magic links). No `otp_codes`
 (OTPs live in Redis).
 
-**Total: 11 tables** (10 business + `accounts`). This is the full V1 schema. Manageable.
+**Total: 12 tables** (11 business + `accounts`). This is the full V1 schema. Manageable.
 
 ## Related Pages
 

@@ -45,8 +45,12 @@ Last reconciled: 2026-05-17
 | Roles | owner, admin, accountant, salesman, viewer | — | [[decision/database-and-rbac]] |
 | RBAC | TypeScript service layer (`lib/rbac.ts`) | RBAC logic in SQL | [[decision/database-and-rbac]] |
 | Tenant isolation | Repository layer — every query scopes by `business_id` | RLS (broken under NextAuth: `auth.uid()` is NULL; privileged role bypasses RLS) | [[decision/database-and-rbac]] |
-| `business_id` placement | On every table, including child tables (line items, payments, stock movements, whatsapp messages) | — | [[decision/database-and-rbac]] |
-| V1 tables | 10 business tables + `accounts` (NextAuth Google OAuth) = 11. No `sessions` (JWT), no `verification_token` (no email magic links), no `otp_codes` (Redis) | `otp_codes`, `sessions`, `verification_token` | [[decision/v1-scope]] |
+| `business_id` placement | On every table, including child tables (line items, payments, stock movements, whatsapp messages, audit log) | — | [[decision/database-and-rbac]] |
+| V1 tables | 11 business tables (incl. `audit_log`) + `accounts` (NextAuth Google OAuth) = 12. No `sessions` (JWT), no `verification_token` (no email magic links), no `otp_codes` (Redis) | `otp_codes`, `sessions`, `verification_token` | [[decision/v1-scope]] |
+| Audit log | `audit_log` table — every data mutation + auth event, written in-transaction from the service layer | DB triggers for audit; fire-and-forget audit writes | [[decision/database-and-rbac]] |
+| Deletes | Soft delete (`deleted_at` timestamptz) on mutable business tables; repositories filter `deleted_at IS NULL` by default | hard delete of business data; deleting a finalized invoice (issue a credit note instead) | [[decision/database-and-rbac]] |
+| Timestamps | `timestamptz` (UTC) for instants; Postgres `date` for calendar dates (`issue_date`, `due_date`); convert to IST at the display edge | `timestamp` without zone | [[decision/database-and-rbac]] |
+| Drafts | Stored as `status='draft'` rows in `invoices` (multi-device follows because they're in Postgres); localStorage holds in-session form state during the pre-auth anonymous drive-by only | a separate `drafts` table; Redis-held drafts; persistent anonymous storage; cross-device anonymous drafts | [[decision/drafts-and-multi-device]] |
 
 ## Integrations
 
