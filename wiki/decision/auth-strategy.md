@@ -6,7 +6,16 @@ sources: 0
 
 # Auth Strategy — NextAuth v5 + WhatsApp OTP
 
-## Decision: NextAuth v5 (AuthJS) with custom WhatsApp OTP provider. Never Supabase Auth.
+## Decisions (read these before writing any schema or code)
+
+| Decision | Choice | Never |
+|----------|--------|-------|
+| Auth provider | NextAuth v5 (AuthJS) | ~~Supabase Auth~~ |
+| OTP channel | WhatsApp (Meta API) | ~~SMS~~ |
+| OTP storage | Redis with 5-min TTL | ~~Database table~~ |
+| Session storage | Supabase DB via DrizzleAdapter | ~~Supabase Auth sessions~~ |
+
+**There is no `otp_codes` table. OTPs live in Redis only.**
 
 ## Why Not Supabase Auth (Lesson Learned)
 
@@ -34,13 +43,13 @@ WhatsApp authentication templates are approved by Meta specifically for OTP use.
 ```
 User enters phone number (e.g. 9876543210)
      ↓
-Server: generate 6-digit OTP, store in DB with 5-min expiry
+Server: generate 6-digit OTP, store SHA-256 hash in Redis with 5-min TTL
      ↓
 Send WhatsApp auth template: "Your AstraBill OTP is {{1}}. Valid for 5 minutes."
      ↓
 User sees WhatsApp message, enters OTP in app
      ↓
-Server: verify OTP (check hash, check expiry, mark used)
+Server: verify OTP against Redis hash, then delete the key (single-use)
      ↓
 NextAuth credentials provider: returns user object
      ↓

@@ -10,17 +10,18 @@ sources: 0
 
 As a solo dev, every background system you add is a system you maintain alone at 2am when it breaks. The principle: **use the simplest thing that works, not the most impressive thing.**
 
-## Job Architecture Decision: DB-backed queue, not Redis queue for crons
+## Job Architecture
 
-We already decided on BullMQ + Redis for WhatsApp rate-limited sends. But for cron scheduling, we use **a `jobs` table in Supabase + a polling worker on DO**. Why:
+Two distinct mechanisms, each doing one job:
 
-- Redis going down should not kill scheduled reminders
-- A DB jobs table is debuggable: `SELECT * FROM scheduled_jobs WHERE status = 'failed'`
-- Monitoring is free: just query the table
-- For billing software scale (max ~10,000 jobs/day), polling every 30s is plenty
-- No extra infra — the DO droplet already runs, just add a cron process
+- **Scheduling** — `node-cron` running in the DO worker process. Fires job
+  functions on a schedule (every 15 min, daily 9am, etc.). Simple, in-process,
+  nothing to maintain. Each job function queries the DB for what it needs.
+- **WhatsApp send queue** — BullMQ + Redis. Needed because WhatsApp sends
+  require rate limiting, retries on failure, and deduplication.
 
-BullMQ handles the **WhatsApp send queue** (rate limiting, retries). DB handles **scheduled job state** (what needs to happen and when).
+There is no separate `jobs` table. node-cron triggers the work; jobs read
+current state straight from the DB. Keep it simple — solo dev maintains this.
 
 ## The Full Cron/Job Map
 
@@ -55,8 +56,9 @@ BullMQ handles the **WhatsApp send queue** (rate limiting, retries). DB handles 
 ### Cleanup (daily, 3am IST)
 | Job | Logic |
 |-----|-------|
-| Expired OTPs | `DELETE FROM otp_codes WHERE expires_at < now()` |
 | Old webhook logs | Keep 90 days, purge older |
+
+(OTPs need no cleanup job — they live in Redis with a 5-min TTL and auto-expire. See [[decision/auth-strategy]].)
 
 ## Notification Channels
 

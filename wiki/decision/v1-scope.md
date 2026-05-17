@@ -98,8 +98,9 @@ invoice_line_items  — invoiceId, productId (nullable), description, qty, unit,
 payments            — invoiceId, amount, method, razorpayId, paidAt
 whatsapp_messages   — invoiceId, templateName, messageId, status, sentAt, readAt
 stock_movements     — productId, type (in/out), qty, invoiceId (nullable), note, createdAt
-otp_codes           — phone, codeHash, expiresAt, usedAt
 ```
+
+**10 tables total. No otp_codes table — OTPs stored in Redis (5-min TTL), not the DB.**
 
 This is the full V1 schema. Manageable.
 

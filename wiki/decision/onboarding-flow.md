@@ -35,9 +35,8 @@ Two CTAs:
 ## Why Phone, Not Email
 
 - India is phone-first. SME owners think in phone numbers not email addresses.
-- OTP via SMS = zero friction. No password to create. No email to remember.
+- OTP via WhatsApp = zero friction. No password to create. No email to remember. (Channel decision: [[decision/auth-strategy]].)
 - Phone = identity in India. Their customers know them by phone.
-- We can later use the phone number as the default WhatsApp sender.
 
 ## What Anonymous Users Get (No Account)
 
@@ -59,7 +58,7 @@ That's it. No save. No history. No share via WhatsApp. This creates natural pull
 
 | Feature | Free | Starter ₹499/mo | Pro ₹999/mo |
 |---------|------|----------------|-------------|
-| Invoices/month | 10 | Unlimited | Unlimited |
+| Invoices/month | 20 | Unlimited | Unlimited |
 | WhatsApp invoice send | ❌ | ✅ | ✅ |
 | Auto payment reminders | ❌ | ❌ | ✅ |
 | Udhaar tracking + alerts | Basic | Full | Full |
@@ -75,7 +74,7 @@ Don't show a paywall. Show what they're missing at the exact moment they want it
 
 1. **"Send via WhatsApp"** button → "Upgrade to send invoices directly via WhatsApp" (most powerful)
 2. **Udhaar ledger** → "Set up auto-reminder for Ramesh (₹45,000 pending)" → upgrade to Pro
-3. **11th invoice** → "You've created 10 invoices this month. Upgrade for unlimited."
+3. **21st invoice** → "You've created 20 invoices this month. Upgrade for unlimited."
 4. **Multi-user** → "Add your accountant to AstraBill" → Pro
 
 The triggers are contextual, not annoying modals.

@@ -169,28 +169,18 @@ For billing: money must be exact. An invoice total that's wrong by ₹0.01 due t
 ## Stack Decision: Drizzle ORM + Supabase PostgreSQL
 
 - **ORM**: Drizzle (not Prisma — Drizzle is leaner, faster, closer to SQL when you need it)
-- **DB**: Supabase PostgreSQL
-- **Auth**: NextAuth v5 with Supabase adapter (or Supabase Auth — decide below)
-- **RLS**: One simple policy per table (business isolation only)
-- **RBAC**: Application layer in TypeScript (`lib/rbac.ts`)
+- **DB**: Supabase PostgreSQL — used as a plain database ONLY
 - **Migrations**: Drizzle Kit (`npx drizzle-kit push` in dev, `generate` + `migrate` in prod)
+- **RLS**: One simple business-isolation policy per table (see above)
+- **RBAC**: Application layer in TypeScript (`lib/rbac.ts`)
 
-### Auth: NextAuth v5 vs Supabase Auth
+Auth is NOT part of this page — see [[decision/auth-strategy]]. AstraBill does
+not use Supabase Auth. Supabase is a database, nothing more.
 
-| | NextAuth v5 | Supabase Auth |
-|-|------------|---------------|
-| OTP via SMS | With Twilio/Vonage adapter | ✅ Built in |
-| Phone-first login | Configurable | ✅ Native |
-| Session handling | JWT or DB | ✅ JWT |
-| Complexity | More setup | Less setup |
-| Control | More | Less |
-
-Given you want **phone OTP login** (the no-signup flow) and already know NextAuth from TheGympilot — **Supabase Auth** is simpler here. It handles phone OTP natively. No extra service needed.
-
-Use Supabase Auth for identity, Drizzle for all other data queries.
+For all binding facts, see `DECISIONS.md` at the repo root.
 
 ## Related Pages
 
-- [[decision/onboarding-flow]] — phone OTP = Supabase Auth
+- [[decision/auth-strategy]] — NextAuth v5, the auth decision
 - [[decision/infrastructure]] — Supabase is the DB layer
 - [[customer/hardware-shop-owner]] — salesman RBAC (can't see margins) is critical

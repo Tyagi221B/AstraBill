@@ -1,5 +1,9 @@
 # AstraBill Wiki Index
 
+> **Binding decisions live in [`DECISIONS.md`](../DECISIONS.md)** (repo root) — the single
+> source of truth. Read it first in any building session. The `decision/*.md` pages below
+> hold rationale only; they do not restate facts.
+
 | Page | Type | Summary |
 |------|------|---------|
 | [overview.md](overview.md) | synthesis | Rolling thesis: what AstraBill is, who it's for, current best bets |

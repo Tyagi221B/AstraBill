@@ -44,4 +44,4 @@ Refrens is our closest product-philosophy competitor (modern, WhatsApp-first, In
 ## Related Pages
 
 - [[concept/whatsapp-billing-opportunity]]
-- [[customer/service-business-sme]] — the segment Refrens doesn't quite nail
+- [[customer/hardware-shop-owner]] — the traditional trading-shop segment Refrens doesn't nail

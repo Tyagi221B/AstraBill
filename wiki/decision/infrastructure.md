@@ -59,19 +59,14 @@ sources: 0
 - ~$6-12/month for a basic droplet
 
 ### Digital Ocean — Worker/Cron Service
-- **BullMQ + Redis** for job queuing
-- Cron jobs:
-  - Every hour: check invoices overdue by D+3, D+7, D+14 → enqueue WhatsApp reminders
-  - Daily 9am: send queued payment reminders (rate-limited: 5 messages/sec)
-  - Daily 8am: "Good morning" udhaar summary to shop owner (optional, paid feature)
-  - Monthly 1st: prepare GSTR-1 data for the previous month → notify owner
-- Job queue for WhatsApp sends: retry on failure, rate limiting, deduplication
-- Triggered by Vercel API routes too: "send this invoice now" → enqueue → worker sends
+- `node-cron` for scheduling, BullMQ + Redis for the WhatsApp send queue
+- Runs all scheduled jobs (overdue marking, reminders, GSTR prep, cleanup)
+- Full job map and architecture: see [[decision/notifications-and-crons]]
 
 ### Supabase
 - PostgreSQL database (primary datastore)
 - Supabase Storage (PDF files, invoice attachments, business logos)
-- Supabase Auth or NextAuth with Supabase adapter (decide: Supabase Auth simpler, NextAuth more flexible)
+- Used as a plain database ONLY — NOT Supabase Auth (see [[decision/auth-strategy]])
 - Row Level Security (RLS) for multi-tenant data isolation — each business only sees their own data
 - Realtime subscriptions for live udhaar updates (optional nice-to-have)
 

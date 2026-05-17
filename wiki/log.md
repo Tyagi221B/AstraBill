@@ -39,3 +39,16 @@ First customer profiled: glass + hardware shop owner. Key revelations:
 - Competitors in this space (HisabKitab, BUSY, Marg ERP) exist but all have old UX and no WhatsApp
 
 Pages created: customer/hardware-shop-owner.md
+
+## [2026-05-17] lint | First full lint pass — fixed 9 contradictions, added DECISIONS.md
+
+Opus 4.7 review found the wiki self-contradicting in 9 places (all in decision
+content): Supabase Auth vs NextAuth in 3 pages, OTP-in-DB vs Redis, SMS vs WhatsApp
+OTP, otp_codes table that shouldn't exist, free-tier 10 vs 20 invoices, "service
+businesses first" vs trading-shop pivot in 2 pages, an orphan [[link]], and an
+internal job-architecture contradiction.
+
+Root cause: decisions were duplicated across pages; an LLM appends but does not
+reconcile. Fix: created DECISIONS.md as single source of truth for all binding
+facts. Decision pages now hold rationale only and link instead of restating.
+Added SSOT + lint-before-commit rules to CLAUDE.md.

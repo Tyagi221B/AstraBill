@@ -9,9 +9,31 @@ AstraBill is a billing software product being built for SMEs. This file is the s
 /raw/assets/   — locally downloaded images referenced by raw sources
 /wiki/         — LLM-maintained knowledge base (markdown pages). Only Claude writes here.
 CLAUDE.md      — this file (schema + workflow instructions)
+DECISIONS.md   — single source of truth for every binding technical/product decision
 wiki/index.md  — catalog of all wiki pages with one-line summaries
 wiki/log.md    — append-only chronological record of all wiki operations
 ```
+
+## Knowledge vs Decisions — two kinds of content, two rule sets
+
+The wiki holds two fundamentally different things. They are maintained differently.
+
+- **Knowledge** (`competitor/`, `concept/`, `customer/`): accumulates from research.
+  When a new source contradicts an old claim, *flag it* — both can coexist as data points.
+- **Decisions** (the binding *what* we will build): these do NOT coexist with their
+  predecessors. A new decision *supersedes* — the old one must be deleted, not flagged.
+
+### SSOT rules for decisions (non-negotiable)
+
+1. **`DECISIONS.md` is the single source of truth.** Every binding fact appears there
+   exactly ONCE. Building sessions read `DECISIONS.md` first, always.
+2. **No fact is written twice.** `wiki/decision/*.md` pages hold *rationale only* (the
+   *why*, tradeoffs, rejected options). They must never restate a binding fact — they
+   link to `DECISIONS.md` or to the owning decision page. If a fact is not duplicated,
+   it cannot contradict.
+3. **Lint before every commit.** After any decision change: update the `DECISIONS.md`
+   row, then grep the whole wiki for the old fact and kill every stale copy. A decision
+   change is not done until the grep comes back clean.
 
 ## Wiki page types
 
@@ -43,8 +65,9 @@ When the user asks a question:
 
 When asked to lint:
 - Look for contradictions between pages
+- Verify every binding fact in `DECISIONS.md` is not restated (and not contradicted) elsewhere
 - Stale claims superseded by newer sources
-- Orphan pages with no inbound links
+- Orphan pages with no inbound links and broken `[[links]]` to non-existent pages
 - Missing cross-references
 - Gaps that a web search could fill
 
@@ -80,6 +103,9 @@ Default is Sonnet. Opus is the escalation path, not the default. If unsure, stay
 > "Read wiki/index.md and wiki/overview.md — continuing AstraBill"
 
 **Building sessions (code, schema, architecture):**
-> "Read wiki/index.md, wiki/overview.md, wiki/decision/auth-strategy.md, wiki/decision/database-and-rbac.md, wiki/decision/v1-scope.md — continuing AstraBill, building [X]"
+> "Read DECISIONS.md, wiki/index.md, wiki/overview.md — continuing AstraBill, building [X]"
 
-Why: index + overview gives the thesis. Decision pages carry the "never do X" constraints that are easy to miss. Negative decisions (e.g. "never Supabase Auth") must be read from the source file, not inferred from a one-line summary.
+`DECISIONS.md` carries every binding fact and every "never do X" constraint in one
+deduplicated table. Read it first. Then drill into the relevant `wiki/decision/*.md`
+page only for the *rationale* behind a decision. Never infer a decision from a
+one-line index summary — read `DECISIONS.md`.

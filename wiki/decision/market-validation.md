@@ -81,11 +81,11 @@ Your brother pays ~24k/yr for Tally. He's an MSME owner. He would switch if:
 | Razorpay becomes billing-first | They're payments-first; billing is secondary for them |
 | Price wars | First-mover in AI features buys 12-18 month moat |
 | CA ecosystem stays on Tally | Build CA partnership program separately |
-| Market too fragmented to win | Focus on one vertical first (service businesses) |
+| Market too fragmented to win | Focus on one vertical first (trading/retail shops — hardware, glass, building materials) |
 
 ## Decision
 
-**Build AstraBill.** Focus: Indian SME, ₹1Cr-₹10Cr revenue range, service businesses first (consultants, contractors, agencies), Tier 1+2 cities. First product: web app (PWA). First feature: create invoice → share via WhatsApp with UPI payment link. First customer: the brother.
+**Build AstraBill.** Focus: Indian SME, ₹50L-₹5Cr revenue range, trading/retail shops first (hardware, glass, building materials), Tier 1+2 cities. First product: web app (PWA). First feature: create invoice → share via WhatsApp with UPI payment link. First customer: the brother's glass + hardware shop. See [[customer/hardware-shop-owner]].
 
 ## Related Pages
 

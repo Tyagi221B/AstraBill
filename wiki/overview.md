@@ -10,7 +10,7 @@ sources: 12
 
 AstraBill is a billing software for Indian SMEs. Web app (PWA) first, mobile app later. The tagline candidate: **"It's that simple."**
 
-Target: Indian MSME owner, ₹1Cr-₹10Cr annual revenue, service businesses first, Tier 1+2 cities. First customer: user's brother (MSME owner currently paying ~24k/yr for Tally).
+Target: Indian MSME owner, ₹50L-₹5Cr annual revenue, trading/retail shops first (hardware, glass, building materials), Tier 1+2 cities. First customer: user's brother — a glass + hardware shop owner currently paying ~24k/yr for Tally. See [[customer/hardware-shop-owner]].
 
 ## Current Thesis (as of 2026-05-17)
 
@@ -43,20 +43,20 @@ That's the complete loop. That's the demo that sells the product.
 
 ## Product Decisions Made
 
-- **Tech stack**: Next.js (v16), Supabase, PWA-first
-- **Auth**: NextAuth with RBAC (learned from TheGympilot)
-- **Mobile**: PWA first, native app later
-- **Notifications**: In-app push notifications (PWA) — avoid WhatsApp cost for internal notifications
-- **Payments**: Razorpay or similar for UPI collection
-- **WhatsApp**: Meta Cloud API directly or via BSP for invoice delivery
+All binding decisions live in `DECISIONS.md` at the repo root — the single
+source of truth. This page does not restate them (that's how the wiki drifted
+into contradiction once). Read `DECISIONS.md` for the stack, auth, V1 scope,
+pricing, and integration choices.
 
 ## Open Questions (Prioritized)
 
-1. **Vertical focus**: Service businesses (B2B invoicing) OR retail/kirana (POS + inventory)? — choose one to start
-2. **Inventory**: Include in V1 or keep billing-only for speed to market?
-3. **GST filing**: Auto-prepare GSTR reports in V1 or later?
-4. **CA partnership**: How to get CAs to recommend AstraBill to their clients?
-5. **Marketing**: What's the first content/distribution channel?
+1. **CA partnership**: How to get CAs to recommend AstraBill to their clients?
+2. **Marketing**: What's the first content/distribution channel?
+3. **Razorpay KYC friction**: Onboarding flow for users who can't collect payments until KYC clears.
+4. **Barcode scanning**: V1.1 — mobile camera scanning for fast product lookup.
+
+(Resolved: vertical focus → trading/retail shops first; inventory → in V1;
+GST filing → V2. See `DECISIONS.md`.)
 
 ## Thesis Evolution
 
