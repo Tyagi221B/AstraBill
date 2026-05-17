@@ -8,7 +8,7 @@
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { ZodError, type ZodSchema } from "zod";
+import { ZodError, type ZodTypeAny, type z } from "zod";
 
 import { AppError, ValidationError, isAppError } from "./errors";
 
@@ -41,11 +41,12 @@ export function fail(error: AppError): NextResponse<ApiErr> {
 
 // --- Validation ----------------------------------------------------------
 
-/** Parse and validate a JSON body. Zod failures → ValidationError. */
-export async function parseJson<T>(
+/** Parse and validate a JSON body. Zod failures → ValidationError. Returns
+ *  the schema's **output** type so callers see defaults / transforms applied. */
+export async function parseJson<TSchema extends ZodTypeAny>(
   req: NextRequest,
-  schema: ZodSchema<T>,
-): Promise<T> {
+  schema: TSchema,
+): Promise<z.output<TSchema>> {
   let body: unknown;
   try {
     body = await req.json();
@@ -59,11 +60,11 @@ export async function parseJson<T>(
   return parsed.data;
 }
 
-/** Parse and validate the query string. */
-export function parseQuery<T>(
+/** Parse and validate the query string. Returns the schema's output type. */
+export function parseQuery<TSchema extends ZodTypeAny>(
   req: NextRequest,
-  schema: ZodSchema<T>,
-): T {
+  schema: TSchema,
+): z.output<TSchema> {
   const query: Record<string, string> = {};
   req.nextUrl.searchParams.forEach((value, key) => {
     query[key] = value;
