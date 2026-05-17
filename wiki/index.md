@@ -1,0 +1,31 @@
+# AstraBill Wiki Index
+
+| Page | Type | Summary |
+|------|------|---------|
+| [overview.md](overview.md) | synthesis | Rolling thesis: what AstraBill is, who it's for, current best bets |
+| [log.md](log.md) | log | Chronological record of all wiki operations |
+| **Decisions** | | |
+| [decision/market-validation.md](decision/market-validation.md) | decision | Is AstraBill worth building? Yes. Full case with market size, risks, timing |
+| [decision/payment-gateway.md](decision/payment-gateway.md) | decision | Razorpay (Smart Collect + Payment Links). Abstract via PaymentProvider interface. |
+| [decision/onboarding-flow.md](decision/onboarding-flow.md) | decision | No signup first → phone OTP → paid. Feature gating at service layer. |
+| [decision/pdf-generation.md](decision/pdf-generation.md) | decision | Dedicated PDF microservice with Puppeteer. Not serverless. Maximum control. |
+| [decision/whatsapp-meta-api.md](decision/whatsapp-meta-api.md) | decision | Use existing Opryon Labs WABA. Same creds for testing, new phone number for prod. |
+| [decision/infrastructure.md](decision/infrastructure.md) | decision | Vercel (Next.js) + Digital Ocean (PDF + cron worker) + Supabase + Razorpay |
+| [decision/database-and-rbac.md](decision/database-and-rbac.md) | decision | PostgreSQL + Drizzle ORM. Multi-business from day 1. RBAC in TypeScript not SQL. |
+| [decision/auth-strategy.md](decision/auth-strategy.md) | decision | NextAuth v5 + WhatsApp OTP. Never Supabase Auth. Google OAuth as fallback. |
+| [decision/code-architecture.md](decision/code-architecture.md) | decision | LLD: thin routes → service → repo → DB. Interfaces for externals. Typed errors. |
+| [decision/v1-scope.md](decision/v1-scope.md) | decision | V1: GST invoice + PDF + WhatsApp + Udhaar + Inventory. English only. No shortcuts. |
+| **Competitors** | | |
+| [competitor/tally.md](competitor/tally.md) | competitor | The 30-year incumbent. Desktop-only, 70-90% MSME share, steep learning curve, ₹22,500+ |
+| [competitor/vyapar.md](competitor/vyapar.md) | competitor | Mobile challenger, 1Cr users, broken WhatsApp, serious RBAC privacy hole |
+| [competitor/khatabook.md](competitor/khatabook.md) | competitor | Digital ledger leader, 50M downloads, declining headcount, weak billing product |
+| [competitor/zoho-books.md](competitor/zoho-books.md) | competitor | Best cloud accounting, but complex setup — for accountants not owners |
+| [competitor/refrens.md](competitor/refrens.md) | competitor | Best ratings (4.8★), WhatsApp-first, freelancer-focused — not our segment |
+| [competitor/odoo.md](competitor/odoo.md) | competitor | ERP for growing businesses. Too heavy for SMEs, but shows graduation path |
+| **Customers** | | |
+| [customer/hardware-shop-owner.md](customer/hardware-shop-owner.md) | customer | Glass/hardware shop: multi-unit billing, udhaar tracking, kacha/pakka reality |
+| **Concepts** | | |
+| [concept/india-sme-market.md](concept/india-sme-market.md) | concept | 63M MSMEs, 30M digital, cash flow crisis, Tier 2/3 wave |
+| [concept/whatsapp-billing-opportunity.md](concept/whatsapp-billing-opportunity.md) | concept | The biggest wedge: 98% open rate, ₹0.14/invoice, UPI payment link workflow |
+| [concept/gst-compliance.md](concept/gst-compliance.md) | concept | The mandatory hook: GST forces software adoption, CA dependency problem |
+| [concept/pricing-model.md](concept/pricing-model.md) | concept | Pricing analysis: ₹499/₹999/₹1,999/month, annual preferred |

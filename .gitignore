@@ -1,0 +1,32 @@
+# Environment files — never commit these
+.env
+.env.local
+.env.production
+.env*.local
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+
+# Vercel
+.vercel
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Claude session artifacts
+.claude/
