@@ -1,0 +1,166 @@
+/**
+ * Role-based access control — the single source of truth for permissions.
+ *
+ * Why TypeScript and not SQL: business rules change daily in an early
+ * product; debugging a SQL policy at 2am is misery; unit-testing one is
+ * harder. See wiki/decision/database-and-rbac.md.
+ *
+ * Add a permission → add it to PERMISSIONS, then call `requirePermission` at
+ * the service-layer entry point. Never branch on `role` directly in route or
+ * service code; always go through a permission string.
+ */
+import "server-only";
+import { and, eq, isNull } from "drizzle-orm";
+
+import { db } from "./db";
+import { businessMembers } from "./db/schema";
+import type { Role } from "./db/schema";
+import { ForbiddenError } from "./errors";
+
+// ---- Permission catalog -------------------------------------------------
+// Owner is the superset; every other role is a subset of owner's permissions.
+
+const ALL_PERMISSIONS = [
+  // Invoices
+  "invoice:view",
+  "invoice:create",
+  "invoice:edit",
+  "invoice:delete", // service layer enforces: drafts only (GST immutability)
+  "invoice:finalize",
+  // Payments
+  "payment:record",
+  "payment:delete",
+  // Customers
+  "customer:view",
+  "customer:create",
+  "customer:edit",
+  "customer:delete",
+  // Products / inventory
+  "product:view",
+  "product:create",
+  "product:edit",
+  "product:delete",
+  "stock:adjust",
+  // WhatsApp
+  "whatsapp:send",
+  // Reports
+  "report:view_profit", // gates purchase price / margin visibility
+  "report:gst",
+  // Business / users
+  "user:invite",
+  "user:remove",
+  "settings:edit",
+] as const;
+
+export type Permission = (typeof ALL_PERMISSIONS)[number];
+
+export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
+  owner: ALL_PERMISSIONS,
+
+  admin: [
+    "invoice:view",
+    "invoice:create",
+    "invoice:edit",
+    "invoice:delete",
+    "invoice:finalize",
+    "payment:record",
+    "payment:delete",
+    "customer:view",
+    "customer:create",
+    "customer:edit",
+    "customer:delete",
+    "product:view",
+    "product:create",
+    "product:edit",
+    "product:delete",
+    "stock:adjust",
+    "whatsapp:send",
+    "report:view_profit",
+    "report:gst",
+    "user:invite",
+    "user:remove",
+  ],
+
+  accountant: [
+    "invoice:view",
+    "invoice:create",
+    "invoice:edit",
+    "invoice:finalize",
+    "payment:record",
+    "customer:view",
+    "customer:create",
+    "customer:edit",
+    "product:view",
+    "whatsapp:send",
+    "report:view_profit",
+    "report:gst",
+  ],
+
+  // Critical invariant: salesman has NO profit visibility. Even though they
+  // can view products to bill, the service layer strips purchase_price from
+  // responses for roles that lack `report:view_profit`. See `redactForRole`.
+  salesman: [
+    "invoice:view",
+    "invoice:create",
+    "customer:view",
+    "customer:create",
+    "product:view",
+    "whatsapp:send",
+  ],
+
+  viewer: ["invoice:view", "customer:view", "product:view"],
+} as const;
+
+// ---- Pure helpers (no DB) ----------------------------------------------
+
+export function roleHas(role: Role, permission: Permission): boolean {
+  return (PERMISSIONS[role] as readonly Permission[]).includes(permission);
+}
+
+/**
+ * Strips fields a role isn't allowed to see — call at the serialization edge.
+ * Currently: hide purchase price / margin from anyone without
+ * `report:view_profit`. Keep this list narrow and explicit.
+ */
+export function redactForRole<T extends { purchasePrice?: unknown }>(
+  row: T,
+  role: Role,
+): T {
+  if (roleHas(role, "report:view_profit")) return row;
+  const { purchasePrice: _drop, ...rest } = row;
+  return rest as T;
+}
+
+// ---- DB-backed checks ---------------------------------------------------
+
+/** Active (non-soft-deleted) membership of `userId` in `businessId`, if any. */
+export async function getMembership(userId: string, businessId: string) {
+  return db.query.businessMembers.findFirst({
+    where: and(
+      eq(businessMembers.userId, userId),
+      eq(businessMembers.businessId, businessId),
+      isNull(businessMembers.deletedAt),
+    ),
+  });
+}
+
+/**
+ * Service-layer guard. Throws `ForbiddenError` if the user is not an active
+ * member of the business or their role lacks the permission. Returns the
+ * resolved role so callers can branch / redact without a second query.
+ */
+export async function requirePermission(
+  userId: string,
+  businessId: string,
+  permission: Permission,
+): Promise<Role> {
+  const member = await getMembership(userId, businessId);
+  if (!member) throw new ForbiddenError("You are not a member of this business");
+  const role = member.role as Role;
+  if (!roleHas(role, permission)) {
+    throw new ForbiddenError(
+      `Your role (${role}) cannot perform "${permission}"`,
+    );
+  }
+  return role;
+}
