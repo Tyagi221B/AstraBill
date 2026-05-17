@@ -94,3 +94,20 @@ not durable; does not contradict onboarding-flow.md's "no save for anonymous").
 
 Added DECISIONS.md "Drafts" row. Created wiki/decision/drafts-and-multi-device.md.
 Indexed. No contradiction with existing pages.
+
+## [2026-05-17] decision | auth = two equal entry doors (Google + WhatsApp OTP), neither fallback
+
+About to wire NextAuth. Reconsidered the "Fallback: Google OAuth" framing
+from the earlier auth-strategy doc. For an Android user, Google one-tap is
+faster than waiting for a WhatsApp OTP; for a user without Gmail handy, OTP
+works first try. Neither door is fundamentally primary — the schema connects
+both back to the same `users.id`.
+
+Updated DECISIONS.md "Login methods" row (replaces "Fallback login") and
+clarified the "Session strategy" row (JWT is stateless; DrizzleAdapter
+persists users + accounts only, no sessions table). Rewrote the auth-strategy
+page's framing section to "Two Equal Entry Doors" with the per-user-type
+breakdown. Also removed the restated-fact decision table at the top of that
+page (SSOT rule — pre-existing duplication caught now). Account linking when
+a "missing channel" already belongs to another account is V1.1 (V1: refuse
+and tell them to log in via the existing one).

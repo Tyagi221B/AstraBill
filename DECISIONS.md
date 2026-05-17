@@ -34,8 +34,8 @@ Last reconciled: 2026-05-17
 | Auth provider | NextAuth v5 (AuthJS), credentials provider | Supabase Auth | [[decision/auth-strategy]] |
 | OTP channel | WhatsApp (Meta API), authentication template | SMS | [[decision/auth-strategy]] |
 | OTP storage | Redis — SHA-256 hash, 5-min TTL, single-use | DB table (`otp_codes` does NOT exist) | [[decision/auth-strategy]] |
-| Session storage | Supabase DB via DrizzleAdapter, JWT strategy | Supabase Auth sessions | [[decision/auth-strategy]] |
-| Fallback login | Google OAuth (secondary provider) | — | [[decision/auth-strategy]] |
+| Session strategy | JWT (stateless cookies). DrizzleAdapter persists `users` + `accounts` (Google OAuth) only — there is no `sessions` table | DB-stored sessions; Supabase Auth sessions | [[decision/auth-strategy]] |
+| Login methods | Two equal entry doors — Google OAuth + WhatsApp OTP — both first-class. The missing channel is collected post-onboarding (phone required for WhatsApp send; Google optional for fast re-login) | "primary/fallback" framing; forcing one path at signup | [[decision/auth-strategy]] |
 
 ## Data Model & Access
 

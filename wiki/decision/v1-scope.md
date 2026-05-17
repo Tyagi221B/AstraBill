@@ -122,7 +122,7 @@ Key schema decisions:
 - **Timestamps**: `timestamptz` (UTC) for instants; Postgres `date` for `issue_date` /
   `due_date` (calendar dates); convert to IST at the display edge.
 
-**Plus NextAuth adapter: `accounts`** (for the Google OAuth fallback). No `sessions`
+**Plus NextAuth adapter: `accounts`** (for the Google OAuth entry door). No `sessions`
 table (JWT strategy). No `verification_token` (no email magic links). No `otp_codes`
 (OTPs live in Redis).
 

@@ -4,18 +4,10 @@ updated: 2026-05-17
 sources: 0
 ---
 
-# Auth Strategy — NextAuth v5 + WhatsApp OTP
+# Auth Strategy — NextAuth v5 + Dual Entry
 
-## Decisions (read these before writing any schema or code)
-
-| Decision | Choice | Never |
-|----------|--------|-------|
-| Auth provider | NextAuth v5 (AuthJS) | ~~Supabase Auth~~ |
-| OTP channel | WhatsApp (Meta API) | ~~SMS~~ |
-| OTP storage | Redis with 5-min TTL | ~~Database table~~ |
-| Session storage | Supabase DB via DrizzleAdapter | ~~Supabase Auth sessions~~ |
-
-**There is no `otp_codes` table. OTPs live in Redis only.**
+For the binding facts (provider, OTP channel, OTP storage, session strategy,
+login methods), see `DECISIONS.md` → Auth. This page is the rationale.
 
 ## Why Not Supabase Auth (Lesson Learned)
 
@@ -156,14 +148,40 @@ Valid for 5 minutes. Do not share this with anyone.
 
 Meta has a special "authentication" template category specifically for OTPs with built-in copy-button UX in WhatsApp.
 
-## Fallback: Google OAuth
+## Two Equal Entry Doors (Why Google Is Not "Fallback")
 
-Add Google OAuth as a secondary provider (for users who prefer it). Takes 15 minutes to set up in NextAuth. Users who sign up via Google still get a phone number collected separately (needed for WhatsApp features).
+Google OAuth and WhatsApp OTP sit side by side on the sign-in screen — neither
+is primary. Whichever is faster for that user wins.
+
+| For this user | Faster door | Why |
+|---|---|---|
+| Android user with Google already signed in | Google one-tap | One tap vs reading + entering a 6-digit code |
+| User on a desktop browser | Google one-tap | Same reasoning |
+| User without a Gmail association on this device | WhatsApp OTP | Google one-tap doesn't help; OTP works first try |
+| User who has been signed in before via OTP | Either, depending on device | Both are linked to the same `users.id` after they add the other |
+
+The missing channel is collected after sign-in, at the moment it's actually
+needed:
+
+- **Came in via Google → add phone**: prompted before the first WhatsApp
+  invoice send. Phone is operationally required for that feature, not for
+  auth — so we collect it at point of use, not at signup.
+- **Came in via phone → add Google**: a soft nudge in settings for one-tap
+  re-login next time. Always optional, never blocking.
 
 ```typescript
 import Google from 'next-auth/providers/google'
-// Just add to providers array. Done.
+import Credentials from 'next-auth/providers/credentials'
+// Both providers in the array. Same authorize-or-link flow downstream.
 ```
+
+### Account linking is V1.1, not V1
+
+If a Google-signed-in user later tries to verify a phone that already belongs
+to another `users` row, we have a merge problem (which account "wins"? what
+about both users' invoices?). V1 punts: show "this number is already on
+AstraBill — log in with it instead." Honest, rare, no data corruption.
+Real merge flows land in V1.1 if the problem materialises.
 
 ## Rate Limiting OTP Requests
 
