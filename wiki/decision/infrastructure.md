@@ -67,7 +67,7 @@ sources: 0
 - PostgreSQL database (primary datastore)
 - Supabase Storage (PDF files, invoice attachments, business logos)
 - Used as a plain database ONLY — NOT Supabase Auth (see [[decision/auth-strategy]])
-- Row Level Security (RLS) for multi-tenant data isolation — each business only sees their own data
+- No RLS — tenant isolation is enforced in the repository layer (see [[decision/database-and-rbac]])
 - Realtime subscriptions for live udhaar updates (optional nice-to-have)
 
 ## Environment Variables — Clean Split

@@ -87,22 +87,38 @@ This is the DocuSign model — nobody complains that DocuSign contracts come fro
 
 ## The Actual V1 Database Tables Needed
 
+**10 business tables.** Every table carries `business_id` (including child tables —
+needed because tenant isolation is enforced by query scoping, see
+[[decision/database-and-rbac]]).
+
 ```
-businesses          — name, GSTIN, address, logo, bank details
+businesses          — name, GSTIN, address, logo, bank details, state_code
 business_members    — userId, businessId, role
-users               — phone, name, createdAt
-customers           — businessId, name, phone, GSTIN, address
+users               — name, phone (nullable, unique-when-present), createdAt
+customers           — businessId, name, phone, GSTIN, address, state_code
 products            — businessId, name, HSN, unit, gstRate, purchasePrice, sellingPrice, stock
-invoices            — businessId, customerId, number, status, subtotal, taxAmount, total, dueDate
-invoice_line_items  — invoiceId, productId (nullable), description, qty, unit, unitPrice, gstRate, amount
-payments            — invoiceId, amount, method, razorpayId, paidAt
-whatsapp_messages   — invoiceId, templateName, messageId, status, sentAt, readAt
-stock_movements     — productId, type (in/out), qty, invoiceId (nullable), note, createdAt
+invoices            — businessId, customerId, type, number, status, originalInvoiceId (nullable),
+                      subtotal, cgst, sgst, igst, total, placeOfSupply, dueDate
+invoice_line_items  — businessId, invoiceId, productId (nullable), description, qty, unit,
+                      unitPrice, gstRate, taxableValue, cgst, sgst, igst, amount
+payments            — businessId, invoiceId, amount, method, razorpayId, paidAt
+whatsapp_messages   — businessId, invoiceId, templateName, messageId, status, sentAt, readAt
+stock_movements     — businessId, productId, type (in/out), qty, invoiceId (nullable), note, createdAt
 ```
 
-**10 tables total. No otp_codes table — OTPs stored in Redis (5-min TTL), not the DB.**
+Key schema decisions:
+- **`invoices.type`** is an enum: `tax_invoice | estimate | cash_receipt | credit_note | debit_note`.
+  Credit/debit notes and kacha/pakka ("Estimate"/"Cash Receipt") all live inside the
+  `invoices` table — no separate tables. `originalInvoiceId` self-references for notes.
+- **GST split columns** (`cgst`/`sgst`/`igst`) on both invoices and line items. Computed
+  from `placeOfSupply` vs business `state_code`: intrastate → CGST+SGST, interstate → IGST.
+- Per-`type` invoice numbering series (EST-001, INV-001, CN-001).
 
-This is the full V1 schema. Manageable.
+**Plus NextAuth adapter: `accounts`** (for the Google OAuth fallback). No `sessions`
+table (JWT strategy). No `verification_token` (no email magic links). No `otp_codes`
+(OTPs live in Redis).
+
+**Total: 11 tables** (10 business + `accounts`). This is the full V1 schema. Manageable.
 
 ## Related Pages
 

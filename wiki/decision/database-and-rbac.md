@@ -26,45 +26,45 @@ A user has a role **per business** — not a global role. The CA is 'viewer' in 
 
 ---
 
-## RLS vs Application-Layer RBAC — The Real Answer
+## No RLS — Isolation Lives in the Repository Layer
 
-The user's instinct is correct. Here's why RLS gets painful:
+### Why no RLS at all
 
-**RLS is great when**: your app lets the frontend talk directly to Supabase (the Supabase JS client hitting the DB from the browser). RLS is the security layer protecting the DB from untrusted clients.
-
-**RLS becomes a maintenance nightmare when**:
-- You have complex role hierarchies (owner vs salesman vs CA)
-- Business logic changes frequently (in early startup = always)
-- You're debugging a bug at 2am and it's a SQL policy issue not a code issue
-- You need to test it (you can't unit test SQL policies easily)
-- DB triggers encode business rules — now your logic is split between TypeScript and SQL
-
-**For AstraBill**: ALL data access goes through Next.js server-side API routes. The browser never talks to Supabase directly. There is no untrusted client hitting the DB.
+RLS exists to protect the database from an **untrusted client** — a browser holding
+the Supabase anon key, talking to the DB directly. AstraBill has no such client.
+Every query goes Browser → Next.js server-side API route → Drizzle → Postgres.
 
 ```
-Browser → Next.js API route (server) → Supabase DB
+Browser → Next.js API route (server) → Drizzle → Supabase DB
                     ↑
-            This is where RBAC lives.
+            This is where isolation + RBAC live.
             TypeScript. Testable. Debuggable.
 ```
 
-### Decision: Minimal RLS + Full App-Layer RBAC
+RLS was considered as "belt and suspenders" but it does not survive our auth decision:
 
-**RLS policy** (just ONE, simple):
-```sql
--- Belt and suspenders: even if a bug in our code passes the wrong userId,
--- the DB still refuses to return another business's data.
-ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "business_isolation" ON invoices
-  FOR ALL USING (
-    business_id IN (
-      SELECT business_id FROM business_members
-      WHERE user_id = auth.uid()
-    )
-  );
-```
+- The canonical Postgres RLS pattern uses `auth.uid()` — a function that **only
+  exists inside Supabase Auth**. We use [[decision/auth-strategy]] (NextAuth), so
+  `auth.uid()` is always NULL → a policy built on it matches nothing.
+- Our Drizzle connection uses a privileged Postgres role, which **bypasses RLS
+  entirely** anyway.
+- Making RLS genuinely work would need a non-privileged DB role + a per-request
+  `SET app.user_id` GUC inside every transaction — exactly the RLS complexity we
+  set out to avoid.
 
-Apply this same simple policy to every table. That's it for RLS. No complex conditions, no triggers, no role-specific policies in SQL.
+So: **no RLS.** Tenant isolation is enforced in application code, and that is
+sufficient because there is no untrusted client.
+
+### How isolation is actually guaranteed
+
+1. **`businessId` on every table** — every business table (and every child table:
+   line items, payments, stock movements, whatsapp messages) carries `business_id`.
+2. **The repository layer is the only place queries live.** Every query scopes by
+   `business_id`. One folder to audit. No query anywhere else.
+3. **`requirePermission(userId, businessId, perm)`** runs in the service layer
+   before every mutation — it verifies the user is a member of that business.
+
+This is real protection, in TypeScript, unit-testable. No SQL policies, no triggers.
 
 **RBAC in TypeScript** (where it belongs):
 ```typescript
@@ -171,7 +171,7 @@ For billing: money must be exact. An invoice total that's wrong by ₹0.01 due t
 - **ORM**: Drizzle (not Prisma — Drizzle is leaner, faster, closer to SQL when you need it)
 - **DB**: Supabase PostgreSQL — used as a plain database ONLY
 - **Migrations**: Drizzle Kit (`npx drizzle-kit push` in dev, `generate` + `migrate` in prod)
-- **RLS**: One simple business-isolation policy per table (see above)
+- **RLS**: None — isolation enforced in the repository/service layer (see above)
 - **RBAC**: Application layer in TypeScript (`lib/rbac.ts`)
 
 Auth is NOT part of this page — see [[decision/auth-strategy]]. AstraBill does

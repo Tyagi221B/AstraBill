@@ -44,8 +44,9 @@ Last reconciled: 2026-05-17
 | Multi-tenancy | One user → many businesses via `business_members` join table, role per business | global roles | [[decision/database-and-rbac]] |
 | Roles | owner, admin, accountant, salesman, viewer | — | [[decision/database-and-rbac]] |
 | RBAC | TypeScript service layer (`lib/rbac.ts`) | RBAC logic in SQL | [[decision/database-and-rbac]] |
-| RLS | One simple business-isolation policy per table; nothing more | complex RLS, DB triggers for logic | [[decision/database-and-rbac]] |
-| V1 tables | 10 total (see [[decision/v1-scope]]) | `otp_codes` table | [[decision/v1-scope]] |
+| Tenant isolation | Repository layer — every query scopes by `business_id` | RLS (broken under NextAuth: `auth.uid()` is NULL; privileged role bypasses RLS) | [[decision/database-and-rbac]] |
+| `business_id` placement | On every table, including child tables (line items, payments, stock movements, whatsapp messages) | — | [[decision/database-and-rbac]] |
+| V1 tables | 10 business tables + `accounts` (NextAuth Google OAuth) = 11. No `sessions` (JWT), no `verification_token` (no email magic links), no `otp_codes` (Redis) | `otp_codes`, `sessions`, `verification_token` | [[decision/v1-scope]] |
 
 ## Integrations
 
