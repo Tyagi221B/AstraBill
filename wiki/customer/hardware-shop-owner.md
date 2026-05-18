@@ -79,9 +79,10 @@ trading vertical. Design in [[decision/phase-2-plan]].
 ### The challan (Challan #601)
 
 A non-GST delivery note: "Azam", no GSTIN, particulars (Handle 12", locks),
-qty / rate / remarks, total, "Received the material in Good Condition". The
-kacha / delivery-note reality — to be handled by a `delivery_challan`
-invoice type with no GST treatment.
+qty / rate / remarks, total, "Received the material in Good Condition". An
+informal cash-sale / delivery-note document — handled by the
+`delivery_challan` invoice type, no GST treatment (see "The Kacha Question"
+below).
 
 ### A supplier invoice (Hitesh Hardware, Delhi → Om Glass, #2843)
 
@@ -137,19 +138,56 @@ this is winnable on design alone.
 | Supplier (purchase) tracking | 🟠 High | What we owe vendors |
 | Stock inventory | 🟠 High | Different from service business — physical stock |
 | Payment collection | 🔴 Critical | WhatsApp reminder for contractor who hasn't paid |
-| Pakka + kacha separation | 🟡 Medium | Legal grey zone — design carefully |
+| Non-GST documents | 🟡 Medium | Estimate / cash receipt / challan — legitimate document types, not a "kacha" feature (see below) |
 
-## How to Handle Kacha Accounts (The Product Decision)
+## The Kacha Question — Our Position
 
-**We DO NOT label anything "kacha" or "informal" in the product.** Legal risk.
+"Kacha" conflates two different things, and AstraBill treats them very
+differently:
 
-**What we DO build:**
-1. **Estimates / Quotations**: Create a quote → convert to invoice when they want GST bill. The unbilled quote = the "kacha" record without calling it that.
-2. **Cash receipts**: Simple cash record without GST treatment — labeled "Receipt" not "Invoice"
-3. **Draft invoices**: Saved but not finalized = no GST liability created yet
-4. **The "data management" position**: Our terms clearly state we are a billing tool. The merchant is responsible for their tax compliance. We don't file on their behalf. This is the standard legal positioning.
+1. **Tax evasion** — deliberately not recording sales to dodge GST / income
+   tax. Illegal. AstraBill **cannot** help with this and does not try:
+   anything entered becomes a database record — *more* discoverable than a
+   paper parchi, not less. A shop owner whose goal is to hide income is not
+   our customer — and that's fine. It's a shrinking, legally-toxic segment
+   that won't pay for SaaS anyway.
 
-**This way**: The contractor who pays cash gets a receipt. The contractor who needs GST gets an invoice. The shop owner tracks both. We never say "kacha" — we say "cash receipt" and "GST invoice."
+2. **Informal-but-legal cash business** — cash sales, walk-in customers,
+   estimates, deliveries, "who owes me money". Completely legal: a cash sale
+   *is* a legal sale. This is real, daily, and huge — **this is who we serve.**
+
+**We never write the word "kacha" in the product** — not as a wink at
+evasion, but because the framing is wrong. We don't sell a "kacha tool"; we
+sell the legitimate document types every real business uses:
+
+- **Estimate / Quotation** — a price quote; converts to a tax invoice when
+  the deal closes.
+- **Cash receipt** — a record of a (legal, recordable) cash sale.
+- **Delivery challan** — a goods-movement note (GST Rule 55).
+- **Tax invoice** — the GST document.
+
+The owner picks whichever fits; we never make him learn the legal
+distinctions.
+
+**Why the owner records the cash side at all** has nothing to do with tax —
+this is the real product answer:
+
+- **Udhaar** — knowing who owes him money and chasing it. The #1 daily pain.
+- **His own clarity** — most owners have no real idea of their numbers.
+- **Getting paid faster** (WhatsApp reminders) and **looking professional**
+  (a clean receipt beats a torn parchi).
+
+**The strategic bet:** India is formalising fast — GST, UPI, e-invoicing,
+banks demanding records. The cash economy is shrinking. AstraBill helps the
+SME **formalise gracefully**, not stay hidden. Most of our customers are
+already *semi-formal* — the brother's shop has a GSTIN, issues real tax
+invoices *and* cash challans. We give them the full picture so they
+formalise on their own terms.
+
+**Legal position:** AstraBill is a data-management and billing tool — we do
+**not** file anyone's GST returns. A record existing in AstraBill is not the
+same as that record being in a GST return; the merchant and their CA decide
+what is filed. The merchant owns their tax compliance.
 
 ## What the Competitor Landscape Looks Like for This Vertical
 

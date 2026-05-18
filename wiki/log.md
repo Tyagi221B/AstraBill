@@ -222,3 +222,23 @@ migration + new Step 1b numbering), decision/v1-scope.md.
 
 The Phase 2 blueprint is now built from 6 real documents. Build proceeds
 from phase-2-plan.md in a fresh session.
+
+## [2026-05-18] edit | sharpened the kacha/pakka framing in hardware-shop-owner.md
+
+A discussion exposed that the "How to Handle Kacha Accounts" section framed
+the non-invoice document types as euphemisms for kacha ("the unbilled quote =
+the 'kacha' record without calling it that") — muddled, and positioning-risky.
+
+Reframed the section as "The Kacha Question — Our Position":
+- "Kacha" conflates two things: (1) illegal tax evasion — AstraBill cannot
+  and does not help with it; a digital record is *more* discoverable than
+  paper, and that owner is not our customer; (2) informal-but-legal cash
+  business — which is who we serve.
+- Estimate / cash receipt / delivery challan are legitimate document types,
+  not disguised kacha. The owner records the cash side for udhaar, clarity
+  and getting paid — not tax-hiding.
+- Strategic bet stated plainly: help SMEs formalise gracefully, not stay
+  hidden. "Data management, not GST filing" legal position retained.
+
+DECISIONS.md unchanged — its terse "never label it kacha" row was already
+fine. Pure wiki framing refinement; no code, no decision change.
