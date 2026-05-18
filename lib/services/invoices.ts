@@ -27,25 +27,37 @@ import {
   businesses,
   invoiceType,
 } from "../db/schema";
-import { ConflictError, NotFoundError, ValidationError } from "../errors";
+import {
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+} from "../errors";
 import {
   classifyTax,
   computeInvoiceTotals,
   computeLineItem,
 } from "../gst";
-import { requirePermission } from "../rbac";
+import { requirePermission, roleHas } from "../rbac";
 import { writeAuditEntry } from "../audit";
-import type { CreateInvoiceInput } from "../schemas/invoice";
+import type {
+  CreateInvoiceInput,
+  UpdateInvoiceInput,
+} from "../schemas/invoice";
 import {
   countInvoicesOfType,
+  deleteLineItemsForInvoice,
   findCustomerInBusiness,
   findInvoiceInBusiness,
+  getBusinessById,
   getInvoiceForUser,
+  getInvoiceForUserTx,
   getInvoiceWithLineItems,
   insertInvoice,
   insertLineItems,
   listInvoicesForUser,
   lockBusinessRow,
+  updateInvoiceHeader,
 } from "../repositories/invoices";
 
 // Prefix per invoice type — kept here (service-layer policy), not in the DB.
@@ -272,6 +284,144 @@ export async function getInvoice(
 
 /** List invoices the caller can see, filterable by business and status. */
 export { listInvoicesForUser };
+
+/**
+ * Update a draft invoice. Drafts ONLY — finalised invoices are immutable
+ * (GST rule + audit integrity). Replaces all line items, recomputes the
+ * full tax breakdown using the same lib/gst math the create flow uses,
+ * writes an `invoice.update` audit entry. All four writes happen inside
+ * a single transaction.
+ */
+export async function updateInvoice(
+  invoiceId: string,
+  input: UpdateInvoiceInput,
+  actorUserId: string,
+  ctx: ServiceContext = {},
+): Promise<CreatedInvoice> {
+  return db.transaction(async (tx) => {
+    // 1. Fetch + auth (membership) inside the tx.
+    const existing = await getInvoiceForUserTx(tx, actorUserId, invoiceId);
+    if (!existing) throw new NotFoundError("Invoice not found");
+
+    // 2. Draft-only: finalised invoices can't be edited; corrections go
+    //    through credit notes.
+    if (existing.status !== "draft") {
+      throw new ConflictError(
+        `Only draft invoices can be edited (this one is ${existing.status}). ` +
+          `Issue a credit note instead.`,
+      );
+    }
+
+    // 3. Permission check (RBAC). Caller must have `invoice:edit` for this
+    //    business; salesman/viewer roles get blocked here.
+    const role = await requirePermission(
+      actorUserId,
+      existing.businessId,
+      "invoice:edit",
+    );
+    // Belt-and-suspenders: explicit defensive check that role can edit.
+    if (!roleHas(role, "invoice:edit")) {
+      throw new ForbiddenError("Your role cannot edit invoices");
+    }
+
+    // 4. Recompute tax math against the (possibly new) place-of-supply.
+    const business = await getBusinessById(tx, existing.businessId);
+    if (!business) throw new Error("internal: invoice's business not found");
+
+    const placeOfSupply =
+      input.placeOfSupplyStateCode ?? existing.placeOfSupplyStateCode;
+    const taxClass = classifyTax(business.stateCode, placeOfSupply);
+
+    const lineAmounts = input.lineItems.map((line) =>
+      computeLineItem(
+        {
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          discountAmount: line.discountAmount,
+          gstRate: line.gstRate,
+        },
+        taxClass,
+      ),
+    );
+    const linesForTotals = input.lineItems.map((line, i) => {
+      const a = lineAmounts[i];
+      if (!a) throw new Error("internal: lineAmounts misaligned");
+      return { ...line, ...a };
+    });
+    const totals = computeInvoiceTotals(linesForTotals);
+
+    // 5. Replace line items atomically — delete all, insert fresh.
+    await deleteLineItemsForInvoice(tx, invoiceId);
+    const newLines = input.lineItems.map((line, i) => {
+      const a = lineAmounts[i];
+      if (!a) throw new Error("internal: lineAmounts misaligned");
+      return {
+        businessId: existing.businessId,
+        invoiceId,
+        productId: line.productId ?? null,
+        description: line.description,
+        hsnCode: line.hsnCode ?? null,
+        quantity: line.quantity,
+        unit: line.unit,
+        unitPrice: line.unitPrice,
+        discountAmount: line.discountAmount ?? "0",
+        gstRate: line.gstRate,
+        taxableAmount: a.taxableAmount,
+        cgstAmount: a.cgstAmount,
+        sgstAmount: a.sgstAmount,
+        igstAmount: a.igstAmount,
+        amount: a.amount,
+        sortOrder: i,
+      };
+    });
+    await insertLineItems(tx, newLines);
+
+    // 6. Update invoice header (editable fields only — number/type/status
+    //    stay locked).
+    await updateInvoiceHeader(tx, invoiceId, {
+      placeOfSupplyStateCode: placeOfSupply,
+      notes: input.notes ?? null,
+      issueDate: input.issueDate ?? existing.issueDate,
+      dueDate: input.dueDate ?? null,
+      subtotal: totals.subtotal,
+      discountAmount: totals.discountAmount,
+      taxableAmount: totals.taxableAmount,
+      cgstAmount: totals.cgstAmount,
+      sgstAmount: totals.sgstAmount,
+      igstAmount: totals.igstAmount,
+      taxAmount: totals.taxAmount,
+      roundOff: totals.roundOff,
+      total: totals.total,
+    });
+
+    // 7. Audit — diff stays small (rows are JSONB).
+    await writeAuditEntry(tx, {
+      action: "invoice.update",
+      businessId: existing.businessId,
+      actorUserId,
+      entityType: "invoice",
+      entityId: invoiceId,
+      changes: {
+        before: {
+          total: existing.total,
+          lineItemCount: existing.lineItems.length,
+        },
+        after: { total: totals.total, lineItemCount: newLines.length },
+      },
+      ipAddress: ctx.ipAddress ?? null,
+      userAgent: ctx.userAgent ?? null,
+    });
+
+    // 8. Re-read, return.
+    const updated = await getInvoiceWithLineItems(
+      tx,
+      existing.businessId,
+      invoiceId,
+    );
+    if (!updated) throw new Error("internal: updated invoice not found");
+    return updated;
+  });
+}
 
 // Re-exported so route handlers can pull the type without going through
 // the schemas folder.

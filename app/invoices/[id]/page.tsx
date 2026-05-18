@@ -86,19 +86,37 @@ export default async function InvoicePage({
             {invoice.dueDate && ` · Due ${invoice.dueDate}`}
           </p>
         </div>
-        <span
-          style={{
-            padding: "0.35rem 0.7rem",
-            background: STATUS_COLOUR[invoice.status] ?? "#888",
-            color: "#fff",
-            borderRadius: 999,
-            fontSize: "0.78rem",
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-          }}
-        >
-          {invoice.status.replace("_", " ")}
-        </span>
+        <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
+          {invoice.status === "draft" && (
+            <Link
+              href={`/invoices/${invoice.id}/edit`}
+              style={{
+                padding: "0.4rem 0.85rem",
+                border: "1px solid #ddd",
+                borderRadius: 6,
+                background: "#fff",
+                color: "#333",
+                fontSize: "0.85rem",
+                textDecoration: "none",
+              }}
+            >
+              Edit
+            </Link>
+          )}
+          <span
+            style={{
+              padding: "0.35rem 0.7rem",
+              background: STATUS_COLOUR[invoice.status] ?? "#888",
+              color: "#fff",
+              borderRadius: 999,
+              fontSize: "0.78rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}
+          >
+            {invoice.status.replace("_", " ")}
+          </span>
+        </div>
       </header>
 
       <section style={card}>

@@ -149,6 +149,85 @@ export async function getInvoiceForUser(
   return row;
 }
 
+/** Transaction-bound variant of getInvoiceForUser — used by the update flow
+ *  where the auth check must be inside the same tx as the mutation. */
+export async function getInvoiceForUserTx(
+  tx: Tx,
+  userId: string,
+  invoiceId: string,
+): Promise<(Invoice & { lineItems: InvoiceLineItem[] }) | null> {
+  const row = await tx.query.invoices.findFirst({
+    where: and(eq(invoices.id, invoiceId), isNull(invoices.deletedAt)),
+    with: { lineItems: true },
+  });
+  if (!row) return null;
+  const member = await tx.query.businessMembers.findFirst({
+    where: and(
+      eq(businessMembers.businessId, row.businessId),
+      eq(businessMembers.userId, userId),
+      isNull(businessMembers.deletedAt),
+    ),
+  });
+  if (!member) return null;
+  return row;
+}
+
+/** Hard-delete every line item of an invoice. Used during an update to wipe
+ *  the previous set before inserting the new ones — drafts only, called
+ *  inside the update transaction. */
+export async function deleteLineItemsForInvoice(
+  tx: Tx,
+  invoiceId: string,
+): Promise<void> {
+  await tx
+    .delete(invoiceLineItems)
+    .where(eq(invoiceLineItems.invoiceId, invoiceId));
+}
+
+/** Apply the editable header fields + the freshly computed totals. Locked
+ *  fields (number, type, businessId, status, originalInvoiceId, createdBy)
+ *  are not part of the patch shape — the service builds it. */
+export interface InvoiceHeaderPatch {
+  placeOfSupplyStateCode: string | null;
+  notes: string | null;
+  issueDate: string;
+  dueDate: string | null;
+  subtotal: string;
+  discountAmount: string;
+  taxableAmount: string;
+  cgstAmount: string;
+  sgstAmount: string;
+  igstAmount: string;
+  taxAmount: string;
+  roundOff: string;
+  total: string;
+}
+
+export async function updateInvoiceHeader(
+  tx: Tx,
+  invoiceId: string,
+  patch: InvoiceHeaderPatch,
+): Promise<Invoice> {
+  const [row] = await tx
+    .update(invoices)
+    .set(patch)
+    .where(eq(invoices.id, invoiceId))
+    .returning();
+  if (!row) throw new Error("Update invoice returned no row");
+  return row;
+}
+
+/** The business row (no lock) — used during update to recompute tax class. */
+export async function getBusinessById(
+  tx: Tx,
+  businessId: string,
+): Promise<Business | null> {
+  const row = await tx.query.businesses.findFirst({
+    where: and(eq(businesses.id, businessId), isNull(businesses.deletedAt)),
+  });
+  return row ?? null;
+}
+
 /**
  * List invoices the user is allowed to see — every business they're an
  * active member of. Filters: optional businessId (must be one of their

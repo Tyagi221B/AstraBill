@@ -111,21 +111,44 @@ const totalRow: React.CSSProperties = {
 
 // ---- form ---------------------------------------------------------------
 
+export interface InvoiceFormInitial {
+  type: (typeof TYPES)[number]["value"];
+  placeOfSupplyStateCode: string | null;
+  notes: string | null;
+  issueDate: string;
+  dueDate: string | null;
+  lineItems: LineItem[];
+}
+
 export function InvoiceForm({
   businesses,
   initialBusinessId,
+  editingInvoiceId,
+  initial,
 }: {
   businesses: BusinessOption[];
   initialBusinessId: string;
+  /** Presence of this prop switches the form into edit mode — business +
+   *  type become read-only, submit calls PATCH /api/invoices/[id]. */
+  editingInvoiceId?: string;
+  initial?: InvoiceFormInitial;
 }) {
+  const isEdit = Boolean(editingInvoiceId);
+
   const [businessId, setBusinessId] = useState(initialBusinessId);
   const [type, setType] = useState<(typeof TYPES)[number]["value"]>(
-    "tax_invoice",
+    initial?.type ?? "tax_invoice",
   );
-  const [placeOfSupplyStateCode, setPlaceOfSupplyStateCode] = useState("");
-  const [notes, setNotes] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [lineItems, setLineItems] = useState<LineItem[]>([blankLine()]);
+  const [placeOfSupplyStateCode, setPlaceOfSupplyStateCode] = useState(
+    initial?.placeOfSupplyStateCode ?? "",
+  );
+  const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
+  const [lineItems, setLineItems] = useState<LineItem[]>(
+    initial?.lineItems && initial.lineItems.length > 0
+      ? initial.lineItems
+      : [blankLine()],
+  );
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -189,9 +212,7 @@ export function InvoiceForm({
     setError(null);
     setErrorDetails(null);
     try {
-      const payload = {
-        businessId,
-        type,
+      const sharedFields = {
         placeOfSupplyStateCode: placeOfSupplyStateCode || null,
         notes: notes.trim() || null,
         dueDate: dueDate || null,
@@ -205,8 +226,14 @@ export function InvoiceForm({
           gstRate: l.gstRate,
         })),
       };
-      const res = await fetch("/api/invoices", {
-        method: "POST",
+      // Create vs edit: PATCH omits businessId/type (locked); POST includes both.
+      const payload = isEdit
+        ? sharedFields
+        : { ...sharedFields, businessId, type };
+      const url = isEdit ? `/api/invoices/${editingInvoiceId}` : "/api/invoices";
+      const method = isEdit ? "PATCH" : "POST";
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -218,7 +245,10 @@ export function InvoiceForm({
         setErrorDetails(json.error.details);
         return;
       }
-      window.location.assign(`/invoices/${json.data.id}`);
+      // On create, the new id is in the response. On edit, the id is what
+      // the user already had — we navigate back to the detail page either way.
+      const id = isEdit ? editingInvoiceId! : json.data.id;
+      window.location.assign(`/invoices/${id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -251,13 +281,14 @@ export function InvoiceForm({
         >
           <div>
             <label style={fieldLabel} htmlFor="biz">
-              Business
+              Business{isEdit && <span style={{ color: "#888", fontWeight: 400 }}> · locked</span>}
             </label>
             <select
               id="biz"
               value={businessId}
               onChange={(e) => setBusinessId(e.target.value)}
-              style={input}
+              disabled={isEdit}
+              style={{ ...input, opacity: isEdit ? 0.7 : 1 }}
             >
               {businesses.map((b) => (
                 <option key={b.id} value={b.id}>
@@ -269,7 +300,7 @@ export function InvoiceForm({
           </div>
           <div>
             <label style={fieldLabel} htmlFor="type">
-              Type
+              Type{isEdit && <span style={{ color: "#888", fontWeight: 400 }}> · locked</span>}
             </label>
             <select
               id="type"
@@ -277,7 +308,8 @@ export function InvoiceForm({
               onChange={(e) =>
                 setType(e.target.value as (typeof TYPES)[number]["value"])
               }
-              style={input}
+              disabled={isEdit}
+              style={{ ...input, opacity: isEdit ? 0.7 : 1 }}
             >
               {TYPES.map((t) => (
                 <option key={t.value} value={t.value}>
@@ -636,7 +668,13 @@ export function InvoiceForm({
             cursor: submitDisabled ? "not-allowed" : "pointer",
           }}
         >
-          {busy ? "Creating…" : "Create draft"}
+          {busy
+            ? isEdit
+              ? "Saving…"
+              : "Creating…"
+            : isEdit
+              ? "Save changes"
+              : "Create draft"}
         </button>
       </div>
     </form>

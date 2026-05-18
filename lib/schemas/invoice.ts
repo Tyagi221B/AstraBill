@@ -77,3 +77,22 @@ export const createInvoiceSchema = z.object({
 
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;
 export type CreateInvoiceLineItemInput = z.infer<typeof lineItemSchema>;
+
+// ---- Update invoice (drafts only) ---------------------------------------
+
+/**
+ * What can change on an edit: place of supply, notes, dates, full line-item
+ * replacement. What CANNOT change: businessId, type, number, status,
+ * originalInvoiceId, createdBy — those are locked once the row exists.
+ * Changing type would re-shuffle the per-type numbering series; changing
+ * business would break tenant isolation. Both are deliberate refusals.
+ */
+export const updateInvoiceSchema = z.object({
+  placeOfSupplyStateCode: stateCode.nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+  issueDate: isoDate.optional(),
+  dueDate: isoDate.nullable().optional(),
+  lineItems: z.array(lineItemSchema).min(1, "At least one line item is required"),
+});
+
+export type UpdateInvoiceInput = z.infer<typeof updateInvoiceSchema>;
