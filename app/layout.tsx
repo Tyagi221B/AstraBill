@@ -40,6 +40,9 @@ export default async function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
+      // Next 16: opt route transitions out of smooth scrolling while keeping
+      // it for in-page anchor links (e.g. the landing's /#features hash).
+      data-scroll-behavior="smooth"
       className={`${GeistSans.variable} ${GeistMono.variable}`}
     >
       <body>
