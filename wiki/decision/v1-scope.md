@@ -28,7 +28,7 @@ All four must ship together. Shipping 3/4 means our first customer (the brother)
 - Auto-calculation: CGST/SGST for intrastate, IGST for interstate
 - Business profile: name, address, GSTIN, logo, bank details
 - PDF microservice (Puppeteer on DO): A4, print-ready, professional
-- Invoice numbering: auto-incrementing per business (INV-001, INV-002...)
+- Invoice numbering: FY-aware `{prefix}/{FY}/{seq}` — see `DECISIONS.md` → "Invoice numbering"
 - Credit note / debit note support (adjustments)
 
 ### 2. WhatsApp Send + UPI Payment Link
@@ -119,8 +119,9 @@ Key schema decisions:
   `invoices` table — no separate tables. `originalInvoiceId` self-references for notes.
 - **GST split columns** (`cgst`/`sgst`/`igst`) on both invoices and line items. Computed
   from `placeOfSupply` vs business `state_code`: intrastate → CGST+SGST, interstate → IGST.
-- Per-`type` invoice numbering series (EST-001, INV-001, CN-001), made concurrency-safe
-  with a row lock inside the create transaction — no separate counter table.
+- Invoice numbering — see `DECISIONS.md` → "Invoice numbering". Phase 1 ships
+  simple per-type series; Phase 2 moves to FY-aware `{prefix}/{FY}/{seq}`.
+  Concurrency-safe via a row lock in the create transaction — no counter table.
 - **`audit_log`** records every mutation + auth event; **soft delete** (`deleted_at`)
   on mutable tables. See [[decision/database-and-rbac]] for both.
 - **Timestamps**: `timestamptz` (UTC) for instants; Postgres `date` for `issue_date` /

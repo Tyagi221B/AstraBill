@@ -1,7 +1,7 @@
 ---
 type: customer
 updated: 2026-05-18
-sources: 5
+sources: 6
 ---
 
 # Customer Profile: Hardware / Glass / Building Materials Shop Owner
@@ -99,6 +99,31 @@ three extra lessons:
 - **Terms & Conditions** printed on the invoice: late-payment interest
   ("24% if not paid within 15 days"), "goods once sold not taken back",
   jurisdiction. → a business-level default terms block on the PDF.
+
+### A computerised invoice (Diamond Tuff Glass → Shiv Shakti, #4983)
+
+The only **software-generated** invoice in the set — i.e. the competitor
+bar. Functional but ugly: cramped, watermark-smothered, generic Tally-style
+output. What it adds:
+
+- **Taxable vs non-taxable charges.** A "Hole, Cut Out Template Charge"
+  (₹724) is added to the product total → **taxable value → then 18% GST**.
+  Processing / cutting / hole charges are *taxed*; freight is often
+  post-tax. So a charge needs a **`taxable` flag** — a single post-tax
+  `freight`/`extra_charges` model is incomplete.
+- **FY-aware numbering** — `DTG/24-25/4983` = prefix / financial year /
+  sequence. GST Rule 46 requires numbers "unique for a financial year".
+  AstraBill adopts this: `{prefix}/{FY}/{seq}`, resets per FY.
+- **HSN-wise tax summary** — a table grouping taxable value + tax by HSN +
+  rate. GST / GSTR-1 compliance; derived from line items, rendered on the PDF.
+- **E-Way Bill No.** field — mandatory for consignments over ₹50,000.
+- **P.I. (Proforma Invoice) reference** — the tax invoice cites the proforma
+  it converted from; this is our `estimate` → `tax_invoice` flow.
+- UPI QR + "no cash" note + GST declaration text — PDF-template elements.
+
+**The takeaway:** a small glass shop's *current best software* produces a
+cramped, ugly document. A clean modern AstraBill PDF looks a decade ahead —
+this is winnable on design alone.
 
 ## What This Customer Needs from Software
 

@@ -40,17 +40,32 @@ is safe on the existing rows.
   **informational** (glass: `quantity`=11.34 `unit`=sqm, `secondary`=4 pcs).
 - `invoices` → add `ship_to_name text`, `ship_to_address text`,
   `extra_charges jsonb NOT NULL DEFAULT '[]'`, `transport_mode text`,
-  `vehicle_number text`.
+  `vehicle_number text`, `eway_bill_number text`.
 - `businesses` → add `invoice_terms text` (default T&C block printed on the
-  PDF — late-payment interest, jurisdiction, etc.).
-- **Extra charges** = a JSONB array of `{ label, amount }` (amounts stored as
-  *strings* — keeps decimal precision and dodges the JSON-number trap).
-  Real invoices carry Freight *and* Loading as separate rows, so a single
-  `freight` column would be wrong — it's a list.
-- `lib/gst.ts` → `computeInvoiceTotals` takes an optional `extraCharges`
-  arg; `total = round(taxable + tax) + Σ extraCharges` (charges are added
-  **post-tax, post-round-off** — matches the real invoices; not themselves
-  taxed in V1).
+  PDF), `invoice_number_prefix text` (nullable — overrides the per-type
+  default prefix).
+- **Extra charges** = a JSONB array of `{ label, amount, taxable, gstRate? }`
+  (amounts as *strings* — decimal precision, dodges the JSON-number trap).
+  A **taxable** charge (cutting / hole / processing — real invoices tax
+  these) folds into the taxable base at its `gstRate` before GST; a
+  **non-taxable** charge (informal freight, loading) is added post-tax.
+- `lib/gst.ts` → `computeInvoiceTotals` takes `extraCharges`: taxable ones
+  join the pre-GST taxable base, non-taxable ones are added
+  **post-tax, post-round-off**. Matches both real-invoice styles seen
+  (Diamond Tuff taxes the cut-out charge; Om Glass adds freight post-tax).
+
+### Step 1b — FY-aware invoice numbering
+
+Rework the numbering in `lib/services/invoices.ts`:
+- Format `{prefix}/{FY}/{seq}` — e.g. `INV/25-26/0001`. FY label derived
+  from `issue_date` (Indian FY runs Apr 1 – Mar 31).
+- Sequence resets per **business + type + financial year**.
+  `countInvoicesOfType` becomes scoped by FY too. The `FOR UPDATE` lock on
+  the business row still guarantees race-free numbering.
+- `prefix` = `businesses.invoice_number_prefix` if set, else the per-type
+  default (`INV` / `EST` / `CR` / `CN` / `DN` / `DC`).
+- Phase 1's existing `INV-0001`-style invoices keep their issued numbers
+  (numbers are immutable) — only the *scheme for new invoices* changes.
 
 ⚠️ Reads that touch line items already use flat `db.select()` — keep it that
 way (see the "Relational reads" rule in [[decision/database-and-rbac]]).

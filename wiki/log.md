@@ -191,3 +191,34 @@ Hardware, Delhi → Om Glass, Uttarakhand). Refines the Phase 2 plan:
 
 Updated customer/hardware-shop-owner.md (sources 4 → 5), DECISIONS.md
 "Product — Invoice Anatomy", and decision/phase-2-plan.md.
+
+## [2026-05-18] ingest | computerised invoice (Diamond Tuff Glass) — competitor bar + refinements
+
+A 5th source: Diamond Tuff Glass Enterprises tax invoice #4983 — the only
+*software-generated* invoice in the set. Shows what the current best tool in
+this trade produces (cramped, watermark-heavy, generic Tally output — the bar
+AstraBill must beat).
+
+Refinements captured:
+- **Taxable vs non-taxable charges** — Diamond Tuff's "Hole, Cut Out Template
+  Charge" is folded into the taxable value and *then* taxed at 18%; Om Glass's
+  freight sits post-tax. So `extra_charges` entries need a `taxable` flag
+  (+ `gstRate`), not a flat post-tax assumption. DECISIONS "Extra charges"
+  row and the phase-2-plan migration updated.
+- **FY-aware invoice numbering** — `DTG/24-25/4983` = prefix/FY/sequence.
+  GST Rule 46 wants numbers "unique for a financial year". User chose
+  FY-aware: `{prefix}/{FY}/{seq}`, resets per business+type+FY, prefix
+  business-configurable. New DECISIONS row; phase-2-plan Step 1b added;
+  v1-scope numbering line updated.
+- **E-way bill number** — optional `eway_bill_number` field (recorded, not
+  generated). HSN-wise tax summary — a PDF-rendering concern, derived from
+  line items. Both added to DECISIONS + the plan.
+- Proforma-invoice reference confirms the estimate → tax-invoice flow.
+
+Updated customer/hardware-shop-owner.md (sources 5 → 6), DECISIONS.md
+"Product — Invoice Anatomy" (Extra charges revised; new rows for Invoice
+numbering, E-way bill, HSN tax summary), decision/phase-2-plan.md (Step 1
+migration + new Step 1b numbering), decision/v1-scope.md.
+
+The Phase 2 blueprint is now built from 6 real documents. Build proceeds
+from phase-2-plan.md in a fresh session.

@@ -96,7 +96,10 @@ Implemented in Phase 2 — see [[decision/phase-2-plan]].
 |------|----------|-------|-----------|
 | Dual-unit line items | A line carries a rate-bearing `quantity`+`unit` AND an optional secondary `quantity`+`unit` (informational — glass billed per sq.m, counted in pcs). GST math runs on the rate-bearing pair only | a single unit per line | [[customer/hardware-shop-owner]] |
 | Bill-to vs ship-to | Invoice carries an optional ship-to name + address, distinct from the bill-to customer | — | [[decision/phase-2-plan]] |
-| Extra charges | Invoice carries a list of named **post-tax** charges (`label` + `amount`) — Freight, Loading, Packing, etc. Stored as a JSONB array (amounts as strings) | a single fixed `freight` column; taxing these as a composite supply in V1 | [[decision/phase-2-plan]] |
+| Extra charges | Invoice carries a JSONB list of `{label, amount, taxable, gstRate?}`. Taxable charges (cutting, hole, processing) fold into the taxable value **pre-GST**; non-taxable (informal freight, loading) add **post-tax** | a single fixed `freight` column; assuming all charges are post-tax | [[decision/phase-2-plan]] |
+| Invoice numbering | `{prefix}/{FY}/{seq}` — e.g. `INV/25-26/0001`. Sequence resets per business + type + financial year; FY derived from issue date (Indian FY, Apr–Mar). Prefix defaults per type, business-configurable | a never-resetting running number (Phase 1 shipped `INV-0001`; Phase 2 migrates) | [[decision/phase-2-plan]] |
+| E-way bill | Optional `eway_bill_number` text on invoices — recorded, not generated (e-way-bill generation is post-V1) | — | [[decision/phase-2-plan]] |
+| HSN tax summary | Rendered on the invoice PDF — taxable value + tax grouped by HSN + rate; derived from line items, not stored | a stored summary table | [[decision/phase-2-plan]] |
 | Transport fields | Optional transport mode + vehicle number on the invoice | — | [[decision/phase-2-plan]] |
 | Invoice terms | Business-level default T&C text (late-payment interest, jurisdiction…), printed on the invoice PDF; per-invoice override optional | — | [[decision/phase-2-plan]] |
 | Invoice types | `tax_invoice`, `estimate`, `cash_receipt`, `credit_note`, `debit_note`, `delivery_challan` (non-GST goods-movement note) | — | [[customer/hardware-shop-owner]] |
