@@ -40,6 +40,7 @@ import {
   countInvoicesOfType,
   findCustomerInBusiness,
   findInvoiceInBusiness,
+  getInvoiceForUser,
   getInvoiceWithLineItems,
   insertInvoice,
   insertLineItems,
@@ -254,6 +255,18 @@ function isUniqueViolation(err: unknown): boolean {
     "code" in err &&
     (err as { code?: unknown }).code === "23505"
   );
+}
+
+/**
+ * Read an invoice by id, scoped to the caller's businesses. Returns null if
+ * the invoice doesn't exist OR the user isn't a member — same null for both
+ * so we don't leak existence to non-members.
+ */
+export async function getInvoice(
+  invoiceId: string,
+  actorUserId: string,
+): Promise<CreatedInvoice | null> {
+  return getInvoiceForUser(actorUserId, invoiceId);
 }
 
 // Re-exported so route handlers can pull the type without going through

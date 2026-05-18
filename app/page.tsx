@@ -138,7 +138,7 @@ export default async function Home() {
                   style={{
                     color: "#666",
                     fontSize: "0.85rem",
-                    margin: "0.3rem 0 0",
+                    margin: "0.3rem 0 0.75rem",
                   }}
                 >
                   {business.gstin ? (
@@ -151,6 +151,12 @@ export default async function Home() {
                   {business.stateCode &&
                     ` · State code ${business.stateCode}`}
                 </p>
+                <Link
+                  href={`/invoices/new?businessId=${business.id}`}
+                  style={ctaPrimary}
+                >
+                  + New invoice
+                </Link>
               </li>
             ))}
           </ul>

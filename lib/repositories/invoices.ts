@@ -6,7 +6,7 @@
 import "server-only";
 import { and, count, eq, isNull, sql } from "drizzle-orm";
 
-import type { Tx } from "../db";
+import { db, type Tx } from "../db";
 import {
   type Business,
   type Customer,
@@ -14,6 +14,7 @@ import {
   type InvoiceLineItem,
   type NewInvoice,
   type NewInvoiceLineItem,
+  businessMembers,
   businesses,
   customers,
   invoiceLineItems,
@@ -118,6 +119,34 @@ export async function getInvoiceWithLineItems(
     with: { lineItems: true },
   });
   return row ?? null;
+}
+
+/**
+ * Read-only fetch by invoice id, authorised through a `business_members`
+ * JOIN — no separate permission roundtrip. Returns null both for "invoice
+ * doesn't exist" and "user has no membership", deliberately, so existence
+ * isn't leaked to non-members.
+ */
+export async function getInvoiceForUser(
+  userId: string,
+  invoiceId: string,
+): Promise<(Invoice & { lineItems: InvoiceLineItem[] }) | null> {
+  const row = await db.query.invoices.findFirst({
+    where: and(eq(invoices.id, invoiceId), isNull(invoices.deletedAt)),
+    with: { lineItems: true },
+  });
+  if (!row) return null;
+
+  // Authorise: caller must be an active member of this invoice's business.
+  const member = await db.query.businessMembers.findFirst({
+    where: and(
+      eq(businessMembers.businessId, row.businessId),
+      eq(businessMembers.userId, userId),
+      isNull(businessMembers.deletedAt),
+    ),
+  });
+  if (!member) return null;
+  return row;
 }
 
 /** Bypass — used during a service's create flow where the tx-private state
