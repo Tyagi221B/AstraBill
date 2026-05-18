@@ -6,7 +6,7 @@
 import "server-only";
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
-import { db, type Tx } from "../db";
+import { db, type DB, type Tx } from "../db";
 import {
   type Business,
   type Customer,
@@ -104,72 +104,117 @@ export async function insertLineItems(
   return tx.insert(invoiceLineItems).values(items).returning();
 }
 
-/** Fetch an invoice with its line items — scoped by business. */
+// IMPORTANT — why these reads use flat db.select() and not db.query.with():
+//
+// Drizzle's relational query API (`db.query.X.findFirst({ with: { ... } })`)
+// fetches nested relations by having Postgres aggregate the child rows into
+// JSON (`json_build_array`). A `numeric` column inside that JSON becomes a
+// bare JSON number, and JSON.parse turns it into a JS `number` — destroying
+// the string type Drizzle declares for `numeric()` columns and that the rest
+// of the app (Zod, decimal.js) relies on.
+//
+// `invoice_line_items` is full of `numeric` columns, so any read that nests
+// line items MUST use flat selects and stitch the rows together in JS.
+// See DECISIONS.md → "Relational reads" and database-and-rbac.md.
+
+type InvoiceWithLineItems = Invoice & { lineItems: InvoiceLineItem[] };
+
+/** Line items for an invoice, ordered by sortOrder. Flat select — numeric
+ *  columns stay strings. Works with either the db handle or a transaction. */
+async function selectLineItems(
+  exec: DB | Tx,
+  invoiceId: string,
+): Promise<InvoiceLineItem[]> {
+  return exec
+    .select()
+    .from(invoiceLineItems)
+    .where(eq(invoiceLineItems.invoiceId, invoiceId))
+    .orderBy(invoiceLineItems.sortOrder);
+}
+
+/** Fetch an invoice with its line items — scoped by business. Two flat
+ *  selects joined in JS (no relational `with:` — see note above). */
 export async function getInvoiceWithLineItems(
   tx: Tx,
   businessId: string,
   invoiceId: string,
-): Promise<(Invoice & { lineItems: InvoiceLineItem[] }) | null> {
-  const row = await tx.query.invoices.findFirst({
-    where: and(
-      eq(invoices.id, invoiceId),
-      eq(invoices.businessId, businessId),
-      isNull(invoices.deletedAt),
-    ),
-    with: { lineItems: true },
-  });
-  return row ?? null;
+): Promise<InvoiceWithLineItems | null> {
+  const [invoice] = await tx
+    .select()
+    .from(invoices)
+    .where(
+      and(
+        eq(invoices.id, invoiceId),
+        eq(invoices.businessId, businessId),
+        isNull(invoices.deletedAt),
+      ),
+    );
+  if (!invoice) return null;
+  const lineItems = await selectLineItems(tx, invoiceId);
+  return { ...invoice, lineItems };
 }
 
 /**
  * Read-only fetch by invoice id, authorised through a `business_members`
- * JOIN — no separate permission roundtrip. Returns null both for "invoice
+ * check — no separate permission roundtrip. Returns null both for "invoice
  * doesn't exist" and "user has no membership", deliberately, so existence
- * isn't leaked to non-members.
+ * isn't leaked to non-members. Flat selects (see note above).
  */
 export async function getInvoiceForUser(
   userId: string,
   invoiceId: string,
-): Promise<(Invoice & { lineItems: InvoiceLineItem[] }) | null> {
-  const row = await db.query.invoices.findFirst({
-    where: and(eq(invoices.id, invoiceId), isNull(invoices.deletedAt)),
-    with: { lineItems: true },
-  });
-  if (!row) return null;
+): Promise<InvoiceWithLineItems | null> {
+  const [invoice] = await db
+    .select()
+    .from(invoices)
+    .where(and(eq(invoices.id, invoiceId), isNull(invoices.deletedAt)));
+  if (!invoice) return null;
 
   // Authorise: caller must be an active member of this invoice's business.
-  const member = await db.query.businessMembers.findFirst({
-    where: and(
-      eq(businessMembers.businessId, row.businessId),
-      eq(businessMembers.userId, userId),
-      isNull(businessMembers.deletedAt),
-    ),
-  });
+  const [member] = await db
+    .select({ id: businessMembers.id })
+    .from(businessMembers)
+    .where(
+      and(
+        eq(businessMembers.businessId, invoice.businessId),
+        eq(businessMembers.userId, userId),
+        isNull(businessMembers.deletedAt),
+      ),
+    );
   if (!member) return null;
-  return row;
+
+  const lineItems = await selectLineItems(db, invoiceId);
+  return { ...invoice, lineItems };
 }
 
 /** Transaction-bound variant of getInvoiceForUser — used by the update flow
- *  where the auth check must be inside the same tx as the mutation. */
+ *  where the auth check must be inside the same tx as the mutation. Flat
+ *  selects (see note above). */
 export async function getInvoiceForUserTx(
   tx: Tx,
   userId: string,
   invoiceId: string,
-): Promise<(Invoice & { lineItems: InvoiceLineItem[] }) | null> {
-  const row = await tx.query.invoices.findFirst({
-    where: and(eq(invoices.id, invoiceId), isNull(invoices.deletedAt)),
-    with: { lineItems: true },
-  });
-  if (!row) return null;
-  const member = await tx.query.businessMembers.findFirst({
-    where: and(
-      eq(businessMembers.businessId, row.businessId),
-      eq(businessMembers.userId, userId),
-      isNull(businessMembers.deletedAt),
-    ),
-  });
+): Promise<InvoiceWithLineItems | null> {
+  const [invoice] = await tx
+    .select()
+    .from(invoices)
+    .where(and(eq(invoices.id, invoiceId), isNull(invoices.deletedAt)));
+  if (!invoice) return null;
+
+  const [member] = await tx
+    .select({ id: businessMembers.id })
+    .from(businessMembers)
+    .where(
+      and(
+        eq(businessMembers.businessId, invoice.businessId),
+        eq(businessMembers.userId, userId),
+        isNull(businessMembers.deletedAt),
+      ),
+    );
   if (!member) return null;
-  return row;
+
+  const lineItems = await selectLineItems(tx, invoiceId);
+  return { ...invoice, lineItems };
 }
 
 /** Hard-delete every line item of an invoice. Used during an update to wipe

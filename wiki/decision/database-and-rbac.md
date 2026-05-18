@@ -157,19 +157,34 @@ export const invoices = pgTable('invoices', {
   createdAt:   timestamp('created_at').defaultNow().notNull(),
 })
 
-// Querying — reads like Mongoose, types flow through automatically
-const invoice = await db.query.invoices.findFirst({
-  where: eq(invoices.id, invoiceId),
-  with: {
-    lineItems: true,   // JOIN — as simple as Mongoose .populate()
-    customer:  true,
-    business:  true,
-  }
-})
-// invoice.lineItems is typed. invoice.customer is typed. No any.
+// Querying a single table — flat select, types flow through automatically
+const [invoice] = await db
+  .select()
+  .from(invoices)
+  .where(eq(invoices.id, invoiceId))
+// invoice is fully typed. No `any`.
 ```
 
 That's not scary. That's more structured than MongoDB and equally readable.
+
+### ⚠️ Never use the relational `with:` API on tables with `numeric` columns
+
+Drizzle's relational query API — `db.query.X.findFirst({ with: { child: true } })`
+— is tempting (it reads like Mongoose `.populate()`). **Do not use it to pull
+in a child relation that has `numeric` columns** (line items, payments, stock
+movements — anything money/quantity-bearing).
+
+Reason: the relational API fetches nested rows by having Postgres aggregate
+them into JSON (`json_build_array`). A `numeric` column inside JSON becomes a
+bare JSON *number*; `JSON.parse` then yields a JS `number`. That silently
+destroys the `string` type Drizzle declares for `numeric()` columns and that
+the rest of the stack (Zod boundary, `decimal.js` math) depends on — caught
+the hard way during the invoice-edit build (2026-05-18).
+
+**The rule:** for any read that joins a `numeric`-bearing table, use flat
+`db.select()` queries and stitch rows together in JS. The repository layer
+does exactly this for invoices + line items. Plain `db.query.X.findFirst()`
+*without* `with:` is fine — only the JSON-aggregated nested path is the trap.
 
 **Why PostgreSQL over MongoDB for billing software:**
 

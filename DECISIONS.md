@@ -46,6 +46,7 @@ Last reconciled: 2026-05-17
 | Multi-tenancy | One user → many businesses via `business_members` join table, role per business | global roles | [[decision/database-and-rbac]] |
 | Roles | owner, admin, accountant, salesman, viewer | — | [[decision/database-and-rbac]] |
 | RBAC | TypeScript service layer (`lib/rbac.ts`) | RBAC logic in SQL | [[decision/database-and-rbac]] |
+| Relational reads | Flat `db.select()` + JS join for any read touching a `numeric`-bearing child table | Drizzle's relational `with:` on numeric tables — its `json_build_array` aggregation turns `numeric` into a JS `number`, breaking the string type | [[decision/database-and-rbac]] |
 | Tenant isolation | Repository layer — every query scopes by `business_id` | RLS (broken under NextAuth: `auth.uid()` is NULL; privileged role bypasses RLS) | [[decision/database-and-rbac]] |
 | `business_id` placement | On every table, including child tables (line items, payments, stock movements, whatsapp messages, audit log) | — | [[decision/database-and-rbac]] |
 | V1 tables | 11 business tables (incl. `audit_log`) + `accounts` (NextAuth Google OAuth) = 12. No `sessions` (JWT), no `verification_token` (no email magic links), no `otp_codes` (Redis) | `otp_codes`, `sessions`, `verification_token` | [[decision/v1-scope]] |

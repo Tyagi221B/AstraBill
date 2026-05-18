@@ -29,16 +29,6 @@ const globalForDb = globalThis as unknown as {
   __db?: DrizzleClient;
 };
 
-// Postgres type OIDs we want to override in postgres-js's default parsers.
-// 1700 = numeric / decimal. By default postgres-js returns these as JS
-// numbers, which (a) loses precision for money / quantities and (b)
-// mismatches Drizzle's `numeric()` columns whose inferred TS type is
-// `string`. The mismatch silently breaks round-trip flows like the edit
-// form (DB read returns a number → form re-sends a number → Zod string
-// schema rejects). Force NUMERIC to stay a string end-to-end so the
-// types match the runtime.
-const NUMERIC_OID = 1700;
-
 function getDb(): DrizzleClient {
   if (globalForDb.__db) return globalForDb.__db;
   const connectionString = process.env.DATABASE_URL;
@@ -47,20 +37,14 @@ function getDb(): DrizzleClient {
       "DATABASE_URL is not set. Copy .env.example to .env.local and fill it in.",
     );
   }
+  // postgres-js already returns raw NUMERIC columns as strings (OID 1700 is
+  // not in its number-parser list) — no type override needed here. The
+  // numeric-as-number hazard lives in Drizzle's relational `with:` queries,
+  // which JSON-aggregate nested rows; that's handled in the repository
+  // layer by using flat db.select() instead. See database-and-rbac.md.
   const client =
     globalForDb.__postgresClient ??
-    postgres(connectionString, {
-      prepare: false,
-      max: 10,
-      types: {
-        numeric: {
-          to: NUMERIC_OID,
-          from: [NUMERIC_OID],
-          serialize: (x: string | number) => String(x),
-          parse: (x: string) => x,
-        },
-      },
-    });
+    postgres(connectionString, { prepare: false, max: 10 });
   globalForDb.__postgresClient = client;
   globalForDb.__db = makeDb(client);
   return globalForDb.__db;
