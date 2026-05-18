@@ -23,10 +23,7 @@ export const metadata: Metadata = {
   applicationName: SITE_NAME,
   authors: [{ name: "Opryon Labs" }],
   creator: "Opryon Labs",
-  icons: {
-    icon: "/astrabill-app-icon-light.png",
-    apple: "/astrabill-app-icon-light.png",
-  },
+  // Icons come from app/icon.png + app/apple-icon.png (Next file convention).
   robots: { index: true, follow: true },
 };
 
