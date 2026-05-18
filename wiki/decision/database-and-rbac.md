@@ -146,7 +146,7 @@ export const invoices = pgTable('invoices', {
   id:          uuid('id').defaultRandom().primaryKey(),
   businessId:  uuid('business_id').notNull().references(() => businesses.id, { onDelete: 'cascade' }),
   customerId:  uuid('customer_id').references(() => customers.id),
-  number:      text('number').notNull(),
+  number:      text('number'),  // null until finalise — see DECISIONS.md
   status:      invoiceStatus('status').default('draft'),
   subtotal:    numeric('subtotal', { precision: 12, scale: 2 }).notNull(),
   taxAmount:   numeric('tax_amount', { precision: 12, scale: 2 }).notNull(),

@@ -24,7 +24,7 @@ Last reconciled: 2026-05-17
 | PDF generation | Puppeteer microservice on Digital Ocean | `@react-pdf/renderer`, serverless Puppeteer | [[decision/pdf-generation]] |
 | Job scheduling | node-cron on the DO worker | DB-polling jobs table, pg_cron | [[decision/notifications-and-crons]] |
 | WhatsApp send queue | BullMQ + Redis on DO | — | [[decision/notifications-and-crons]] |
-| Analytics + error tracking | PostHog — product analytics, funnels, session replay AND exception capture. `posthog-js` (client) + `posthog-node` (server), reverse-proxied via `/ingest` to dodge ad-blockers | a second error tracker running in parallel; silent failures | [[decision/infrastructure]] |
+| Analytics + error tracking | PostHog — product analytics, funnels, session replay AND exception capture. V1 is client-only: `posthog-js`, initialised in `instrumentation-client.ts`, reverse-proxied via `/ingest` to dodge ad-blockers. Server-side `posthog-node` is deferred until a genuinely server-only event exists (the 2B Razorpay webhook) | a second error tracker in parallel; firing one event name from both client and server; silent failures | [[decision/infrastructure]] |
 | Sentry | Deferred — PostHog covers error tracking for V1. Revisit Sentry only if PostHog's error tracking proves insufficient | wiring Sentry now (two error trackers) | [[decision/infrastructure]] |
 | File storage | Cloudinary — invoice PDFs, business logos, customer-facing images. Free tier covers V1; image transforms + Indian CDN built in | Supabase Storage; binaries in Postgres | [[decision/infrastructure]] |
 | Supabase scope | Postgres only — no Auth, no Storage, no Realtime, no Edge Functions. We talk to it via the `postgres` driver / Drizzle | calling Supabase JS from the browser; `@supabase/supabase-js` anywhere in the codebase | [[decision/infrastructure]] |
@@ -91,14 +91,15 @@ Last reconciled: 2026-05-17
 ## Product — Invoice Anatomy
 
 Derived from real Om Glass Enterprises invoices ([[customer/hardware-shop-owner]]).
-Implemented in Phase 2 — see [[decision/phase-2-plan]].
+Shipped in Phase 2A — see [[decision/phase-2-plan]].
 
 | Area | Decision | Never | Rationale |
 |------|----------|-------|-----------|
 | Dual-unit line items | A line carries a rate-bearing `quantity`+`unit` AND an optional secondary `quantity`+`unit` (informational — glass billed per sq.m, counted in pcs). GST math runs on the rate-bearing pair only | a single unit per line | [[customer/hardware-shop-owner]] |
 | Bill-to vs ship-to | Invoice carries an optional ship-to name + address, distinct from the bill-to customer | — | [[decision/phase-2-plan]] |
 | Extra charges | Invoice carries a JSONB list of `{label, amount, taxable, gstRate?}`. Taxable charges (cutting, hole, processing) fold into the taxable value **pre-GST**; non-taxable (informal freight, loading) add **post-tax** | a single fixed `freight` column; assuming all charges are post-tax | [[decision/phase-2-plan]] |
-| Invoice numbering | `{prefix}/{FY}/{seq}` — e.g. `INV/25-26/0001`. Sequence resets per business + type + financial year; FY derived from issue date (Indian FY, Apr–Mar). Prefix defaults per type, business-configurable | a never-resetting running number (Phase 1 shipped `INV-0001`; Phase 2 migrates) | [[decision/phase-2-plan]] |
+| Invoice numbering | `{prefix}/{FY}/{seq}` — e.g. `INV/26-27/0001`. Assigned **at finalise**, not at create; a draft carries `number = NULL` until then. FY derived from the issue date the invoice holds at finalise (Indian FY, Apr–Mar). The sequence resets per business + type + FY and counts **only finalised rows**, so the issued series stays gap-free even when a draft is abandoned. A `FOR UPDATE` lock on the business row serialises assignment | numbering a draft; counting drafts toward the sequence; reusing a number; a never-resetting running number (Phase 1's `INV-0001` invoices keep the numbers they were issued) | [[decision/phase-2-plan]] |
+| Custom invoice prefix | `businesses.invoice_number_prefix`, when set, overrides the default prefix for **tax invoices only**; estimates / credit notes / debit notes / delivery challans always keep their built-in prefix (`EST` / `CR` / `CN` / `DN` / `DC`) | applying a custom prefix to every type — a tax invoice and an estimate would then both resolve to `{prefix}/{FY}/0001` and trip the `(business_id, number)` unique index | [[decision/phase-2-plan]] |
 | E-way bill | Optional `eway_bill_number` text on invoices — recorded, not generated (e-way-bill generation is post-V1) | — | [[decision/phase-2-plan]] |
 | HSN tax summary | Rendered on the invoice PDF — taxable value + tax grouped by HSN + rate; derived from line items, not stored | a stored summary table | [[decision/phase-2-plan]] |
 | Transport fields | Optional transport mode + vehicle number on the invoice | — | [[decision/phase-2-plan]] |

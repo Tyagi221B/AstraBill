@@ -1,6 +1,6 @@
 ---
 type: synthesis
-updated: 2026-05-17
+updated: 2026-05-18
 sources: 12
 ---
 
@@ -61,6 +61,7 @@ GST filing → V2. See `DECISIONS.md`.)
 ## Thesis Evolution
 
 - **2026-05-17**: Thesis formed after first major research pass. Market validated. Differentiation identified. Tally education gap confirmed. Marketing identified as the real moat.
+- **2026-05-18**: Phase 2A shipped — customers + products catalogues, the invoice-anatomy migration (dual-unit lines, ship-to, extra charges, transport, e-way), FY-aware invoice numbering, and stock movement on finalise. The build now turns to Phase 2B, the WhatsApp hero loop. Thesis unchanged; this is execution.
 
 ## Related Pages
 

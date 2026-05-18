@@ -132,9 +132,8 @@ CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 PDF_SERVICE_URL=           # Internal DO URL
-NEXT_PUBLIC_POSTHOG_KEY=   # PostHog — analytics + error tracking
-NEXT_PUBLIC_POSTHOG_HOST=
-POSTHOG_API_KEY=           # server-side (posthog-node)
+NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN=   # PostHog project token (phc_…)
+NEXT_PUBLIC_POSTHOG_HOST=            # e.g. https://us.i.posthog.com
 
 # Digital Ocean (PDF + worker, shares Cloudinary + Meta creds, plus)
 REDIS_URL=                 # TCP endpoint for BullMQ (Upstash supports this too)
@@ -143,22 +142,34 @@ CHROMIUM_PATH=/usr/bin/google-chrome-stable
 
 ## Analytics + Error Tracking — PostHog
 
-One tool covers both: **product analytics** (events, funnels, session replay)
-and **error tracking** (`captureException`). `posthog-js` on the client
-(initialised in `instrumentation-client.ts`), `posthog-node` on the server
-(`lib/posthog-server.ts`). Client traffic is reverse-proxied through
-`/ingest` (rewrites in `next.config.ts`) so ad-blockers don't drop events.
+One tool covers **product analytics** (events, funnels, session replay) and
+**error tracking** (unhandled exceptions). V1 is **client-only**: `posthog-js`,
+initialised once in `instrumentation-client.ts` — the Next.js 15.3+ convention;
+never also mount a `PostHogProvider`, the two approaches must not be combined.
+Client traffic is reverse-proxied through `/ingest` (rewrites in
+`next.config.ts`) so ad-blockers don't drop events. `defaults: '2026-01-30'`
+opts into PostHog's modern preset — which includes History-API pageview and
+pageleave autocapture, so the App Router needs no route-change listener.
+
+`identify` runs from `app/PostHogIdentify.tsx`, a tiny component the root
+layout mounts whenever there's a session — so every authenticated page-load
+links events to the user. `reset` fires on sign-out (`app/SignOutButton.tsx`).
+Custom events are kept deliberately few, client-side, one source each:
+`sign_in_completed`, `business_created`, `invoice_finalized`.
+
+**No `posthog-node` yet.** Server-side capture is deferred until there's a
+genuinely server-only event with no client touchpoint — the 2B Razorpay
+webhook ([[decision/payment-gateway]]). An earlier wizard-driven attempt
+added it everywhere; the server captures only duplicated client events and
+never flushed reliably on serverless. It comes back in 2B, scoped to the
+webhook.
 
 **Sentry is deferred.** PostHog's error tracking is a GA feature and covers
 V1; running Sentry alongside would mean two error trackers and two bills.
-Revisit Sentry only if PostHog's error tracking proves insufficient. The
-`reportInternalError` hook in `lib/http.ts` routes unhandled 500s to PostHog
-server-side capture.
+Revisit only if PostHog's proves insufficient.
 
-Event hygiene rule: a domain/conversion event fires from **one** place —
-server-side for things that must not be missed (`invoice_finalized`,
-`business_created`), client-side for UI interactions (`sign_in_method_selected`).
-Never fire the same event name from both, or funnels double-count.
+Event hygiene rule: a domain event fires from **one** place. Never the same
+event name from both client and server, or funnels double-count.
 
 ## Cost at Launch
 

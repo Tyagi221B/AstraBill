@@ -263,3 +263,63 @@ next.config.ts, etc.), dedupe the double-fired events (`invoice_finalized` /
 `invoice_draft_created` currently fire from both client and server with the
 same name), wire `lib/http.ts`'s `reportInternalError` hook to PostHog, and
 add the POSTHOG_* keys to .env.example.
+
+## [2026-05-18] decision | Phase 2A shipped — numbering refinements recorded; plan reframed to 2B
+
+Phase 2A built out across two commits (`1496cc7`, `944adf4`): the
+invoice-anatomy migration, customers + products catalogues, extra-charge GST
+math, stock movement on finalise, and a vitest correctness gate for
+`lib/gst.ts`. Four numbering facts emerged *during* the build that the
+DECISIONS.md "Invoice numbering" row didn't capture:
+
+- The number is assigned **at finalise**, not create — a draft is not a
+  legally issued document and must not consume a number.
+- A draft therefore carries `number = NULL` until finalised (schema migration
+  0002 dropped the NOT NULL; the partial unique index treats NULLs as
+  distinct, so drafts coexist).
+- The sequence counts **only finalised rows**, so an abandoned draft never
+  burns a number — the issued series is gap-free (GST Rule 46).
+- A business-set custom prefix applies to **tax invoices only**; sharing it
+  across types would collide a tax invoice and an estimate on the unique
+  index.
+
+Updates: DECISIONS.md "Invoice numbering" row sharpened + new "Custom invoice
+prefix" row (binding facts, once each). decision/phase-2-plan.md rewritten —
+2A is shipped, so the page no longer carries the 2A build blueprint (that's
+git history now); it keeps two rationale notes (the *why* behind
+finalise-time numbering and tax-only prefix) and is otherwise the live 2B
+blueprint. index.md summary line updated. overview.md gained a thesis-
+evolution line. The earlier SSOT-drift risk — phase-2-plan.md restating
+numbering facts that also live in DECISIONS.md — is now resolved: the page
+holds rationale only and links.
+
+## [2026-05-18] decision | PostHog reset — wizard reverted, minimal client-only setup
+
+The PostHog setup wizard (recorded in the entry above) had scattered 14
+events across 9 files, fired client+server duplicates of the same event
+names, never called `identify()`, and left two competing env-var names. It
+was reverted wholesale and rebuilt minimally against PostHog's own Next.js
+App Router reference: `instrumentation-client.ts` init, `/ingest` reverse
+proxy, layout-mounted `identify`, `reset` on sign-out, three curated
+client-side events. `posthog-node` and the server-side client were removed
+entirely — the server captures were pure duplicates of client events.
+Commit `1bd9e2e`.
+
+Wiki realigned to the shipped reality:
+- DECISIONS.md "Analytics + error tracking" row: `posthog-js` only;
+  `posthog-node` explicitly **deferred** to 2B (the Razorpay webhook is the
+  first genuinely server-only event). The "Sentry — Deferred" row is
+  unchanged and still correct.
+- infrastructure.md "Analytics + Error Tracking" section rewritten — drops
+  `posthog-node` / `lib/posthog-server.ts` / the `reportInternalError`→
+  PostHog claim (never wired), documents identify-in-layout + reset + the
+  three events, and the env block now lists `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN`
+  + `NEXT_PUBLIC_POSTHOG_HOST` (the wizard's `POSTHOG_API_KEY` is gone).
+
+The 2026-05-18 PostHog entry above is left intact (the log is append-only) —
+its "code follow-up" punch list is superseded by this entry: the wizard files
+were reverted rather than committed, the double-fired events were removed
+rather than deduped, and `reportInternalError`→PostHog was dropped (V1 has no
+server-side PostHog). notifications-and-crons.md is unchanged — the DO cron
+worker is a separate Node service; its own `posthog-node` alerting lands when
+that worker is built in 2B.

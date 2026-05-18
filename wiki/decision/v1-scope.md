@@ -119,9 +119,10 @@ Key schema decisions:
   `invoices` table — no separate tables. `originalInvoiceId` self-references for notes.
 - **GST split columns** (`cgst`/`sgst`/`igst`) on both invoices and line items. Computed
   from `placeOfSupply` vs business `state_code`: intrastate → CGST+SGST, interstate → IGST.
-- Invoice numbering — see `DECISIONS.md` → "Invoice numbering". Phase 1 ships
-  simple per-type series; Phase 2 moves to FY-aware `{prefix}/{FY}/{seq}`.
-  Concurrency-safe via a row lock in the create transaction — no counter table.
+- Invoice numbering — see `DECISIONS.md` → "Invoice numbering". Phase 1 shipped
+  a simple per-type series; Phase 2A moved to FY-aware `{prefix}/{FY}/{seq}`,
+  assigned at finalise. Concurrency-safe via a `FOR UPDATE` row lock in the
+  finalise transaction — no counter table.
 - **`audit_log`** records every mutation + auth event; **soft delete** (`deleted_at`)
   on mutable tables. See [[decision/database-and-rbac]] for both.
 - **Timestamps**: `timestamptz` (UTC) for instants; Postgres `date` for `issue_date` /
