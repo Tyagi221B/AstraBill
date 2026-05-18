@@ -12,15 +12,7 @@ export function SignOutButton() {
         posthog.reset();
         signOut({ callbackUrl: "/" });
       }}
-      style={{
-        padding: "0.4rem 0.85rem",
-        fontSize: "0.85rem",
-        border: "1px solid #ddd",
-        borderRadius: 6,
-        background: "#fff",
-        cursor: "pointer",
-        color: "#666",
-      }}
+      className="inline-flex h-9 items-center rounded-lg border border-border bg-card px-3.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
     >
       Sign out
     </button>

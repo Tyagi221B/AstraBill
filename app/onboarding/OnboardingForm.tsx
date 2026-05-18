@@ -75,7 +75,7 @@ export function OnboardingForm() {
         has_state: Boolean(stateCode),
         has_gstin: Boolean(gstin.trim()),
       });
-      window.location.assign("/");
+      window.location.assign("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setBusy(false);

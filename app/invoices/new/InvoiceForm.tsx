@@ -1112,7 +1112,7 @@ export function InvoiceForm({
             ) : null}
           </div>
         )}
-        <a href="/" style={ghostBtn}>
+        <a href="/dashboard" style={ghostBtn}>
           Cancel
         </a>
         <button

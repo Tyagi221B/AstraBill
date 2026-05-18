@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+/* Class-based dark mode — next-themes toggles `.dark` on <html>.
+   (Tailwind v4 defaults to the prefers-color-scheme media query.) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Design tokens — the single source of truth for colour.
+   `:root` is light; `.dark` overrides. Components only ever reference the
+   semantic names (bg-background, text-foreground, border-border …), never
+   raw hex — so re-theming is one block, not a find-and-replace.
+--------------------------------------------------------------------------- */
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #5b6b84;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --accent: #eff4ff;
+  --accent-foreground: #1d4ed8;
+  --ring: #2563eb;
+  --destructive: #dc2626;
+  --success: #16a34a;
+
+  /* Brand gradient — the blue from the AstraBill mark. */
+  --brand-from: #1d4ed8;
+  --brand-to: #38bdf8;
+
+  --radius: 0.75rem;
+}
+
+.dark {
+  --background: #0a0f1c;
+  --foreground: #e6eaf2;
+  --card: #0f1626;
+  --card-foreground: #e6eaf2;
+  --muted: #1a2336;
+  --muted-foreground: #9aa7bd;
+  --border: #232d42;
+  --input: #232d42;
+  --primary: #3b82f6;
+  --primary-foreground: #ffffff;
+  --accent: #16213a;
+  --accent-foreground: #93c5fd;
+  --ring: #3b82f6;
+  --destructive: #f87171;
+  --success: #4ade80;
+
+  --brand-from: #3b82f6;
+  --brand-to: #7dd3fc;
+}
+
+/* Map tokens onto Tailwind's utility namespace. `inline` keeps them as
+   var() references, so the `.dark` overrides above flow through. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+
+  --radius-card: var(--radius);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+/* ---------------------------------------------------------------------------
+   Base layer
+--------------------------------------------------------------------------- */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* Reusable brand-gradient text — used on the wordmark accent + hero. */
+.text-brand-gradient {
+  background-image: linear-gradient(
+    100deg,
+    var(--brand-from),
+    var(--brand-to)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}

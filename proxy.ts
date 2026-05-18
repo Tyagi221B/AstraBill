@@ -49,6 +49,8 @@ export const config = {
   // behaviour for "matches the bare segment too?" depends on the version.
   // Being explicit removes the ambiguity.
   matcher: [
+    "/dashboard",
+    "/dashboard/:path*",
     "/onboarding",
     "/onboarding/:path*",
     "/invoices",

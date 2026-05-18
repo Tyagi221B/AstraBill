@@ -21,6 +21,7 @@
 | [decision/code-architecture.md](decision/code-architecture.md) | decision | LLD: thin routes → service → repo → DB. Interfaces for externals. Typed errors. |
 | [decision/v1-scope.md](decision/v1-scope.md) | decision | V1: GST invoice + PDF + WhatsApp + Udhaar + Inventory. English only. No shortcuts. |
 | [decision/phase-2-plan.md](decision/phase-2-plan.md) | decision | 2A (customers, products, invoice anatomy, FY numbering, stock) shipped; page is now the live 2B WhatsApp hero-loop blueprint. |
+| [decision/frontend-architecture.md](decision/frontend-architecture.md) | decision | Tailwind v4 + CSS-variable theming (light/dark via next-themes); marketing site as a route group; shadcn deferred to the app pass. |
 | **Competitors** | | |
 | [competitor/tally.md](competitor/tally.md) | competitor | The 30-year incumbent. Desktop-only, 70-90% MSME share, steep learning curve, ₹22,500+ |
 | [competitor/vyapar.md](competitor/vyapar.md) | competitor | Mobile challenger, 1Cr users, broken WhatsApp, serious RBAC privacy hole |

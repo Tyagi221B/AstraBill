@@ -323,3 +323,40 @@ rather than deduped, and `reportInternalError`→PostHog was dropped (V1 has no
 server-side PostHog). notifications-and-crons.md is unchanged — the DO cron
 worker is a separate Node service; its own `posthog-node` alerting lands when
 that worker is built in 2B.
+
+## [2026-05-18] decision | frontend foundation (F1) — Tailwind v4, theming, marketing site
+
+The app had shipped on inline `React.CSSProperties` everywhere — fine for
+proving the data layer, impossible to theme. Phase F1 lays the frontend
+foundation and rebuilds the public landing page.
+
+Decisions taken:
+- **Tailwind v4** (CSS-config, `@theme`) + CSS-variable design tokens —
+  semantic names (`background`/`foreground`/`primary`/`muted`/`border`…),
+  one `:root` + `.dark` block. No `tailwind.config.js`.
+- **Light + dark theming** via `next-themes` (class strategy, `.dark` on
+  `<html>`, system default).
+- **Marketing site as a route group** — `app/(marketing)/` carries its own
+  Header/Footer; the authed app pages stay outside it. Root `app/layout.tsx`
+  reduced to `<html>`/`<body>` + providers. `/` is the landing; the signed-in
+  dashboard moved to `/dashboard` (added to `proxy.ts`; the in-app "← Home"
+  links + post-sign-in destination now point there).
+- **shadcn/ui deferred to the app pass** — the marketing components are
+  hand-rolled Tailwind; the token foundation is already shadcn-shaped, so
+  adopting it later for the app forms (Input/Select/Dialog/Table) is
+  friction-free. Recorded as the intended path, not yet a binding row.
+- App pages (invoices/customers/products) **not** migrated — left on inline
+  styles; they move into an `(app)` group and onto the theme in a later pass.
+
+Shipped: the themed landing page (hero, features, how-it-works, pricing,
+CTA), a relocated themed `/dashboard`, and four basic legal/info pages —
+`/privacy`, `/terms`, `/refund`, `/contact` — needed for Razorpay's website
+verification (first-draft content, effective-dated, flagged for legal
+review). SEO: `lib/seo.ts`, `robots.ts`, `sitemap.ts`, Organization JSON-LD,
+per-page metadata, `metadataBase`.
+
+Wiki: DECISIONS.md gained Styling + Theming (Stack) and Site structure (Code
+Architecture) rows; created decision/frontend-architecture.md (rationale);
+indexed. Next.js + Tailwind build green, tsc clean, vitest 41/41.
+
+Still F2: the blog (MDX pipeline). Legal content needs a real review pass.

@@ -1,11 +1,33 @@
 import type { Metadata } from "next";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 
+import "./globals.css";
+import { PostHogIdentify } from "@/components/PostHogIdentify";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import {
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_TAGLINE,
+  SITE_URL,
+} from "@/lib/seo";
 import { getSessionUser } from "@/lib/session";
-import { PostHogIdentify } from "./PostHogIdentify";
 
 export const metadata: Metadata = {
-  title: "AstraBill",
-  description: "Billing & payments for Indian businesses. It's that simple.",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    template: `%s · ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  authors: [{ name: "Opryon Labs" }],
+  creator: "Opryon Labs",
+  icons: {
+    icon: "/astrabill-app-icon-light.png",
+    apple: "/astrabill-app-icon-light.png",
+  },
+  robots: { index: true, follow: true },
 };
 
 export default async function RootLayout({
@@ -13,22 +35,27 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // PostHog identify needs the user; the layout is the one place that sees
-  // every authenticated page load. NextAuth's auth() is per-request cached,
-  // so this adds at most one cookie read per nav.
+  // PostHog identify needs the user; the root layout is the one place that
+  // sees every page load. NextAuth's auth() is per-request cached.
   const user = await getSessionUser();
 
   return (
-    <html lang="en">
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
+    >
       <body>
-        {user && (
-          <PostHogIdentify
-            userId={user.id}
-            email={user.email}
-            name={user.name}
-          />
-        )}
-        {children}
+        <ThemeProvider>
+          {user && (
+            <PostHogIdentify
+              userId={user.id}
+              email={user.email}
+              name={user.name}
+            />
+          )}
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

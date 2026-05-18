@@ -50,7 +50,7 @@ export function SignInForm() {
         <button
           type="button"
           style={primaryBtnStyle}
-          onClick={() => signIn("google", { callbackUrl: "/" })}
+          onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
         >
           Continue with Google
         </button>
@@ -106,13 +106,13 @@ export function SignInForm() {
         phone,
         code,
         redirect: false,
-        callbackUrl: "/",
+        callbackUrl: "/dashboard",
       });
       if (!res || res.error) throw new Error("Invalid or expired code");
       posthog.capture("sign_in_completed", { method: "whatsapp_otp" });
-      // Always go home on success — NextAuth's `res.url` echoes the
-      // initiating page (/sign-in) when redirect:false, not the callback.
-      window.location.assign("/");
+      // Straight to the dashboard on success — NextAuth's `res.url` echoes
+      // the initiating page (/sign-in) when redirect:false, not the callback.
+      window.location.assign("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {

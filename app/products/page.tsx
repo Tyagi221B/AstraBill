@@ -71,10 +71,10 @@ export default async function ProductsPage({
       }}
     >
       <Link
-        href="/"
+        href="/dashboard"
         style={{ fontSize: "0.85rem", color: "#666", textDecoration: "none" }}
       >
-        ← Home
+        ← Dashboard
       </Link>
       <header
         style={{

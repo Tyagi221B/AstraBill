@@ -29,6 +29,8 @@ Last reconciled: 2026-05-17
 | File storage | Cloudinary — invoice PDFs, business logos, customer-facing images. Free tier covers V1; image transforms + Indian CDN built in | Supabase Storage; binaries in Postgres | [[decision/infrastructure]] |
 | Supabase scope | Postgres only — no Auth, no Storage, no Realtime, no Edge Functions. We talk to it via the `postgres` driver / Drizzle | calling Supabase JS from the browser; `@supabase/supabase-js` anywhere in the codebase | [[decision/infrastructure]] |
 | Transactional email | Loops.so. FROM `hello@astrabill.com` (display "AstraBill"), Reply-To same; sending domain `astrabill.com` authenticated (SPF + DKIM + DMARC) | sending from `asmit@astrabill.com`; `noreply@` for default sends | [[decision/infrastructure]] |
+| Styling | Tailwind v4 (CSS-config, `@theme`) + CSS-variable design tokens; components reference semantic tokens (`bg-background`, `text-foreground`…), never raw hex | inline `React.CSSProperties` for new work; a `tailwind.config.js` (v4 configures in CSS) | [[decision/frontend-architecture]] |
+| Theming | Light + dark, class strategy via `next-themes` (`.dark` on `<html>`), system default. One token block in `globals.css` per theme | a second source of colour; hard-coded light-only colours | [[decision/frontend-architecture]] |
 
 ## Auth
 
@@ -76,6 +78,7 @@ Last reconciled: 2026-05-17
 | Validation | Zod at the API boundary only | — | [[decision/code-architecture]] |
 | Errors | typed (`AppError`, `NotFoundError`, `ForbiddenError`...) | generic `Error` or strings | [[decision/code-architecture]] |
 | Side effects | queued (PDF, WhatsApp), API returns fast | blocking the request | [[decision/code-architecture]] |
+| Site structure | Marketing site under `app/(marketing)/` (own Header/Footer chrome) is separate from the authed app; root layout holds only `<html>`/`<body>` + providers. Shared UI in `components/{ui,marketing,theme,app}` | marketing chrome leaking onto app pages; loose components inside `app/` | [[decision/frontend-architecture]] |
 
 ## Product — V1 Scope
 
