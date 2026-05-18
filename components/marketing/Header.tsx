@@ -23,7 +23,7 @@ export function Header({ isAuthed }: { isAuthed: boolean }) {
     <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur">
       <Container className="flex h-16 items-center justify-between gap-4">
         <Link href="/" aria-label="AstraBill home" className="shrink-0">
-          <Logo variant="wordmark" priority className="h-7 w-auto" />
+          <Logo variant="wordmark" priority className="h-8 w-auto" />
         </Link>
 
         <nav className="hidden items-center gap-7 md:flex">

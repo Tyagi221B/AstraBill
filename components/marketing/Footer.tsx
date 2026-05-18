@@ -42,7 +42,7 @@ export function Footer() {
       <Container className="py-14">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="lg:col-span-1">
-            <Logo variant="wordmark" className="h-7 w-auto" />
+            <Logo variant="wordmark" className="h-8 w-auto" />
             <p className="mt-4 max-w-xs text-sm text-muted-foreground">
               GST billing for Indian businesses. It&apos;s that simple.
             </p>

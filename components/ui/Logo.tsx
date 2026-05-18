@@ -7,13 +7,15 @@
  *
  * `brandmark` — the icon alone, in brand blue (works on either theme).
  *
- * Source assets are PNG; `next/image` serves an optimised, resized variant.
+ * Assets are WebP, trimmed tight to the artwork (the original PNGs carried
+ * heavy transparent padding, which made the logo render small). When proper
+ * SVGs land, only these three imports change.
  */
 import Image from "next/image";
 
-import brandmark from "@/public/astrabill-brandmark.png";
-import logoBlack from "@/public/astrabill-logo-black.png";
-import logoWhite from "@/public/astrabill-logo-white.png";
+import brandmark from "@/public/astrabill-brandmark.webp";
+import logoBlack from "@/public/astrabill-logo-black.webp";
+import logoWhite from "@/public/astrabill-logo-white.webp";
 
 export function Logo({
   variant = "wordmark",

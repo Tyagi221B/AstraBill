@@ -10,14 +10,14 @@ export function Hero() {
       {/* Soft brand glow behind the hero. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-[-6rem] h-[28rem] w-[44rem] -translate-x-1/2 rounded-full opacity-20 blur-3xl"
+        className="pointer-events-none absolute left-1/2 -top-24 h-112 w-176 -translate-x-1/2 rounded-full opacity-20 blur-3xl"
         style={{
           backgroundImage:
             "linear-gradient(120deg, var(--brand-from), var(--brand-to))",
         }}
       />
       <Container className="relative flex flex-col items-center py-24 text-center sm:py-32">
-        <Logo variant="brandmark" priority className="h-16 w-auto" />
+        <Logo variant="brandmark" priority className="h-20 w-auto" />
 
         <p className="mt-8 inline-flex items-center rounded-full border border-border bg-card px-3.5 py-1 text-xs font-medium text-muted-foreground">
           GST invoicing · WhatsApp delivery · UPI payments

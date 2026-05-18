@@ -24,7 +24,7 @@ export default async function DashboardPage() {
       <header className="border-b border-border">
         <Container className="flex h-16 items-center justify-between">
           <Link href="/" aria-label="AstraBill home">
-            <Logo variant="wordmark" className="h-7 w-auto" />
+            <Logo variant="wordmark" className="h-8 w-auto" />
           </Link>
           <div className="flex items-center gap-2.5">
             <ThemeToggle />
