@@ -95,7 +95,7 @@ export default async function EditInvoicePage({
         ← Back to invoice
       </Link>
       <h1 style={{ fontSize: "1.75rem", margin: "1rem 0 0.25rem" }}>
-        Edit {invoice.number}
+        Edit {invoice.number ?? "draft invoice"}
       </h1>
       <p style={{ color: "#666", marginBottom: "2rem" }}>
         Drafts are fully editable. Once you finalise (mark as sent) the invoice

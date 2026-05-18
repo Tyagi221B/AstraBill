@@ -6,26 +6,25 @@
  *   2. Look up the seller (business) state for GST classification.
  *   3. Compute per-line + invoice-level GST math (lib/gst.ts).
  *   4. In one transaction:
- *        a. FOR UPDATE lock on the business row (race-free numbering).
- *        b. Count existing invoices of this type → next number.
- *        c. Validate customer / originalInvoice belong to this business.
- *        d. Insert the invoice + its line items.
- *        e. Write an `invoice.create` audit-log entry.
+ *        a. Validate customer / originalInvoice belong to this business.
+ *        b. Insert the invoice (no number — drafts are unnumbered) + line items.
+ *        c. Write an `invoice.create` audit-log entry.
  *
- * The invoice is created in `status='draft'`. Stock deduction does NOT happen
- * here — it happens on finalise (status → sent), in a future endpoint.
- * Drafts don't reserve stock; that's a deliberate V1 simplification.
+ * The invoice is created in `status='draft'` with `number = NULL`. The real
+ * invoice number is assigned at finalise (`finalizeInvoice`), formatted as
+ * `{prefix}/{FY}/{seq}` from the issue date the invoice carries at that
+ * moment — so a draft moved across an FY boundary takes the new FY's series.
+ *
+ * Stock deduction also happens at finalise, not here — drafts don't reserve
+ * stock (a deliberate V1 simplification).
  */
 import "server-only";
-import { and, eq } from "drizzle-orm";
 
 import { db } from "../db";
-import {
-  type Invoice,
-  type InvoiceLineItem,
-  type NewInvoiceLineItem,
-  businesses,
-  invoiceType,
+import type {
+  Invoice,
+  InvoiceLineItem,
+  NewInvoiceLineItem,
 } from "../db/schema";
 import {
   ConflictError,
@@ -33,11 +32,13 @@ import {
   NotFoundError,
   ValidationError,
 } from "../errors";
+import { financialYearDateRange } from "../fy";
 import {
   classifyTax,
   computeInvoiceTotals,
   computeLineItem,
 } from "../gst";
+import { buildInvoiceNumber } from "../invoice-number";
 import { requirePermission, roleHas } from "../rbac";
 import { writeAuditEntry } from "../audit";
 import type {
@@ -45,8 +46,9 @@ import type {
   UpdateInvoiceInput,
 } from "../schemas/invoice";
 import {
-  countInvoicesOfType,
+  countFinalizedInvoicesOfType,
   deleteLineItemsForInvoice,
+  finalizeInvoiceRow,
   findCustomerInBusiness,
   findInvoiceInBusiness,
   getBusinessById,
@@ -57,21 +59,9 @@ import {
   insertLineItems,
   listInvoicesForUser,
   lockBusinessRow,
-  setInvoiceStatus,
   softDeleteInvoice,
   updateInvoiceHeader,
 } from "../repositories/invoices";
-
-// Prefix per invoice type — kept here (service-layer policy), not in the DB.
-const TYPE_PREFIX: Record<(typeof invoiceType.enumValues)[number], string> = {
-  tax_invoice: "INV-",
-  estimate: "EST-",
-  cash_receipt: "CR-",
-  credit_note: "CN-",
-  debit_note: "DN-",
-};
-
-const NUMBER_PAD = 4;
 
 export interface ServiceContext {
   ipAddress?: string | null;
@@ -102,9 +92,10 @@ export async function createInvoice(
 
   // 3. Run everything that touches the DB inside one transaction.
   return db.transaction(async (tx) => {
-    // 3a. Lock the business row — serialises invoice creation per business
-    //     (race-free numbering, holds until COMMIT).
-    const business = await lockBusinessRow(tx, input.businessId);
+    // 3a. Resolve the seller business (for tax classification). No FOR UPDATE
+    //     lock here — drafts don't carry a number, so there's nothing to
+    //     serialise on. The lock moves to finalise, where numbering happens.
+    const business = await getBusinessById(tx, input.businessId);
     if (!business) throw new NotFoundError("Business not found");
 
     // 3b. Verify cross-references before doing math, so a validation error
@@ -128,10 +119,9 @@ export async function createInvoice(
       }
     }
 
-    // 3c. Determine the place of supply and the resulting tax class.
-    //     If the caller didn't pass placeOfSupplyStateCode, fall back to the
-    //     customer's state (looked up at the time of computeLineItem below
-    //     via classifyTax — we resolve it here once).
+    // 3c. Determine the place of supply and the resulting tax class. If the
+    //     caller didn't pass placeOfSupplyStateCode, classifyTax falls back
+    //     to intrastate (the conservative default).
     const placeOfSupply = input.placeOfSupplyStateCode ?? null;
     const taxClass = classifyTax(business.stateCode, placeOfSupply);
 
@@ -155,51 +145,36 @@ export async function createInvoice(
     });
     const totals = computeInvoiceTotals(linesForTotals);
 
-    // 3e. Generate the next per-type number for this business. Safe under
-    //     concurrent calls because the business row is locked above.
-    const used = await countInvoicesOfType(tx, input.businessId, input.type);
-    const prefix = TYPE_PREFIX[input.type];
-    const number = `${prefix}${String(used + 1).padStart(NUMBER_PAD, "0")}`;
+    // 3e. Insert the invoice header. `number` is NULL — drafts are unnumbered;
+    //     the real number is stamped on at finalise from the then-current
+    //     issue date. Postgres treats NULLs as distinct in the unique index,
+    //     so multiple in-flight drafts coexist.
+    const issueDate = input.issueDate ?? formatToday();
+    const invoice = await insertInvoice(tx, {
+      businessId: input.businessId,
+      customerId: input.customerId ?? null,
+      type: input.type,
+      number: null,
+      status: "draft",
+      originalInvoiceId: input.originalInvoiceId ?? null,
+      placeOfSupplyStateCode: placeOfSupply,
+      subtotal: totals.subtotal,
+      discountAmount: totals.discountAmount,
+      taxableAmount: totals.taxableAmount,
+      cgstAmount: totals.cgstAmount,
+      sgstAmount: totals.sgstAmount,
+      igstAmount: totals.igstAmount,
+      taxAmount: totals.taxAmount,
+      roundOff: totals.roundOff,
+      total: totals.total,
+      amountPaid: "0",
+      notes: input.notes ?? null,
+      issueDate,
+      dueDate: input.dueDate ?? null,
+      createdBy: actorUserId,
+    });
 
-    // 3f. Insert the invoice header.
-    let invoice;
-    try {
-      invoice = await insertInvoice(tx, {
-        businessId: input.businessId,
-        customerId: input.customerId ?? null,
-        type: input.type,
-        number,
-        status: "draft",
-        originalInvoiceId: input.originalInvoiceId ?? null,
-        placeOfSupplyStateCode: placeOfSupply,
-        subtotal: totals.subtotal,
-        discountAmount: totals.discountAmount,
-        taxableAmount: totals.taxableAmount,
-        cgstAmount: totals.cgstAmount,
-        sgstAmount: totals.sgstAmount,
-        igstAmount: totals.igstAmount,
-        taxAmount: totals.taxAmount,
-        roundOff: totals.roundOff,
-        total: totals.total,
-        amountPaid: "0",
-        notes: input.notes ?? null,
-        issueDate: input.issueDate ?? formatToday(),
-        dueDate: input.dueDate ?? null,
-        createdBy: actorUserId,
-      });
-    } catch (err) {
-      // Postgres unique-violation on (business_id, number) — exceedingly rare
-      // given the FOR UPDATE lock, but turn it into a typed conflict so the
-      // client gets a 409 instead of a 500.
-      if (isUniqueViolation(err)) {
-        throw new ConflictError(
-          "An invoice with this number already exists. Please retry.",
-        );
-      }
-      throw err;
-    }
-
-    // 3g. Insert line items.
+    // 3f. Insert line items.
     const lineRows: NewInvoiceLineItem[] = input.lineItems.map((line, i) => {
       const a = lineAmounts[i];
       if (!a) throw new Error("internal: lineAmounts misaligned");
@@ -224,8 +199,9 @@ export async function createInvoice(
     });
     await insertLineItems(tx, lineRows);
 
-    // 3h. Audit. Inside the same tx — commits or rolls back together with
-    //     everything above.
+    // 3g. Audit. Inside the same tx — commits or rolls back together with
+    //     everything above. Drafts have no number yet, so the entry records
+    //     the draft's id + total instead.
     await writeAuditEntry(tx, {
       action: "invoice.create",
       businessId: input.businessId,
@@ -234,7 +210,7 @@ export async function createInvoice(
       entityId: invoice.id,
       changes: {
         type: input.type,
-        number,
+        status: "draft",
         total: totals.total,
         lineItemCount: lineRows.length,
       },
@@ -242,7 +218,7 @@ export async function createInvoice(
       userAgent: ctx.userAgent ?? null,
     });
 
-    // 3i. Final read — same tx, so the caller gets a guaranteed-consistent
+    // 3h. Final read — same tx, so the caller gets a guaranteed-consistent
     //     view of what was just persisted.
     const created = await getInvoiceWithLineItems(
       tx,
@@ -463,10 +439,22 @@ export async function deleteInvoice(
 }
 
 /**
- * Finalise a DRAFT invoice — status `draft` → `sent`. After this the invoice
- * is immutable (edit + delete are blocked). For V1 this is a manual
- * "mark as sent"; once the WhatsApp send feature lands, the actual send will
- * drive this same transition.
+ * Finalise a DRAFT invoice — stamp on its issued number and flip status to
+ * `sent`. After this the invoice is immutable (edit + delete are blocked).
+ *
+ * The invoice number is assigned HERE, not at create. It's built from the
+ * issue date the draft carries at this moment — a draft created in one FY
+ * and finalised in the next takes the new FY's series. The sequence counts
+ * only finalised rows of this type in this FY, so the printed series is
+ * gap-free even if a draft is abandoned.
+ *
+ * Concurrency: the business row is locked `FOR UPDATE` so two concurrent
+ * finalises against the same business serialise — the second sees the first's
+ * stamped row before counting. Unique-violation on (business_id, number) is
+ * mapped to ConflictError as a belt-and-suspenders, but should not occur.
+ *
+ * For V1 this is a manual "mark as sent"; the WhatsApp send flow will drive
+ * the same transition once that lands.
  */
 export async function finalizeInvoice(
   invoiceId: string,
@@ -486,14 +474,43 @@ export async function finalizeInvoice(
       "invoice:finalize",
     );
 
-    await setInvoiceStatus(tx, invoiceId, "sent");
+    // Lock the business row → serialises number assignment per business so
+    // the FY sequence is gap-free under concurrent finalises.
+    const business = await lockBusinessRow(tx, existing.businessId);
+    if (!business) throw new Error("internal: invoice's business not found");
+
+    const fyRange = financialYearDateRange(existing.issueDate);
+    const finalizedSoFar = await countFinalizedInvoicesOfType(
+      tx,
+      existing.businessId,
+      existing.type,
+      fyRange,
+    );
+    const number = buildInvoiceNumber({
+      type: existing.type,
+      issueDate: existing.issueDate,
+      sequence: finalizedSoFar + 1,
+      customPrefix: business.invoiceNumberPrefix,
+    });
+
+    try {
+      await finalizeInvoiceRow(tx, invoiceId, number);
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new ConflictError(
+          "That invoice number was just taken — please retry.",
+        );
+      }
+      throw err;
+    }
+
     await writeAuditEntry(tx, {
       action: "invoice.finalize",
       businessId: existing.businessId,
       actorUserId,
       entityType: "invoice",
       entityId: invoiceId,
-      changes: { number: existing.number, from: "draft", to: "sent" },
+      changes: { number, from: "draft", to: "sent" },
       ipAddress: ctx.ipAddress ?? null,
       userAgent: ctx.userAgent ?? null,
     });
@@ -511,9 +528,3 @@ export async function finalizeInvoice(
 // Re-exported so route handlers can pull the type without going through
 // the schemas folder.
 export type { CreateInvoiceInput } from "../schemas/invoice";
-
-// Quiet the "imported but unused" lint for the eq/and/businesses we may want
-// in other methods on this service file. Remove when fetch/list methods land.
-void eq;
-void and;
-void businesses;

@@ -4,7 +4,18 @@
  * isolation invariant). No business rules here.
  */
 import "server-only";
-import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lte,
+  ne,
+  sql,
+} from "drizzle-orm";
 
 import { db, type DB, type Tx } from "../db";
 import {
@@ -22,9 +33,10 @@ import {
 } from "../db/schema";
 
 /**
- * Acquire the business row with `FOR UPDATE` lock. All invoice-write paths
- * serialize on this lock per business — the cheapest correct mechanism for
- * race-free per-type invoice numbering.
+ * Acquire the business row with `FOR UPDATE` lock. The finalise path holds
+ * this lock per business so number assignment is race-free — two concurrent
+ * finalises against the same business serialise on it, the second sees the
+ * first's row before counting.
  */
 export async function lockBusinessRow(
   tx: Tx,
@@ -39,19 +51,33 @@ export async function lockBusinessRow(
 }
 
 /**
- * Count existing invoices of a given type for a business, including
- * soft-deleted ones — invoice numbers are never reused even if a draft is
- * removed (audit trail integrity).
+ * Count FINALISED invoices of a given type, within one financial year, for a
+ * business. The new number's sequence = this count + 1, so the printed series
+ * is gap-free even if a draft is abandoned (drafts aren't counted).
+ *
+ * Finalised = `status <> 'draft'`. Finalised invoices are immutable — the
+ * service refuses to soft-delete them — so the count needs no extra filter on
+ * `deleted_at`. Call from inside the finalise transaction, after taking the
+ * `lockBusinessRow` lock, so the count can't drift under a concurrent write.
  */
-export async function countInvoicesOfType(
+export async function countFinalizedInvoicesOfType(
   tx: Tx,
   businessId: string,
   type: Invoice["type"],
+  fyRange: { start: string; end: string },
 ): Promise<number> {
   const result = await tx
     .select({ c: count() })
     .from(invoices)
-    .where(and(eq(invoices.businessId, businessId), eq(invoices.type, type)));
+    .where(
+      and(
+        eq(invoices.businessId, businessId),
+        eq(invoices.type, type),
+        ne(invoices.status, "draft"),
+        gte(invoices.issueDate, fyRange.start),
+        lte(invoices.issueDate, fyRange.end),
+      ),
+    );
   return Number(result[0]?.c ?? 0);
 }
 
@@ -274,19 +300,25 @@ export async function softDeleteInvoice(
     .where(eq(invoices.id, invoiceId));
 }
 
-/** Transition an invoice's status. The service decides which transitions
- *  are legal; this just applies it. */
-export async function setInvoiceStatus(
+/**
+ * Stamp a draft with its issued number and flip status to `sent` — the single
+ * write that finalises an invoice. Combined into one statement so the row is
+ * never observed with `status='sent'` but `number IS NULL`.
+ *
+ * Throws a Postgres `23505` (unique violation) if `(business_id, number)`
+ * collides — the service maps that to `ConflictError`.
+ */
+export async function finalizeInvoiceRow(
   tx: Tx,
   invoiceId: string,
-  status: Invoice["status"],
+  number: string,
 ): Promise<Invoice> {
   const [row] = await tx
     .update(invoices)
-    .set({ status })
+    .set({ number, status: "sent" })
     .where(eq(invoices.id, invoiceId))
     .returning();
-  if (!row) throw new Error("Set invoice status returned no row");
+  if (!row) throw new Error("Finalise invoice returned no row");
   return row;
 }
 

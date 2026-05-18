@@ -16,6 +16,7 @@ const TYPE_LABEL: Record<string, string> = {
   cash_receipt: "Cash Receipt",
   credit_note: "Credit Note",
   debit_note: "Debit Note",
+  delivery_challan: "Delivery Challan",
 };
 
 const STATUS_COLOUR: Record<string, string> = {
@@ -80,7 +81,11 @@ export default async function InvoicePage({
         }}
       >
         <div>
-          <h1 style={{ fontSize: "1.75rem", margin: 0 }}>{invoice.number}</h1>
+          <h1 style={{ fontSize: "1.75rem", margin: 0 }}>
+            {invoice.number ?? (
+              <span style={{ color: "#888" }}>Draft invoice</span>
+            )}
+          </h1>
           <p style={{ color: "#666", margin: "0.15rem 0 0" }}>
             {TYPE_LABEL[invoice.type] ?? invoice.type} · Issued{" "}
             {invoice.issueDate}

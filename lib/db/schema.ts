@@ -78,6 +78,7 @@ export const invoiceType = pgEnum("invoice_type", [
   "cash_receipt", // kacha/pakka: shown as "Cash Receipt"
   "credit_note",
   "debit_note",
+  "delivery_challan", // non-GST goods-movement note
 ]);
 
 export const invoiceStatus = pgEnum("invoice_status", [
@@ -96,6 +97,8 @@ export const unit = pgEnum("unit", [
   "linear_ft",
   "box",
   "dozen",
+  "sqm", // glass bills per square metre
+  "set", // hardware sells in sets — "30 set @ ₹530/set"
 ]);
 
 export const paymentMethod = pgEnum("payment_method", [
@@ -182,6 +185,12 @@ export const businesses = pgTable("businesses", {
   bankIfsc: text("bank_ifsc"),
   bankAccountHolder: text("bank_account_holder"),
   upiId: text("upi_id"),
+  // Default T&C block (late-payment interest, jurisdiction…) printed on the
+  // invoice PDF. Per-invoice override is a later addition.
+  invoiceTerms: text("invoice_terms"),
+  // Overrides the per-type default invoice-number prefix (INV/EST/CR/...).
+  // Null → the service uses the per-type default.
+  invoiceNumberPrefix: text("invoice_number_prefix"),
   // Subscription plan — gates feature limits at the service layer.
   plan: planTier("plan").notNull().default("free"),
   planValidUntil: date("plan_valid_until"),
@@ -266,6 +275,22 @@ export const products = pgTable(
   (t) => [index("products_business_idx").on(t.businessId)],
 );
 
+// --- extra charges (shape of the `invoices.extra_charges` JSONB) ----------
+// One ad-hoc charge on an invoice. Taxable charges (cutting, hole, processing)
+// fold into the taxable base pre-GST at their own `gstRate`; non-taxable ones
+// (informal freight, loading) are added post-tax. `amount`/`gstRate` are
+// strings — `numeric` precision must survive the JSON round-trip (a JSON
+// number would be parsed back as a lossy JS `number`).
+
+export type ExtraCharge = {
+  label: string;
+  /** Money string, 2 decimals. */
+  amount: string;
+  taxable: boolean;
+  /** GST rate as a percentage string ("18.00"); required when `taxable`. */
+  gstRate?: string;
+};
+
 // --- invoices ------------------------------------------------------------
 // Holds tax invoices, estimates, cash receipts, and credit/debit notes —
 // distinguished by `type`. `originalInvoiceId` links a note to its source.
@@ -281,8 +306,12 @@ export const invoices = pgTable(
       onDelete: "set null",
     }),
     type: invoiceType("type").notNull().default("tax_invoice"),
-    // Per-type series: INV-001, EST-001, CN-001 ... unique per business.
-    number: text("number").notNull(),
+    // Assigned only on finalise, as `{prefix}/{FY}/{seq}` (e.g. `INV/26-27/0001`).
+    // Drafts have `number IS NULL` — Postgres treats NULLs as distinct in the
+    // unique index below, so unfinalised drafts coexist without contention.
+    // The sequence resets per business + type + financial year and counts only
+    // finalised rows, so an abandoned draft never burns a number.
+    number: text("number"),
     status: invoiceStatus("status").notNull().default("draft"),
     // Self-reference: credit/debit note → the invoice it adjusts.
     originalInvoiceId: uuid("original_invoice_id").references(
@@ -304,6 +333,21 @@ export const invoices = pgTable(
     total: money("total").notNull().default("0"),
     amountPaid: money("amount_paid").notNull().default("0"),
     notes: text("notes"),
+    // Optional consignee, distinct from the bill-to customer. Null → the
+    // bill-to customer is also the ship-to party.
+    shipToName: text("ship_to_name"),
+    shipToAddress: text("ship_to_address"),
+    // Ad-hoc charges — see the ExtraCharge type above. Defaults to an empty
+    // array so reads never have to null-check.
+    extraCharges: jsonb("extra_charges")
+      .$type<ExtraCharge[]>()
+      .notNull()
+      .default([]),
+    // Goods-movement metadata, printed on the invoice / delivery challan.
+    transportMode: text("transport_mode"),
+    vehicleNumber: text("vehicle_number"),
+    // Recorded only — e-way-bill generation is post-V1.
+    ewayBillNumber: text("eway_bill_number"),
     issueDate: date("issue_date").notNull().defaultNow(),
     dueDate: date("due_date"),
     paidAt: timestamp("paid_at", { withTimezone: true }),
@@ -344,6 +388,11 @@ export const invoiceLineItems = pgTable(
     hsnCode: text("hsn_code"),
     quantity: quantity("quantity").notNull(),
     unit: unit("unit").notNull(),
+    // Optional informational second unit — glass is billed per sqm but
+    // counted in pcs. GST math runs on the rate-bearing quantity+unit above
+    // ONLY; this pair never enters tax calculation.
+    secondaryQuantity: quantity("secondary_quantity"),
+    secondaryUnit: unit("secondary_unit"),
     unitPrice: money("unit_price").notNull(),
     discountAmount: money("discount_amount").notNull().default("0"),
     gstRate: rate("gst_rate").notNull().default("0"),

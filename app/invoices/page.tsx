@@ -16,6 +16,7 @@ const TYPE_LABEL: Record<Invoice["type"], string> = {
   cash_receipt: "Cash Receipt",
   credit_note: "Credit Note",
   debit_note: "Debit Note",
+  delivery_challan: "Delivery Challan",
 };
 
 const STATUS_COLOUR: Record<Invoice["status"], string> = {
@@ -268,7 +269,11 @@ export default async function InvoicesListPage({
                             fontWeight: 500,
                           }}
                         >
-                          {inv.number}
+                          {inv.number ?? (
+                            <span style={{ color: "#888", fontStyle: "italic" }}>
+                              Draft
+                            </span>
+                          )}
                         </Link>
                       </td>
                       <td style={{ padding: "0.65rem 0.5rem", color: "#444" }}>
