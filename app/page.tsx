@@ -151,12 +151,20 @@ export default async function Home() {
                   {business.stateCode &&
                     ` · State code ${business.stateCode}`}
                 </p>
-                <Link
-                  href={`/invoices/new?businessId=${business.id}`}
-                  style={ctaPrimary}
-                >
-                  + New invoice
-                </Link>
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                  <Link
+                    href={`/invoices/new?businessId=${business.id}`}
+                    style={ctaPrimary}
+                  >
+                    + New invoice
+                  </Link>
+                  <Link
+                    href={`/invoices?businessId=${business.id}`}
+                    style={ctaSecondary}
+                  >
+                    View invoices →
+                  </Link>
+                </div>
               </li>
             ))}
           </ul>

@@ -44,6 +44,7 @@ import {
   getInvoiceWithLineItems,
   insertInvoice,
   insertLineItems,
+  listInvoicesForUser,
   lockBusinessRow,
 } from "../repositories/invoices";
 
@@ -268,6 +269,9 @@ export async function getInvoice(
 ): Promise<CreatedInvoice | null> {
   return getInvoiceForUser(actorUserId, invoiceId);
 }
+
+/** List invoices the caller can see, filterable by business and status. */
+export { listInvoicesForUser };
 
 // Re-exported so route handlers can pull the type without going through
 // the schemas folder.

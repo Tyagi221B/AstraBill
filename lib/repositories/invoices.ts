@@ -4,7 +4,7 @@
  * isolation invariant). No business rules here.
  */
 import "server-only";
-import { and, count, eq, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db, type Tx } from "../db";
 import {
@@ -147,6 +147,45 @@ export async function getInvoiceForUser(
   });
   if (!member) return null;
   return row;
+}
+
+/**
+ * List invoices the user is allowed to see — every business they're an
+ * active member of. Filters: optional businessId (must be one of their
+ * memberships, else empty), optional status. Sorted newest-first.
+ *
+ * Authorisation: uses a SELECT subquery on business_members so an
+ * unauthorised businessId simply matches nothing — no existence leak.
+ */
+export async function listInvoicesForUser(opts: {
+  userId: string;
+  businessId?: string;
+  status?: Invoice["status"];
+  limit?: number;
+}): Promise<Invoice[]> {
+  const memberBusinessIds = db
+    .select({ id: businessMembers.businessId })
+    .from(businessMembers)
+    .where(
+      and(
+        eq(businessMembers.userId, opts.userId),
+        isNull(businessMembers.deletedAt),
+      ),
+    );
+
+  const whereParts = [
+    inArray(invoices.businessId, memberBusinessIds),
+    isNull(invoices.deletedAt),
+  ];
+  if (opts.businessId) whereParts.push(eq(invoices.businessId, opts.businessId));
+  if (opts.status) whereParts.push(eq(invoices.status, opts.status));
+
+  return db
+    .select()
+    .from(invoices)
+    .where(and(...whereParts))
+    .orderBy(desc(invoices.createdAt))
+    .limit(opts.limit ?? 50);
 }
 
 /** Bypass — used during a service's create flow where the tx-private state

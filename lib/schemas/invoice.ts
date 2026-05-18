@@ -52,6 +52,16 @@ const lineItemSchema = z.object({
 
 // ---- Create invoice -----------------------------------------------------
 
+/** Query string for GET /api/invoices. */
+export const listInvoicesQuerySchema = z.object({
+  businessId: z.string().uuid().optional(),
+  status: z
+    .enum(["draft", "sent", "seen", "partially_paid", "paid", "overdue"])
+    .optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+export type ListInvoicesQuery = z.infer<typeof listInvoicesQuerySchema>;
+
 export const createInvoiceSchema = z.object({
   businessId: z.string().uuid(),
   customerId: z.string().uuid().nullable().optional(),

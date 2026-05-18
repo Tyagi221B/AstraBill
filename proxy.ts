@@ -43,5 +43,15 @@ export default auth((req) => {
 export const config = {
   // Protect onboarding + every page under /invoices.
   // (Add new protected page roots here as the app grows.)
-  matcher: ["/onboarding/:path*", "/invoices/:path*"],
+  //
+  // We list both the bare path and the `:path*` form for each root because
+  // `/invoices/:path*` is unambiguous for nested routes but path-to-regexp
+  // behaviour for "matches the bare segment too?" depends on the version.
+  // Being explicit removes the ambiguity.
+  matcher: [
+    "/onboarding",
+    "/onboarding/:path*",
+    "/invoices",
+    "/invoices/:path*",
+  ],
 };
