@@ -6,6 +6,18 @@ sources: 2
 
 # Onboarding Flow — No Signup First
 
+> **⚠️ V1 status (2026-05-18):** V1 currently ships **auth-first** — sign in
+> (Google or WhatsApp OTP) → create a business → create invoices. The
+> **anonymous-first** flow described below (create an invoice with no
+> account, OTP only at "send") is the **V1.x target**, not yet built.
+>
+> Why the divergence: `invoices.business_id` is `NOT NULL`, so an invoice
+> can't exist server-side until the user has a business — which means
+> auth. The anon-first flow needs a client-side localStorage draft layer
+> (see [[decision/drafts-and-multi-device]]) that hydrates into a real
+> invoice on sign-in. Auth-first is the stepping stone; the vision below
+> still stands. Tracked in [[decision/phase-2-plan]].
+
 ## Decision: Anonymous → Phone OTP → Paid. No email/password wall upfront.
 
 The user's instinct is correct. Most billing apps lose 60-70% of potential users at the signup wall before the person has ever seen the product. We flip this.

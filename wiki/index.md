@@ -20,6 +20,7 @@
 | [decision/auth-strategy.md](decision/auth-strategy.md) | decision | NextAuth v5 + JWT sessions. Two equal entry doors: Google OAuth + WhatsApp OTP. Never Supabase Auth. |
 | [decision/code-architecture.md](decision/code-architecture.md) | decision | LLD: thin routes → service → repo → DB. Interfaces for externals. Typed errors. |
 | [decision/v1-scope.md](decision/v1-scope.md) | decision | V1: GST invoice + PDF + WhatsApp + Udhaar + Inventory. English only. No shortcuts. |
+| [decision/phase-2-plan.md](decision/phase-2-plan.md) | decision | Phase 2 blueprint: 2A customers + products + invoice-anatomy migration; 2B WhatsApp hero loop. Build from here. |
 | **Competitors** | | |
 | [competitor/tally.md](competitor/tally.md) | competitor | The 30-year incumbent. Desktop-only, 70-90% MSME share, steep learning curve, ₹22,500+ |
 | [competitor/vyapar.md](competitor/vyapar.md) | competitor | Mobile challenger, 1Cr users, broken WhatsApp, serious RBAC privacy hole |

@@ -84,8 +84,22 @@ Last reconciled: 2026-05-17
 | First customer | The brother's glass + hardware shop — a **trading business** | [[customer/hardware-shop-owner]] |
 | Primary vertical | Trading / retail shops (hardware, glass, building materials) first | [[customer/hardware-shop-owner]] |
 | Language | English only in V1; Hindi in V2 | [[decision/v1-scope]] |
-| Onboarding | Anonymous invoice creation → phone OTP → paid; no signup wall | [[decision/onboarding-flow]] |
+| Onboarding | V1 ships **auth-first** (sign in → business → invoice). Anonymous-first is the V1.x target | [[decision/onboarding-flow]] |
 | Kacha/pakka | Support as "Estimate" and "Cash Receipt" — never label it "kacha" | [[customer/hardware-shop-owner]] |
+
+## Product — Invoice Anatomy
+
+Derived from real Om Glass Enterprises invoices ([[customer/hardware-shop-owner]]).
+Implemented in Phase 2 — see [[decision/phase-2-plan]].
+
+| Area | Decision | Never | Rationale |
+|------|----------|-------|-----------|
+| Dual-unit line items | A line carries a rate-bearing `quantity`+`unit` AND an optional secondary `quantity`+`unit` (informational — glass billed per sq.m, counted in pcs). GST math runs on the rate-bearing pair only | a single unit per line | [[customer/hardware-shop-owner]] |
+| Bill-to vs ship-to | Invoice carries an optional ship-to name + address, distinct from the bill-to customer | — | [[decision/phase-2-plan]] |
+| Freight | Optional `freight` amount on the invoice, added **post-tax** (matches trade practice on real invoices) | taxing freight as a composite supply in V1 | [[decision/phase-2-plan]] |
+| Transport fields | Optional transport mode + vehicle number on the invoice | — | [[decision/phase-2-plan]] |
+| Invoice types | `tax_invoice`, `estimate`, `cash_receipt`, `credit_note`, `debit_note`, `delivery_challan` (non-GST goods-movement note) | — | [[customer/hardware-shop-owner]] |
+| Amount in words | Rendered on the invoice PDF; derived at render time, not stored | a stored words column | [[decision/phase-2-plan]] |
 
 ## Product — Pricing
 

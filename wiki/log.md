@@ -144,3 +144,29 @@ Pre-existing SSOT drift on pdf-generation.md cleaned up in the same pass —
 the page now describes the redirect strategy without naming a specific
 storage provider, which is the right level of abstraction for a "PDF
 generation" decision page.
+
+## [2026-05-18] ingest | Om Glass Enterprises real invoices → Phase 2 plan
+
+User's brother shared 3 photographed documents from his shop (Om Glass
+Enterprises, Roorkee) — two GST tax invoices and one delivery challan.
+Ingested as ground truth for what a trading-business invoice actually needs.
+
+Key findings:
+- **Dual-unit billing** — a glass line shows BOTH "04 Pcs" and "11.34 Sq.Mt";
+  rate is per sq.m, taxable value = area × rate. A single quantity+unit per
+  line can't express it. The headline finding — a genuine moat.
+- Bill-to and ship-to are separate blocks.
+- Freight is its own row, added post-tax.
+- Transport mode + vehicle number appear on the invoice.
+- A non-GST delivery challan is a real, separate document type.
+- Amount in words; original/duplicate/triplicate copies.
+
+Updates: customer/hardware-shop-owner.md gained a "Real Invoices" section;
+DECISIONS.md gained a "Product — Invoice Anatomy" section (dual-unit,
+ship-to, freight, transport, `delivery_challan` type); created
+decision/phase-2-plan.md — the HLD/LLD blueprint for Phase 2A (customers +
+products + invoice-anatomy migration) and 2B (WhatsApp hero loop); noted the
+auth-first vs anon-first divergence in onboarding-flow.md. Indexed.
+
+Phase 1 (auth + the invoice CRUD round-trip loop) is complete and
+smoke-tested. The build continues from phase-2-plan.md in a fresh session.

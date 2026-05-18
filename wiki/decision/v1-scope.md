@@ -21,7 +21,9 @@ All four must ship together. Shipping 3/4 means our first customer (the brother)
 
 ### 1. GST Invoice + PDF
 - Product catalog with HSN codes, GST rates (0/5/12/18/28%)
-- Multi-unit support: sq.ft., kg, pieces, linear ft., box, dozen (on line items)
+- Multi-unit support: sq.ft., sq.m, kg, pieces, linear ft., box, dozen — incl.
+  **dual-unit** lines (glass billed per sq.m, also counted in pcs). See
+  [[decision/phase-2-plan]] for the line-item model.
 - Custom line items: cutting charges, transport, labour (no product lookup needed)
 - Auto-calculation: CGST/SGST for intrastate, IGST for interstate
 - Business profile: name, address, GSTIN, logo, bank details
@@ -110,7 +112,9 @@ audit_log           — businessId (nullable), actorUserId (nullable), action, e
 ```
 
 Key schema decisions:
-- **`invoices.type`** is an enum: `tax_invoice | estimate | cash_receipt | credit_note | debit_note`.
+- **`invoices.type`** is an enum — see `DECISIONS.md` → "Invoice types" for the
+  binding list (Phase 1 ships `tax_invoice | estimate | cash_receipt |
+  credit_note | debit_note`; Phase 2 adds `delivery_challan`).
   Credit/debit notes and kacha/pakka ("Estimate"/"Cash Receipt") all live inside the
   `invoices` table — no separate tables. `originalInvoiceId` self-references for notes.
 - **GST split columns** (`cgst`/`sgst`/`igst`) on both invoices and line items. Computed

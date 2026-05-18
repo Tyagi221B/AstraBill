@@ -1,7 +1,7 @@
 ---
 type: customer
-updated: 2026-05-17
-sources: 3
+updated: 2026-05-18
+sources: 4
 ---
 
 # Customer Profile: Hardware / Glass / Building Materials Shop Owner
@@ -43,11 +43,51 @@ Contractors rarely pay immediately. The shop owner extends ₹50K-₹5L in credi
 
 **Legal risk for AstraBill**: We cannot explicitly support kacha billing (tax evasion). But we also can't ignore this business reality. The smart play: see below.
 
+## Real Invoices — Om Glass Enterprises (ground-truth source)
+
+The brother's own shop. Three documents photographed and shared 2026-05-18 —
+two GST tax invoices and one delivery challan. **This is the spec, not a
+mockup.**
+
+### What a real tax invoice contains (Invoice #203)
+
+- **Header**: logo, business name, tagline ("Deals in All Types of Glass and
+  Hardware"), full address, mobile, seller GSTIN + state code, "TAX INVOICE".
+- **Original / Duplicate / Triplicate** marked (White / Pink / Yellow) — the
+  GST 3-copy convention (buyer / transporter / seller). A PDF/print concern.
+- **Recipient block**: name, address, GSTIN, state, state code, date.
+- **Line items**: Sr. No, Name of Product/Service, HSN Code, **Qty in TWO
+  columns — Pcs AND Sq.Mt**, Rate, Taxable Value.
+- **Totals**: Total, SGST %, CGST %, IGST %, Round off, **Freight**, Total
+  Invoice Value, plus the **amount in words**.
+- **Bank details**: name, account no., IFSC.
+- **Shipped To** block — *separate* from the recipient (bill-to ≠ ship-to).
+- **Transport mode + Vehicle No.**, Authorised Signatory.
+
+### The dual-unit insight (the most important finding)
+
+A glass line reads: *12mm Toughened · HSN 70071900 · **04 Pcs** · **11.34
+Sq.Mt** · ₹1506/sq.mtr · ₹17,078.04*.
+
+Glass is **sold by area** (rate is per sq.metre, taxable value = `area ×
+rate`) but **counted in pieces**. Both numbers sit on one line. A single
+`quantity` + `unit` per line cannot express this — the line needs a
+rate-bearing pair (area) **and** an informational secondary pair (pieces).
+No generic billing app handles this cleanly; it's a genuine moat for the
+trading vertical. Design in [[decision/phase-2-plan]].
+
+### The challan (Challan #601)
+
+A non-GST delivery note: "Azam", no GSTIN, particulars (Handle 12", locks),
+qty / rate / remarks, total, "Received the material in Good Condition". The
+kacha / delivery-note reality — to be handled by a `delivery_challan`
+invoice type with no GST treatment.
+
 ## What This Customer Needs from Software
 
 | Need | Priority | Notes |
 |------|----------|-------|
-| Multi-unit billing | 🔴 Critical | sq.ft., kg, pieces, linear ft. in same invoice |
+| Dual-unit billing | 🔴 Critical | Glass billed per sq.m, also counted in pcs — both on one line. Plus kg / box / dozen / linear ft. for hardware |
 | Cutting charges | 🔴 Critical | Custom charge per order |
 | Transport charges | 🟠 High | Add as line item |
 | GST auto-calculation | 🔴 Critical | Multiple rates in one bill |
