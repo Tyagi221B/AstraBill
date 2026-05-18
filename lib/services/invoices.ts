@@ -57,6 +57,8 @@ import {
   insertLineItems,
   listInvoicesForUser,
   lockBusinessRow,
+  setInvoiceStatus,
+  softDeleteInvoice,
   updateInvoiceHeader,
 } from "../repositories/invoices";
 
@@ -419,6 +421,89 @@ export async function updateInvoice(
       invoiceId,
     );
     if (!updated) throw new Error("internal: updated invoice not found");
+    return updated;
+  });
+}
+
+/**
+ * Soft-delete a DRAFT invoice. Finalised invoices are never deletable — a
+ * GST-issued document must stay on the books; reverse it with a credit note
+ * instead. Soft delete (`deleted_at`) keeps the audit trail's entity
+ * reference valid.
+ */
+export async function deleteInvoice(
+  invoiceId: string,
+  actorUserId: string,
+  ctx: ServiceContext = {},
+): Promise<void> {
+  return db.transaction(async (tx) => {
+    const existing = await getInvoiceForUserTx(tx, actorUserId, invoiceId);
+    if (!existing) throw new NotFoundError("Invoice not found");
+
+    if (existing.status !== "draft") {
+      throw new ConflictError(
+        `Only draft invoices can be deleted (this one is ${existing.status}). ` +
+          `Issue a credit note to reverse a finalised invoice.`,
+      );
+    }
+    await requirePermission(actorUserId, existing.businessId, "invoice:delete");
+
+    await softDeleteInvoice(tx, invoiceId);
+    await writeAuditEntry(tx, {
+      action: "invoice.delete",
+      businessId: existing.businessId,
+      actorUserId,
+      entityType: "invoice",
+      entityId: invoiceId,
+      changes: { number: existing.number, total: existing.total },
+      ipAddress: ctx.ipAddress ?? null,
+      userAgent: ctx.userAgent ?? null,
+    });
+  });
+}
+
+/**
+ * Finalise a DRAFT invoice — status `draft` → `sent`. After this the invoice
+ * is immutable (edit + delete are blocked). For V1 this is a manual
+ * "mark as sent"; once the WhatsApp send feature lands, the actual send will
+ * drive this same transition.
+ */
+export async function finalizeInvoice(
+  invoiceId: string,
+  actorUserId: string,
+  ctx: ServiceContext = {},
+): Promise<CreatedInvoice> {
+  return db.transaction(async (tx) => {
+    const existing = await getInvoiceForUserTx(tx, actorUserId, invoiceId);
+    if (!existing) throw new NotFoundError("Invoice not found");
+
+    if (existing.status !== "draft") {
+      throw new ConflictError(`Invoice is already ${existing.status}.`);
+    }
+    await requirePermission(
+      actorUserId,
+      existing.businessId,
+      "invoice:finalize",
+    );
+
+    await setInvoiceStatus(tx, invoiceId, "sent");
+    await writeAuditEntry(tx, {
+      action: "invoice.finalize",
+      businessId: existing.businessId,
+      actorUserId,
+      entityType: "invoice",
+      entityId: invoiceId,
+      changes: { number: existing.number, from: "draft", to: "sent" },
+      ipAddress: ctx.ipAddress ?? null,
+      userAgent: ctx.userAgent ?? null,
+    });
+
+    const updated = await getInvoiceWithLineItems(
+      tx,
+      existing.businessId,
+      invoiceId,
+    );
+    if (!updated) throw new Error("internal: finalised invoice not found");
     return updated;
   });
 }

@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 
 import { getInvoice } from "@/lib/services/invoices";
 import { requireUser } from "@/lib/session";
+import { InvoiceActions } from "./InvoiceActions";
 
 export const metadata: Metadata = {
   title: "Invoice · AstraBill",
@@ -87,22 +88,7 @@ export default async function InvoicePage({
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
-          {invoice.status === "draft" && (
-            <Link
-              href={`/invoices/${invoice.id}/edit`}
-              style={{
-                padding: "0.4rem 0.85rem",
-                border: "1px solid #ddd",
-                borderRadius: 6,
-                background: "#fff",
-                color: "#333",
-                fontSize: "0.85rem",
-                textDecoration: "none",
-              }}
-            >
-              Edit
-            </Link>
-          )}
+          <InvoiceActions invoiceId={invoice.id} status={invoice.status} />
           <span
             style={{
               padding: "0.35rem 0.7rem",

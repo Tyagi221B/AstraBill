@@ -262,6 +262,34 @@ export async function updateInvoiceHeader(
   return row;
 }
 
+/** Soft-delete an invoice (sets `deleted_at`). Drafts only — the service
+ *  enforces that; this just performs the write. */
+export async function softDeleteInvoice(
+  tx: Tx,
+  invoiceId: string,
+): Promise<void> {
+  await tx
+    .update(invoices)
+    .set({ deletedAt: new Date() })
+    .where(eq(invoices.id, invoiceId));
+}
+
+/** Transition an invoice's status. The service decides which transitions
+ *  are legal; this just applies it. */
+export async function setInvoiceStatus(
+  tx: Tx,
+  invoiceId: string,
+  status: Invoice["status"],
+): Promise<Invoice> {
+  const [row] = await tx
+    .update(invoices)
+    .set({ status })
+    .where(eq(invoices.id, invoiceId))
+    .returning();
+  if (!row) throw new Error("Set invoice status returned no row");
+  return row;
+}
+
 /** The business row (no lock) — used during update to recompute tax class. */
 export async function getBusinessById(
   tx: Tx,
