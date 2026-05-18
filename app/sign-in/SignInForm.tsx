@@ -105,9 +105,12 @@ export function SignInForm() {
         phone,
         code,
         redirect: false,
+        callbackUrl: "/",
       });
       if (!res || res.error) throw new Error("Invalid or expired code");
-      window.location.assign(res.url ?? "/");
+      // Always go home on success — NextAuth's `res.url` echoes the
+      // initiating page (/sign-in) when redirect:false, not the callback.
+      window.location.assign("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
