@@ -5,6 +5,7 @@
  */
 import { useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
+import posthog from "posthog-js";
 
 type Mode = "choose" | "phone";
 type PhoneStep = "enter-phone" | "enter-code";
@@ -108,6 +109,7 @@ export function SignInForm() {
         callbackUrl: "/",
       });
       if (!res || res.error) throw new Error("Invalid or expired code");
+      posthog.capture("sign_in_completed", { method: "whatsapp_otp" });
       // Always go home on success — NextAuth's `res.url` echoes the
       // initiating page (/sign-in) when redirect:false, not the callback.
       window.location.assign("/");

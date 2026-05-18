@@ -5,7 +5,6 @@
  * selector and routes the submit to PATCH /api/customers/[id].
  */
 import { useState, type FormEvent } from "react";
-import posthog from "posthog-js";
 
 import { INDIAN_STATES } from "@/lib/constants/indian-states";
 
@@ -121,18 +120,9 @@ export function CustomerForm({
         setError(json.error.message);
         return;
       }
-      posthog.capture(isEdit ? "customer_updated" : "customer_created", {
-        customer_id: json.data.id,
-        has_gstin: Boolean(f.gstin.trim()),
-        has_phone: Boolean(f.phone.trim()),
-      });
-      const back = isEdit
-        ? `/customers?businessId=${businessId}`
-        : `/customers?businessId=${businessId}`;
-      window.location.assign(back);
+      window.location.assign(`/customers?businessId=${businessId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
-      posthog.captureException(err);
     } finally {
       setBusy(false);
     }

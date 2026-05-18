@@ -6,6 +6,7 @@
  * WhatsApp-send / payment features land).
  */
 import { useState } from "react";
+import posthog from "posthog-js";
 
 const ghostBtn: React.CSSProperties = {
   padding: "0.4rem 0.85rem",
@@ -50,6 +51,7 @@ export function InvoiceActions({
         | { ok: true }
         | { ok: false; error: { message: string } };
       if (!json.ok) throw new Error(json.error.message);
+      posthog.capture("invoice_finalized", { invoice_id: invoiceId });
       window.location.reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");

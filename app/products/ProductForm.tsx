@@ -8,7 +8,6 @@
  * refuses to expose it (defense in depth).
  */
 import { useState, type FormEvent } from "react";
-import posthog from "posthog-js";
 
 type BusinessOption = { id: string; name: string };
 
@@ -132,16 +131,9 @@ export function ProductForm({
         setError(json.error.message);
         return;
       }
-      posthog.capture(isEdit ? "product_updated" : "product_created", {
-        product_id: json.data.id,
-        unit: f.unit,
-        gst_rate: f.gstRate,
-        has_hsn: Boolean(f.hsnCode.trim()),
-      });
       window.location.assign(`/products?businessId=${businessId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
-      posthog.captureException(err);
     } finally {
       setBusy(false);
     }

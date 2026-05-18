@@ -14,7 +14,6 @@
  *   - `delivery_challan` as a non-GST type option
  */
 import { useMemo, useState, type FormEvent } from "react";
-import posthog from "posthog-js";
 
 import { INDIAN_STATES } from "@/lib/constants/indian-states";
 import {
@@ -407,18 +406,9 @@ export function InvoiceForm({
         return;
       }
       const id = isEdit ? editingInvoiceId! : json.data.id;
-      posthog.capture(isEdit ? "invoice_draft_updated" : "invoice_draft_created", {
-        invoice_id: id,
-        invoice_type: type,
-        has_customer: Boolean(customerId),
-        line_item_count: lineItems.length,
-        has_extra_charges: extraCharges.length > 0,
-        total: totals?.total ?? null,
-      });
       window.location.assign(`/invoices/${id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
-      posthog.captureException(err);
     } finally {
       setBusy(false);
     }

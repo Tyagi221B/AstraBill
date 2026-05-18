@@ -6,6 +6,7 @@
  * GSTIN (only for registered businesses). Everything else lives in settings.
  */
 import { useState, type FormEvent } from "react";
+import posthog from "posthog-js";
 
 import { INDIAN_STATES } from "@/lib/constants/indian-states";
 
@@ -70,6 +71,10 @@ export function OnboardingForm() {
         | { ok: true }
         | { ok: false; error: { message: string; details?: unknown } };
       if (!json.ok) throw new Error(json.error.message);
+      posthog.capture("business_created", {
+        has_state: Boolean(stateCode),
+        has_gstin: Boolean(gstin.trim()),
+      });
       window.location.assign("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
