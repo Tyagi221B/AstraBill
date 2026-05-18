@@ -127,6 +127,8 @@ describe("computeInvoiceTotals", () => {
       sgstAmount: "0.00",
       igstAmount: "0.00",
       taxAmount: "0.00",
+      extraChargesTaxable: "0.00",
+      extraChargesNonTaxable: "0.00",
       totalBeforeRound: "0.00",
       roundOff: "0.00",
       total: "0.00",
@@ -145,6 +147,8 @@ describe("computeInvoiceTotals", () => {
       sgstAmount: "90.00",
       igstAmount: "0.00",
       taxAmount: "180.00",
+      extraChargesTaxable: "0.00",
+      extraChargesNonTaxable: "0.00",
       totalBeforeRound: "1180.00",
       roundOff: "0.00",
       total: "1180.00",
@@ -193,6 +197,8 @@ describe("computeInvoiceTotals", () => {
       sgstAmount: "103.80",
       igstAmount: "0.00",
       taxAmount: "207.60",
+      extraChargesTaxable: "0.00",
+      extraChargesNonTaxable: "0.00",
       totalBeforeRound: "1437.60",
       roundOff: "0.40",
       total: "1438.00",
@@ -210,5 +216,150 @@ describe("computeInvoiceTotals", () => {
       taxAmount: "180.00",
       total: "1180.00",
     });
+  });
+});
+
+describe("computeInvoiceTotals — extra charges", () => {
+  // Real-invoice motif: Diamond Tuff TAXES the cut-out / processing charge.
+  it("folds a taxable charge into the pre-GST base at its own GST rate", () => {
+    const totals = computeInvoiceTotals(
+      [
+        line(
+          { quantity: "10", unitPrice: "100", gstRate: "18" },
+          "intrastate",
+        ),
+      ],
+      {
+        taxClass: "intrastate",
+        extraCharges: [
+          { amount: "200", taxable: true, gstRate: "18" },
+          // Cutting / labour at the same rate as the goods.
+        ],
+      },
+    );
+    // Goods taxable 1000 + charge 200 = 1200 taxable; tax 216 (108+108);
+    // pre-round 1416; whole rupee already, no round-off.
+    expect(totals).toMatchObject({
+      taxableAmount: "1200.00",
+      cgstAmount: "108.00",
+      sgstAmount: "108.00",
+      igstAmount: "0.00",
+      taxAmount: "216.00",
+      extraChargesTaxable: "200.00",
+      extraChargesNonTaxable: "0.00",
+      totalBeforeRound: "1416.00",
+      roundOff: "0.00",
+      total: "1416.00",
+    });
+  });
+
+  it("splits a taxable charge into IGST under an interstate invoice", () => {
+    const totals = computeInvoiceTotals(
+      [
+        line(
+          { quantity: "10", unitPrice: "100", gstRate: "18" },
+          "interstate",
+        ),
+      ],
+      {
+        taxClass: "interstate",
+        extraCharges: [{ amount: "200", taxable: true, gstRate: "18" }],
+      },
+    );
+    expect(totals).toMatchObject({
+      cgstAmount: "0.00",
+      sgstAmount: "0.00",
+      igstAmount: "216.00",
+      total: "1416.00",
+    });
+  });
+
+  // Real-invoice motif: Om Glass adds informal freight POST-tax.
+  it("adds a non-taxable charge AFTER round-off, leaving the taxable side untouched", () => {
+    const totals = computeInvoiceTotals(
+      [
+        // 99.50 → tax 17.91 → preRound 117.41 → round 117 (roundOff -0.41).
+        line(
+          { quantity: "1", unitPrice: "99.50", gstRate: "18" },
+          "intrastate",
+        ),
+      ],
+      {
+        taxClass: "intrastate",
+        extraCharges: [{ amount: "200", taxable: false }],
+      },
+    );
+    expect(totals).toMatchObject({
+      taxableAmount: "99.50",
+      taxAmount: "17.91",
+      extraChargesTaxable: "0.00",
+      extraChargesNonTaxable: "200.00",
+      totalBeforeRound: "117.41",
+      roundOff: "-0.41",
+      // Round-off applies to the taxable side only; freight rides on top, so
+      // the final total is 117 + 200 = 317 (not re-rounded).
+      total: "317.00",
+    });
+  });
+
+  it("non-taxable extras with paise leave paise in the final total", () => {
+    const totals = computeInvoiceTotals(
+      [line({ quantity: "10", unitPrice: "100", gstRate: "18" }, "intrastate")],
+      {
+        taxClass: "intrastate",
+        extraCharges: [{ amount: "50.50", taxable: false }],
+      },
+    );
+    // Taxable side is clean (1180), freight has paise — the total carries them.
+    expect(totals).toMatchObject({
+      totalBeforeRound: "1180.00",
+      roundOff: "0.00",
+      extraChargesNonTaxable: "50.50",
+      total: "1230.50",
+    });
+  });
+
+  it("mixes a taxable and a non-taxable charge on the same invoice", () => {
+    const totals = computeInvoiceTotals(
+      [line({ quantity: "10", unitPrice: "100", gstRate: "18" }, "intrastate")],
+      {
+        taxClass: "intrastate",
+        extraCharges: [
+          { amount: "100", taxable: true, gstRate: "18" }, // cutting
+          { amount: "150", taxable: false }, // freight
+        ],
+      },
+    );
+    // Taxable 1100; tax 198 (99+99); preRound 1298; total 1298 + 150 = 1448.
+    expect(totals).toMatchObject({
+      taxableAmount: "1100.00",
+      cgstAmount: "99.00",
+      sgstAmount: "99.00",
+      taxAmount: "198.00",
+      extraChargesTaxable: "100.00",
+      extraChargesNonTaxable: "150.00",
+      totalBeforeRound: "1298.00",
+      total: "1448.00",
+    });
+  });
+
+  it("rejects a taxable charge that omits its gstRate", () => {
+    expect(() =>
+      computeInvoiceTotals(
+        [
+          line(
+            { quantity: "10", unitPrice: "100", gstRate: "18" },
+            "intrastate",
+          ),
+        ],
+        {
+          taxClass: "intrastate",
+          // gstRate is optional in the type (non-taxable charges omit it),
+          // but at runtime a taxable charge without one is rejected — that's
+          // what this case asserts.
+          extraCharges: [{ amount: "200", taxable: true }],
+        },
+      ),
+    ).toThrow();
   });
 });

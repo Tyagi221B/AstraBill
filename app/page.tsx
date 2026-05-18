@@ -152,6 +152,18 @@ export default async function Home() {
                   >
                     View invoices →
                   </Link>
+                  <Link
+                    href={`/customers?businessId=${business.id}`}
+                    style={ctaSecondary}
+                  >
+                    Customers →
+                  </Link>
+                  <Link
+                    href={`/products?businessId=${business.id}`}
+                    style={ctaSecondary}
+                  >
+                    Products →
+                  </Link>
                 </div>
               </li>
             ))}

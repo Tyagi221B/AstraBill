@@ -98,6 +98,28 @@ export function computeLineItem(
   };
 }
 
+// ---- Extra charges -----------------------------------------------------
+
+/**
+ * One ad-hoc charge on an invoice (cutting, hole, labour, freight, loading…).
+ *
+ * Taxable charges (real-invoice example: Diamond Tuff's cut-out charge) fold
+ * into the pre-GST taxable base at their own `gstRate`; their tax splits into
+ * CGST+SGST or IGST per the invoice's tax class.
+ *
+ * Non-taxable charges (real-invoice example: Om Glass's informal freight) are
+ * added AFTER round-off — they neither move the taxable base nor get rounded
+ * themselves, so the invoice's final total may carry paise when a non-taxable
+ * charge has decimals.
+ */
+export interface ExtraChargeInput {
+  /** Money string, 2 decimals. */
+  amount: string;
+  taxable: boolean;
+  /** GST rate as a percentage ("18.00"). Required when `taxable` is true. */
+  gstRate?: string | null;
+}
+
 // ---- Invoice totals ----------------------------------------------------
 
 export interface InvoiceTotals {
@@ -108,21 +130,34 @@ export interface InvoiceTotals {
   sgstAmount: string;
   igstAmount: string;
   taxAmount: string;
-  /** Pre-round-off total (taxable + tax). */
+  /** Sum of taxable extra-charge amounts (already folded into taxableAmount). */
+  extraChargesTaxable: string;
+  /** Sum of non-taxable extra-charge amounts (added post-round-off to total). */
+  extraChargesNonTaxable: string;
+  /** Pre-round-off total of the taxable side only (taxable + tax). */
   totalBeforeRound: string;
-  /** Adjustment from totalBeforeRound to the displayed `total` (rupee rounding). */
+  /** Adjustment that rounds `totalBeforeRound` to a whole rupee. */
   roundOff: string;
-  /** Final amount payable, rounded to the nearest whole rupee. */
+  /** Final amount payable: round(totalBeforeRound) + non-taxable extras. */
   total: string;
 }
 
 /**
- * Aggregate a set of already-computed line items into invoice totals. Applies
- * round-off to the whole rupee (standard on Indian invoices).
+ * Aggregate already-computed line items into invoice totals, optionally with
+ * extra charges. Applies round-off to the whole rupee on the taxable side
+ * (standard on Indian invoices); non-taxable charges are added on top after
+ * round-off (so a flat ₹200 freight leaves the total clean).
+ *
+ * `taxClass` is only consulted when there are taxable extra charges (whose
+ * tax has to split the same way line tax does). Defaults to intrastate, the
+ * conservative choice for the seller — matches `classifyTax`'s own fallback.
  */
 export function computeInvoiceTotals(
   lines: (LineItemInput & LineItemAmounts)[],
+  opts: { extraCharges?: ExtraChargeInput[]; taxClass?: TaxClass } = {},
 ): InvoiceTotals {
+  const klass: TaxClass = opts.taxClass ?? "intrastate";
+
   let subtotal = new Decimal(0);
   let discount = new Decimal(0);
   let taxable = new Decimal(0);
@@ -141,10 +176,40 @@ export function computeInvoiceTotals(
     igst = igst.add(new Decimal(l.igstAmount));
   }
 
+  // Fold extra charges in.
+  let extraTaxable = new Decimal(0);
+  let extraNonTaxable = new Decimal(0);
+
+  for (const c of opts.extraCharges ?? []) {
+    const amt = new Decimal(c.amount);
+    if (c.taxable) {
+      if (c.gstRate == null) {
+        throw new Error("invoice totals: taxable extra charge needs a gstRate");
+      }
+      const rate = new Decimal(c.gstRate);
+      const chargeTax = amt.mul(rate).div(100);
+      extraTaxable = extraTaxable.add(amt);
+      taxable = taxable.add(amt);
+      if (klass === "intrastate") {
+        // Same paise-preserving split as computeLineItem.
+        const half = chargeTax
+          .div(2)
+          .toDecimalPlaces(2, Decimal.ROUND_HALF_UP);
+        cgst = cgst.add(half);
+        sgst = sgst.add(chargeTax.sub(half));
+      } else {
+        igst = igst.add(chargeTax);
+      }
+    } else {
+      extraNonTaxable = extraNonTaxable.add(amt);
+    }
+  }
+
   const tax = cgst.add(sgst).add(igst);
   const preRound = taxable.add(tax);
   const rounded = preRound.toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
   const roundOff = rounded.sub(preRound);
+  const total = rounded.add(extraNonTaxable);
 
   return {
     subtotal: subtotal.toFixed(2),
@@ -154,8 +219,10 @@ export function computeInvoiceTotals(
     sgstAmount: sgst.toFixed(2),
     igstAmount: igst.toFixed(2),
     taxAmount: tax.toFixed(2),
+    extraChargesTaxable: extraTaxable.toFixed(2),
+    extraChargesNonTaxable: extraNonTaxable.toFixed(2),
     totalBeforeRound: preRound.toFixed(2),
     roundOff: roundOff.toFixed(2),
-    total: rounded.toFixed(2),
+    total: total.toFixed(2),
   };
 }

@@ -1,22 +1,27 @@
 "use client";
 /**
- * Invoice create form — minimum viable:
- *   - Select business, type, optional place-of-supply, optional notes/dueDate
- *   - 1+ line items (description, qty, unit, unitPrice, gstRate, opt. HSN/discount)
- *   - Live total preview using the SAME lib/gst math the server uses
+ * Invoice create + edit form.
  *
- * V1 punts (deliberately deferred):
- *   - Customer selection / inline create
- *   - Product catalogue (line items are all custom for now)
- *   - PDF preview
+ * Phase 2A surface area:
+ *   - Customer picker (saved customer or walk-in)
+ *   - Product picker on line items (snapshots name / HSN / rate / GST)
+ *   - Dual-unit per line — informational secondary qty + unit (e.g. glass
+ *     billed per sqm, counted in pcs)
+ *   - Ship-to fields, distinct from the bill-to customer
+ *   - Extra charges list — taxable (cutting / labour) fold pre-GST; non-
+ *     taxable (informal freight) add post-tax (same shape lib/gst uses)
+ *   - Transport mode + vehicle number + optional e-way bill number
+ *   - `delivery_challan` as a non-GST type option
  */
 import { useMemo, useState, type FormEvent } from "react";
+import posthog from "posthog-js";
 
 import { INDIAN_STATES } from "@/lib/constants/indian-states";
 import {
   classifyTax,
   computeInvoiceTotals,
   computeLineItem,
+  type ExtraChargeInput,
 } from "@/lib/gst";
 
 type BusinessOption = {
@@ -26,30 +31,84 @@ type BusinessOption = {
   gstin: string | null;
 };
 
-const UNITS = ["sqft", "kg", "pcs", "linear_ft", "box", "dozen"] as const;
+type CustomerOption = {
+  id: string;
+  businessId: string;
+  name: string;
+  stateCode: string | null;
+  gstin: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+};
+
+type ProductOption = {
+  id: string;
+  businessId: string;
+  name: string;
+  hsnCode: string | null;
+  unit: string;
+  gstRate: string;
+  sellingPrice: string;
+};
+
+const UNITS = [
+  "pcs",
+  "sqft",
+  "sqm",
+  "kg",
+  "linear_ft",
+  "box",
+  "dozen",
+  "set",
+] as const;
+type UnitValue = (typeof UNITS)[number];
+
 const TYPES = [
   { value: "tax_invoice", label: "Tax Invoice" },
   { value: "estimate", label: "Estimate" },
   { value: "cash_receipt", label: "Cash Receipt" },
+  { value: "delivery_challan", label: "Delivery Challan (no GST)" },
 ] as const;
+type InvoiceTypeValue = (typeof TYPES)[number]["value"];
 
 interface LineItem {
+  productId: string | null;
   description: string;
   hsnCode: string;
   quantity: string;
-  unit: (typeof UNITS)[number];
+  unit: UnitValue;
+  secondaryQuantity: string;
+  secondaryUnit: UnitValue | "";
   unitPrice: string;
   discountAmount: string;
   gstRate: string;
 }
 
+interface ExtraCharge {
+  label: string;
+  amount: string;
+  taxable: boolean;
+  gstRate: string;
+}
+
 const blankLine = (): LineItem => ({
+  productId: null,
   description: "",
   hsnCode: "",
   quantity: "1",
   unit: "pcs",
+  secondaryQuantity: "",
+  secondaryUnit: "",
   unitPrice: "0.00",
   discountAmount: "0",
+  gstRate: "18",
+});
+
+const blankCharge = (): ExtraCharge => ({
+  label: "",
+  amount: "0.00",
+  taxable: false,
   gstRate: "18",
 });
 
@@ -62,7 +121,6 @@ const card: React.CSSProperties = {
   background: "#fff",
   marginBottom: "1.25rem",
 };
-
 const fieldLabel: React.CSSProperties = {
   display: "block",
   fontSize: "0.8rem",
@@ -70,7 +128,6 @@ const fieldLabel: React.CSSProperties = {
   fontWeight: 500,
   color: "#444",
 };
-
 const input: React.CSSProperties = {
   width: "100%",
   padding: "0.55rem 0.75rem",
@@ -80,7 +137,6 @@ const input: React.CSSProperties = {
   background: "#fff",
   boxSizing: "border-box",
 };
-
 const primaryBtn: React.CSSProperties = {
   padding: "0.75rem 1.25rem",
   fontSize: "1rem",
@@ -91,7 +147,6 @@ const primaryBtn: React.CSSProperties = {
   color: "#fff",
   cursor: "pointer",
 };
-
 const ghostBtn: React.CSSProperties = {
   padding: "0.5rem 0.85rem",
   fontSize: "0.85rem",
@@ -101,7 +156,6 @@ const ghostBtn: React.CSSProperties = {
   cursor: "pointer",
   color: "#333",
 };
-
 const totalRow: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
@@ -112,38 +166,66 @@ const totalRow: React.CSSProperties = {
 // ---- form ---------------------------------------------------------------
 
 export interface InvoiceFormInitial {
-  type: (typeof TYPES)[number]["value"];
+  type: InvoiceTypeValue;
+  customerId: string | null;
   placeOfSupplyStateCode: string | null;
   notes: string | null;
   issueDate: string;
   dueDate: string | null;
+  shipToName: string | null;
+  shipToAddress: string | null;
+  transportMode: string | null;
+  vehicleNumber: string | null;
+  ewayBillNumber: string | null;
+  extraCharges: ExtraCharge[];
   lineItems: LineItem[];
 }
 
 export function InvoiceForm({
   businesses,
+  customers,
+  products,
   initialBusinessId,
   editingInvoiceId,
   initial,
 }: {
   businesses: BusinessOption[];
+  customers: CustomerOption[];
+  products: ProductOption[];
   initialBusinessId: string;
-  /** Presence of this prop switches the form into edit mode — business +
-   *  type become read-only, submit calls PATCH /api/invoices/[id]. */
   editingInvoiceId?: string;
   initial?: InvoiceFormInitial;
 }) {
   const isEdit = Boolean(editingInvoiceId);
 
   const [businessId, setBusinessId] = useState(initialBusinessId);
-  const [type, setType] = useState<(typeof TYPES)[number]["value"]>(
+  const [type, setType] = useState<InvoiceTypeValue>(
     initial?.type ?? "tax_invoice",
+  );
+  const [customerId, setCustomerId] = useState<string>(
+    initial?.customerId ?? "",
   );
   const [placeOfSupplyStateCode, setPlaceOfSupplyStateCode] = useState(
     initial?.placeOfSupplyStateCode ?? "",
   );
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
+  const [shipToName, setShipToName] = useState(initial?.shipToName ?? "");
+  const [shipToAddress, setShipToAddress] = useState(
+    initial?.shipToAddress ?? "",
+  );
+  const [transportMode, setTransportMode] = useState(
+    initial?.transportMode ?? "",
+  );
+  const [vehicleNumber, setVehicleNumber] = useState(
+    initial?.vehicleNumber ?? "",
+  );
+  const [ewayBillNumber, setEwayBillNumber] = useState(
+    initial?.ewayBillNumber ?? "",
+  );
+  const [extraCharges, setExtraCharges] = useState<ExtraCharge[]>(
+    initial?.extraCharges ?? [],
+  );
   const [lineItems, setLineItems] = useState<LineItem[]>(
     initial?.lineItems && initial.lineItems.length > 0
       ? initial.lineItems
@@ -155,38 +237,71 @@ export function InvoiceForm({
   const [errorDetails, setErrorDetails] = useState<unknown>(null);
 
   const business = businesses.find((b) => b.id === businessId)!;
+  const businessCustomers = useMemo(
+    () => customers.filter((c) => c.businessId === businessId),
+    [customers, businessId],
+  );
+  const businessProducts = useMemo(
+    () => products.filter((p) => p.businessId === businessId),
+    [products, businessId],
+  );
+  const selectedCustomer = customerId
+    ? businessCustomers.find((c) => c.id === customerId) ?? null
+    : null;
 
-  // Default place of supply to the business's own state if not yet set.
+  // For non-GST delivery challans, hide GST fields visually but the math
+  // still runs at 0% (per-line gstRate). We zero the line rates client-side
+  // when the user switches type → DC, so the preview matches.
+  const isDeliveryChallan = type === "delivery_challan";
+
+  // Default place of supply: explicit field → selected customer's state →
+  // business's own state.
   const effectivePlaceOfSupply =
-    placeOfSupplyStateCode || business.stateCode || null;
+    placeOfSupplyStateCode ||
+    selectedCustomer?.stateCode ||
+    business.stateCode ||
+    null;
 
-  // ---- live totals preview (uses the same math the server runs) --------
+  const taxClass = classifyTax(business.stateCode, effectivePlaceOfSupply);
+
+  // ---- live totals preview --------------------------------------------
 
   const totals = useMemo(() => {
     try {
-      const klass = classifyTax(business.stateCode, effectivePlaceOfSupply);
       const lineAmounts = lineItems.map((line) =>
         computeLineItem(
           {
             quantity: line.quantity || "0",
             unitPrice: line.unitPrice || "0",
             discountAmount: line.discountAmount || "0",
-            gstRate: line.gstRate || "0",
+            gstRate: isDeliveryChallan ? "0" : line.gstRate || "0",
           },
-          klass,
+          taxClass,
         ),
       );
       const combined = lineItems.map((line, i) => ({
         ...line,
+        gstRate: isDeliveryChallan ? "0" : line.gstRate,
         ...lineAmounts[i]!,
       }));
-      return { ...computeInvoiceTotals(combined), klass };
+      const extras: ExtraChargeInput[] = extraCharges
+        .filter((c) => c.label.trim() !== "" || Number(c.amount) !== 0)
+        .map((c) => ({
+          amount: c.amount || "0",
+          taxable: c.taxable,
+          gstRate: c.taxable ? c.gstRate || "0" : undefined,
+        }));
+      return {
+        ...computeInvoiceTotals(combined, {
+          extraCharges: extras,
+          taxClass,
+        }),
+        klass: taxClass,
+      };
     } catch {
-      // While the user is mid-edit we may have invalid strings — fall back
-      // to zeros rather than crashing the preview.
       return null;
     }
-  }, [lineItems, business.stateCode, effectivePlaceOfSupply]);
+  }, [lineItems, extraCharges, taxClass, isDeliveryChallan]);
 
   // ---- handlers --------------------------------------------------------
 
@@ -196,14 +311,44 @@ export function InvoiceForm({
     );
   }
 
+  function pickProductForLine(i: number, productId: string) {
+    if (!productId) {
+      updateLine(i, { productId: null });
+      return;
+    }
+    const p = businessProducts.find((p) => p.id === productId);
+    if (!p) return;
+    updateLine(i, {
+      productId: p.id,
+      description: p.name,
+      hsnCode: p.hsnCode ?? "",
+      unit: (UNITS as readonly string[]).includes(p.unit)
+        ? (p.unit as UnitValue)
+        : "pcs",
+      unitPrice: p.sellingPrice,
+      gstRate: p.gstRate,
+    });
+  }
+
   function addLine() {
     setLineItems((rows) => [...rows, blankLine()]);
   }
-
   function removeLine(i: number) {
     setLineItems((rows) =>
       rows.length > 1 ? rows.filter((_, idx) => idx !== i) : rows,
     );
+  }
+
+  function updateCharge(i: number, patch: Partial<ExtraCharge>) {
+    setExtraCharges((rows) =>
+      rows.map((row, idx) => (idx === i ? { ...row, ...patch } : row)),
+    );
+  }
+  function addCharge() {
+    setExtraCharges((rows) => [...rows, blankCharge()]);
+  }
+  function removeCharge(i: number) {
+    setExtraCharges((rows) => rows.filter((_, idx) => idx !== i));
   }
 
   async function submit(e: FormEvent) {
@@ -213,20 +358,36 @@ export function InvoiceForm({
     setErrorDetails(null);
     try {
       const sharedFields = {
+        customerId: customerId || null,
         placeOfSupplyStateCode: placeOfSupplyStateCode || null,
         notes: notes.trim() || null,
         dueDate: dueDate || null,
+        shipToName: shipToName.trim() || null,
+        shipToAddress: shipToAddress.trim() || null,
+        transportMode: transportMode.trim() || null,
+        vehicleNumber: vehicleNumber.trim() || null,
+        ewayBillNumber: ewayBillNumber.trim() || null,
+        extraCharges: extraCharges
+          .filter((c) => c.label.trim() !== "" && Number(c.amount) !== 0)
+          .map((c) => ({
+            label: c.label.trim(),
+            amount: c.amount,
+            taxable: c.taxable,
+            ...(c.taxable ? { gstRate: c.gstRate } : {}),
+          })),
         lineItems: lineItems.map((l) => ({
+          productId: l.productId,
           description: l.description.trim(),
           hsnCode: l.hsnCode.trim() || null,
           quantity: l.quantity,
           unit: l.unit,
+          secondaryQuantity: l.secondaryQuantity.trim() || null,
+          secondaryUnit: l.secondaryUnit || null,
           unitPrice: l.unitPrice,
           discountAmount: l.discountAmount || "0",
-          gstRate: l.gstRate,
+          gstRate: isDeliveryChallan ? "0" : l.gstRate,
         })),
       };
-      // Create vs edit: PATCH omits businessId/type (locked); POST includes both.
       const payload = isEdit
         ? sharedFields
         : { ...sharedFields, businessId, type };
@@ -245,12 +406,19 @@ export function InvoiceForm({
         setErrorDetails(json.error.details);
         return;
       }
-      // On create, the new id is in the response. On edit, the id is what
-      // the user already had — we navigate back to the detail page either way.
       const id = isEdit ? editingInvoiceId! : json.data.id;
+      posthog.capture(isEdit ? "invoice_draft_updated" : "invoice_draft_created", {
+        invoice_id: id,
+        invoice_type: type,
+        has_customer: Boolean(customerId),
+        line_item_count: lineItems.length,
+        has_extra_charges: extraCharges.length > 0,
+        total: totals?.total ?? null,
+      });
       window.location.assign(`/invoices/${id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
+      posthog.captureException(err);
     } finally {
       setBusy(false);
     }
@@ -266,10 +434,9 @@ export function InvoiceForm({
         Number(l.unitPrice) < 0,
     );
 
-  // ---- render ----------------------------------------------------------
-
   return (
     <form onSubmit={submit}>
+      {/* ---- Header ---- */}
       <section style={card}>
         <h2 style={{ fontSize: "1rem", margin: "0 0 0.85rem" }}>Header</h2>
         <div
@@ -281,12 +448,21 @@ export function InvoiceForm({
         >
           <div>
             <label style={fieldLabel} htmlFor="biz">
-              Business{isEdit && <span style={{ color: "#888", fontWeight: 400 }}> · locked</span>}
+              Business
+              {isEdit && (
+                <span style={{ color: "#888", fontWeight: 400 }}>
+                  {" "}
+                  · locked
+                </span>
+              )}
             </label>
             <select
               id="biz"
               value={businessId}
-              onChange={(e) => setBusinessId(e.target.value)}
+              onChange={(e) => {
+                setBusinessId(e.target.value);
+                setCustomerId(""); // customer list changes with business
+              }}
               disabled={isEdit}
               style={{ ...input, opacity: isEdit ? 0.7 : 1 }}
             >
@@ -300,14 +476,18 @@ export function InvoiceForm({
           </div>
           <div>
             <label style={fieldLabel} htmlFor="type">
-              Type{isEdit && <span style={{ color: "#888", fontWeight: 400 }}> · locked</span>}
+              Type
+              {isEdit && (
+                <span style={{ color: "#888", fontWeight: 400 }}>
+                  {" "}
+                  · locked
+                </span>
+              )}
             </label>
             <select
               id="type"
               value={type}
-              onChange={(e) =>
-                setType(e.target.value as (typeof TYPES)[number]["value"])
-              }
+              onChange={(e) => setType(e.target.value as InvoiceTypeValue)}
               disabled={isEdit}
               style={{ ...input, opacity: isEdit ? 0.7 : 1 }}
             >
@@ -319,10 +499,29 @@ export function InvoiceForm({
             </select>
           </div>
           <div>
+            <label style={fieldLabel} htmlFor="customer">
+              Customer
+            </label>
+            <select
+              id="customer"
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
+              style={input}
+            >
+              <option value="">Walk-in (no saved customer)</option>
+              {businessCustomers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                  {c.gstin ? ` · ${c.gstin}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label style={fieldLabel} htmlFor="pos">
               Place of supply{" "}
               <span style={{ color: "#888", fontWeight: 400 }}>
-                (defaults to business state)
+                (defaults to customer or business state)
               </span>
             </label>
             <select
@@ -332,9 +531,11 @@ export function InvoiceForm({
               style={input}
             >
               <option value="">
-                {business.stateCode
-                  ? `Same as business — ${business.stateCode}`
-                  : "— Select —"}
+                {selectedCustomer?.stateCode
+                  ? `Customer — ${selectedCustomer.stateCode}`
+                  : business.stateCode
+                    ? `Same as business — ${business.stateCode}`
+                    : "— Select —"}
               </option>
               {INDIAN_STATES.map((s) => (
                 <option key={s.code} value={s.code}>
@@ -359,6 +560,47 @@ export function InvoiceForm({
         </div>
       </section>
 
+      {/* ---- Ship-to ---- */}
+      <section style={card}>
+        <h2 style={{ fontSize: "1rem", margin: "0 0 0.85rem" }}>
+          Ship-to{" "}
+          <span style={{ color: "#888", fontWeight: 400 }}>
+            (optional — leave blank to ship to the bill-to customer)
+          </span>
+        </h2>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 2fr",
+            gap: "0.85rem",
+          }}
+        >
+          <div>
+            <label style={fieldLabel} htmlFor="shipName">
+              Consignee name
+            </label>
+            <input
+              id="shipName"
+              value={shipToName}
+              onChange={(e) => setShipToName(e.target.value)}
+              style={input}
+            />
+          </div>
+          <div>
+            <label style={fieldLabel} htmlFor="shipAddr">
+              Ship-to address
+            </label>
+            <input
+              id="shipAddr"
+              value={shipToAddress}
+              onChange={(e) => setShipToAddress(e.target.value)}
+              style={input}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ---- Line items ---- */}
       <section style={card}>
         <div
           style={{
@@ -373,7 +615,6 @@ export function InvoiceForm({
             + Add line
           </button>
         </div>
-
         <div style={{ overflowX: "auto" }}>
           <table
             style={{
@@ -384,28 +625,39 @@ export function InvoiceForm({
           >
             <thead>
               <tr style={{ textAlign: "left", color: "#888" }}>
-                <th style={{ padding: "0.4rem 0.5rem", width: "32%" }}>
-                  Description
-                </th>
-                <th style={{ padding: "0.4rem 0.5rem", width: "9%" }}>HSN</th>
-                <th style={{ padding: "0.4rem 0.5rem", width: "9%" }}>Qty</th>
-                <th style={{ padding: "0.4rem 0.5rem", width: "10%" }}>Unit</th>
-                <th style={{ padding: "0.4rem 0.5rem", width: "12%" }}>
-                  Unit price
-                </th>
-                <th style={{ padding: "0.4rem 0.5rem", width: "10%" }}>
-                  Discount
-                </th>
-                <th style={{ padding: "0.4rem 0.5rem", width: "9%" }}>
-                  GST %
-                </th>
+                <th style={{ padding: "0.4rem 0.4rem" }}>Product</th>
+                <th style={{ padding: "0.4rem 0.4rem" }}>Description</th>
+                <th style={{ padding: "0.4rem 0.4rem" }}>HSN</th>
+                <th style={{ padding: "0.4rem 0.4rem" }}>Qty</th>
+                <th style={{ padding: "0.4rem 0.4rem" }}>Unit</th>
+                <th style={{ padding: "0.4rem 0.4rem" }}>2nd qty</th>
+                <th style={{ padding: "0.4rem 0.4rem" }}>2nd unit</th>
+                <th style={{ padding: "0.4rem 0.4rem" }}>Unit price</th>
+                <th style={{ padding: "0.4rem 0.4rem" }}>Discount</th>
+                {!isDeliveryChallan && (
+                  <th style={{ padding: "0.4rem 0.4rem" }}>GST %</th>
+                )}
                 <th />
               </tr>
             </thead>
             <tbody>
               {lineItems.map((line, i) => (
                 <tr key={i} style={{ borderTop: "1px solid #f0f0f0" }}>
-                  <td style={{ padding: "0.35rem 0.4rem" }}>
+                  <td style={{ padding: "0.35rem 0.3rem", minWidth: 140 }}>
+                    <select
+                      value={line.productId ?? ""}
+                      onChange={(e) => pickProductForLine(i, e.target.value)}
+                      style={input}
+                    >
+                      <option value="">— custom —</option>
+                      {businessProducts.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td style={{ padding: "0.35rem 0.3rem", minWidth: 200 }}>
                     <input
                       type="text"
                       value={line.description}
@@ -416,7 +668,7 @@ export function InvoiceForm({
                       style={input}
                     />
                   </td>
-                  <td style={{ padding: "0.35rem 0.4rem" }}>
+                  <td style={{ padding: "0.35rem 0.3rem", width: 90 }}>
                     <input
                       type="text"
                       value={line.hsnCode}
@@ -427,7 +679,7 @@ export function InvoiceForm({
                       style={{ ...input, fontFamily: "monospace" }}
                     />
                   </td>
-                  <td style={{ padding: "0.35rem 0.4rem" }}>
+                  <td style={{ padding: "0.35rem 0.3rem", width: 80 }}>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -438,13 +690,11 @@ export function InvoiceForm({
                       style={{ ...input, textAlign: "right" }}
                     />
                   </td>
-                  <td style={{ padding: "0.35rem 0.4rem" }}>
+                  <td style={{ padding: "0.35rem 0.3rem", width: 92 }}>
                     <select
                       value={line.unit}
                       onChange={(e) =>
-                        updateLine(i, {
-                          unit: e.target.value as LineItem["unit"],
-                        })
+                        updateLine(i, { unit: e.target.value as UnitValue })
                       }
                       style={input}
                     >
@@ -455,7 +705,37 @@ export function InvoiceForm({
                       ))}
                     </select>
                   </td>
-                  <td style={{ padding: "0.35rem 0.4rem" }}>
+                  <td style={{ padding: "0.35rem 0.3rem", width: 80 }}>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={line.secondaryQuantity}
+                      onChange={(e) =>
+                        updateLine(i, { secondaryQuantity: e.target.value })
+                      }
+                      placeholder=""
+                      style={{ ...input, textAlign: "right" }}
+                    />
+                  </td>
+                  <td style={{ padding: "0.35rem 0.3rem", width: 92 }}>
+                    <select
+                      value={line.secondaryUnit}
+                      onChange={(e) =>
+                        updateLine(i, {
+                          secondaryUnit: e.target.value as UnitValue | "",
+                        })
+                      }
+                      style={input}
+                    >
+                      <option value="">—</option>
+                      {UNITS.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td style={{ padding: "0.35rem 0.3rem", width: 110 }}>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -466,7 +746,7 @@ export function InvoiceForm({
                       style={{ ...input, textAlign: "right" }}
                     />
                   </td>
-                  <td style={{ padding: "0.35rem 0.4rem" }}>
+                  <td style={{ padding: "0.35rem 0.3rem", width: 90 }}>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -477,23 +757,20 @@ export function InvoiceForm({
                       style={{ ...input, textAlign: "right" }}
                     />
                   </td>
-                  <td style={{ padding: "0.35rem 0.4rem" }}>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={line.gstRate}
-                      onChange={(e) =>
-                        updateLine(i, { gstRate: e.target.value })
-                      }
-                      style={{ ...input, textAlign: "right" }}
-                    />
-                  </td>
-                  <td
-                    style={{
-                      padding: "0.35rem 0.4rem",
-                      textAlign: "right",
-                    }}
-                  >
+                  {!isDeliveryChallan && (
+                    <td style={{ padding: "0.35rem 0.3rem", width: 80 }}>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={line.gstRate}
+                        onChange={(e) =>
+                          updateLine(i, { gstRate: e.target.value })
+                        }
+                        style={{ ...input, textAlign: "right" }}
+                      />
+                    </td>
+                  )}
+                  <td style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
                     <button
                       type="button"
                       onClick={() => removeLine(i)}
@@ -521,8 +798,183 @@ export function InvoiceForm({
         </div>
       </section>
 
+      {/* ---- Extra charges ---- */}
       <section style={card}>
-        <h2 style={{ fontSize: "1rem", margin: "0 0 0.85rem" }}>Notes & totals</h2>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "0.85rem",
+          }}
+        >
+          <h2 style={{ fontSize: "1rem", margin: 0 }}>
+            Extra charges{" "}
+            <span style={{ color: "#888", fontWeight: 400 }}>
+              (cutting / labour / freight…)
+            </span>
+          </h2>
+          <button type="button" onClick={addCharge} style={ghostBtn}>
+            + Add charge
+          </button>
+        </div>
+        {extraCharges.length === 0 ? (
+          <p style={{ margin: 0, color: "#888", fontSize: "0.85rem" }}>
+            None. Add taxable charges (cutting, processing) to fold into the
+            taxable base, or non-taxable charges (informal freight) that ride
+            on top of the rounded total.
+          </p>
+        ) : (
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: "0.85rem",
+            }}
+          >
+            <thead>
+              <tr style={{ textAlign: "left", color: "#888" }}>
+                <th style={{ padding: "0.4rem 0.4rem" }}>Label</th>
+                <th style={{ padding: "0.4rem 0.4rem" }}>Amount</th>
+                <th style={{ padding: "0.4rem 0.4rem" }}>Taxable</th>
+                <th style={{ padding: "0.4rem 0.4rem" }}>GST %</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {extraCharges.map((c, i) => (
+                <tr key={i} style={{ borderTop: "1px solid #f0f0f0" }}>
+                  <td style={{ padding: "0.35rem 0.3rem" }}>
+                    <input
+                      type="text"
+                      value={c.label}
+                      onChange={(e) => updateCharge(i, { label: e.target.value })}
+                      placeholder="e.g. Cutting charge"
+                      style={input}
+                    />
+                  </td>
+                  <td style={{ padding: "0.35rem 0.3rem", width: 130 }}>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={c.amount}
+                      onChange={(e) =>
+                        updateCharge(i, { amount: e.target.value })
+                      }
+                      style={{ ...input, textAlign: "right" }}
+                    />
+                  </td>
+                  <td style={{ padding: "0.35rem 0.3rem", width: 110 }}>
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.35rem",
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={c.taxable}
+                        onChange={(e) =>
+                          updateCharge(i, { taxable: e.target.checked })
+                        }
+                      />
+                      Taxable
+                    </label>
+                  </td>
+                  <td style={{ padding: "0.35rem 0.3rem", width: 100 }}>
+                    {c.taxable ? (
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={c.gstRate}
+                        onChange={(e) =>
+                          updateCharge(i, { gstRate: e.target.value })
+                        }
+                        style={{ ...input, textAlign: "right" }}
+                      />
+                    ) : (
+                      <span style={{ color: "#aaa", fontSize: "0.8rem" }}>—</span>
+                    )}
+                  </td>
+                  <td style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
+                    <button
+                      type="button"
+                      onClick={() => removeCharge(i)}
+                      style={{
+                        ...ghostBtn,
+                        padding: "0.35rem 0.55rem",
+                        color: "#c00",
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {/* ---- Transport / e-way ---- */}
+      <section style={card}>
+        <h2 style={{ fontSize: "1rem", margin: "0 0 0.85rem" }}>
+          Transport &amp; e-way bill{" "}
+          <span style={{ color: "#888", fontWeight: 400 }}>(optional)</span>
+        </h2>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: "0.85rem",
+          }}
+        >
+          <div>
+            <label style={fieldLabel} htmlFor="tmode">
+              Transport mode
+            </label>
+            <input
+              id="tmode"
+              value={transportMode}
+              onChange={(e) => setTransportMode(e.target.value)}
+              placeholder="Road / Rail / Self pickup"
+              style={input}
+            />
+          </div>
+          <div>
+            <label style={fieldLabel} htmlFor="veh">
+              Vehicle number
+            </label>
+            <input
+              id="veh"
+              value={vehicleNumber}
+              onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
+              placeholder="UP 32 AB 1234"
+              style={{ ...input, textTransform: "uppercase" }}
+            />
+          </div>
+          <div>
+            <label style={fieldLabel} htmlFor="eway">
+              E-way bill number
+            </label>
+            <input
+              id="eway"
+              value={ewayBillNumber}
+              onChange={(e) => setEwayBillNumber(e.target.value)}
+              placeholder="generated outside AstraBill"
+              style={input}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ---- Notes + totals ---- */}
+      <section style={card}>
+        <h2 style={{ fontSize: "1rem", margin: "0 0 0.85rem" }}>
+          Notes &amp; totals
+        </h2>
         <div
           style={{
             display: "grid",
@@ -565,11 +1017,17 @@ export function InvoiceForm({
                     <span>− ₹ {totals.discountAmount}</span>
                   </div>
                 )}
+                {Number(totals.extraChargesTaxable) > 0 && (
+                  <div style={totalRow}>
+                    <span style={{ color: "#666" }}>Taxable charges</span>
+                    <span>₹ {totals.extraChargesTaxable}</span>
+                  </div>
+                )}
                 <div style={totalRow}>
                   <span style={{ color: "#666" }}>Taxable</span>
                   <span>₹ {totals.taxableAmount}</span>
                 </div>
-                {totals.klass === "intrastate" ? (
+                {!isDeliveryChallan && totals.klass === "intrastate" ? (
                   <>
                     <div style={totalRow}>
                       <span style={{ color: "#666" }}>CGST</span>
@@ -580,12 +1038,12 @@ export function InvoiceForm({
                       <span>₹ {totals.sgstAmount}</span>
                     </div>
                   </>
-                ) : (
+                ) : !isDeliveryChallan ? (
                   <div style={totalRow}>
                     <span style={{ color: "#666" }}>IGST</span>
                     <span>₹ {totals.igstAmount}</span>
                   </div>
-                )}
+                ) : null}
                 <div style={totalRow}>
                   <span style={{ color: "#666" }}>Round-off</span>
                   <span>
@@ -593,6 +1051,12 @@ export function InvoiceForm({
                     {totals.roundOff.replace(/^-/, "")}
                   </span>
                 </div>
+                {Number(totals.extraChargesNonTaxable) > 0 && (
+                  <div style={totalRow}>
+                    <span style={{ color: "#666" }}>Freight / non-taxable</span>
+                    <span>+ ₹ {totals.extraChargesNonTaxable}</span>
+                  </div>
+                )}
                 <div
                   style={{
                     ...totalRow,
@@ -614,9 +1078,11 @@ export function InvoiceForm({
                     textAlign: "center",
                   }}
                 >
-                  {totals.klass === "intrastate"
-                    ? "Intrastate — CGST + SGST"
-                    : "Interstate — IGST"}
+                  {isDeliveryChallan
+                    ? "Delivery challan — no GST"
+                    : totals.klass === "intrastate"
+                      ? "Intrastate — CGST + SGST"
+                      : "Interstate — IGST"}
                 </p>
               </>
             ) : (

@@ -83,7 +83,19 @@ export default async function InvoicePage({
         <div>
           <h1 style={{ fontSize: "1.75rem", margin: 0 }}>
             {invoice.number ?? (
-              <span style={{ color: "#888" }}>Draft invoice</span>
+              <span style={{ color: "#888" }}>
+                Draft
+                <span
+                  style={{
+                    color: "#aaa",
+                    fontSize: "0.85rem",
+                    fontWeight: 400,
+                    marginLeft: "0.5rem",
+                  }}
+                >
+                  — number assigned on finalise
+                </span>
+              </span>
             )}
           </h1>
           <p style={{ color: "#666", margin: "0.15rem 0 0" }}>

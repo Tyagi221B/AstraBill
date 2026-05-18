@@ -270,8 +270,11 @@ export default async function InvoicesListPage({
                           }}
                         >
                           {inv.number ?? (
-                            <span style={{ color: "#888", fontStyle: "italic" }}>
-                              Draft
+                            <span
+                              style={{ color: "#888", fontStyle: "italic" }}
+                              title="Drafts are unnumbered. The number is assigned when you finalise."
+                            >
+                              Draft — number assigned on finalise
                             </span>
                           )}
                         </Link>

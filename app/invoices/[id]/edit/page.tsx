@@ -3,7 +3,9 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 import { listBusinessesForUser } from "@/lib/services/businesses";
+import { listCustomersForUser } from "@/lib/services/customers";
 import { getInvoice } from "@/lib/services/invoices";
+import { listProductsForUser } from "@/lib/services/products";
 import { requireUser } from "@/lib/session";
 import { InvoiceForm, type InvoiceFormInitial } from "../../new/InvoiceForm";
 
@@ -11,10 +13,25 @@ export const metadata: Metadata = {
   title: "Edit invoice · AstraBill",
 };
 
-// Narrow the type/unit enums down to the form's accepted set.
-const FORM_TYPES = ["tax_invoice", "estimate", "cash_receipt"] as const;
+// The form's accepted enum subsets. Credit/debit notes have a different flow
+// (no edit-form UI yet) and are bounced below; the rest the form handles.
+const FORM_TYPES = [
+  "tax_invoice",
+  "estimate",
+  "cash_receipt",
+  "delivery_challan",
+] as const;
 type FormType = (typeof FORM_TYPES)[number];
-const FORM_UNITS = ["sqft", "kg", "pcs", "linear_ft", "box", "dozen"] as const;
+const FORM_UNITS = [
+  "pcs",
+  "sqft",
+  "sqm",
+  "kg",
+  "linear_ft",
+  "box",
+  "dozen",
+  "set",
+] as const;
 type FormUnit = (typeof FORM_UNITS)[number];
 
 function asFormType(t: string): FormType {
@@ -43,36 +60,74 @@ export default async function EditInvoicePage({
   // Drafts only — finalised invoices are immutable. Bounce to detail page.
   if (invoice.status !== "draft") redirect(`/invoices/${id}`);
 
-  // Credit/debit notes use a slightly different flow we haven't built UI for
-  // yet — guard against editing them through this form.
-  if (
-    !(FORM_TYPES as readonly string[]).includes(invoice.type)
-  ) {
+  // Credit/debit notes use a different flow we haven't built UI for yet.
+  if (!(FORM_TYPES as readonly string[]).includes(invoice.type)) {
     redirect(`/invoices/${id}`);
   }
 
-  const memberships = await listBusinessesForUser(user.id);
+  const [memberships, customers, products] = await Promise.all([
+    listBusinessesForUser(user.id),
+    listCustomersForUser({ userId: user.id, limit: 500 }),
+    listProductsForUser({ userId: user.id, limit: 500 }),
+  ]);
+
   const businessOptions = memberships.map((m) => ({
     id: m.business.id,
     name: m.business.name,
     stateCode: m.business.stateCode,
     gstin: m.business.gstin,
   }));
+  const customerOptions = customers.map((c) => ({
+    id: c.id,
+    businessId: c.businessId,
+    name: c.name,
+    stateCode: c.stateCode,
+    gstin: c.gstin,
+    addressLine1: c.addressLine1,
+    addressLine2: c.addressLine2,
+    city: c.city,
+  }));
+  const productOptions = products
+    .filter((p) => p.isActive)
+    .map((p) => ({
+      id: p.id,
+      businessId: p.businessId,
+      name: p.name,
+      hsnCode: p.hsnCode,
+      unit: p.unit,
+      gstRate: p.gstRate,
+      sellingPrice: p.sellingPrice,
+    }));
 
   const initial: InvoiceFormInitial = {
     type: asFormType(invoice.type),
+    customerId: invoice.customerId,
     placeOfSupplyStateCode: invoice.placeOfSupplyStateCode,
     notes: invoice.notes,
     issueDate: invoice.issueDate,
     dueDate: invoice.dueDate,
+    shipToName: invoice.shipToName,
+    shipToAddress: invoice.shipToAddress,
+    transportMode: invoice.transportMode,
+    vehicleNumber: invoice.vehicleNumber,
+    ewayBillNumber: invoice.ewayBillNumber,
+    extraCharges: invoice.extraCharges.map((c) => ({
+      label: c.label,
+      amount: c.amount,
+      taxable: c.taxable,
+      gstRate: c.gstRate ?? "18",
+    })),
     lineItems: invoice.lineItems
       .slice()
       .sort((a, b) => a.sortOrder - b.sortOrder)
       .map((l) => ({
+        productId: l.productId,
         description: l.description,
         hsnCode: l.hsnCode ?? "",
         quantity: l.quantity,
         unit: asFormUnit(l.unit),
+        secondaryQuantity: l.secondaryQuantity ?? "",
+        secondaryUnit: l.secondaryUnit ? asFormUnit(l.secondaryUnit) : "",
         unitPrice: l.unitPrice,
         discountAmount: l.discountAmount,
         gstRate: l.gstRate,
@@ -82,7 +137,7 @@ export default async function EditInvoicePage({
   return (
     <main
       style={{
-        maxWidth: 880,
+        maxWidth: 1040,
         margin: "3rem auto",
         padding: "0 1.25rem",
         fontFamily: "system-ui, sans-serif",
@@ -95,7 +150,7 @@ export default async function EditInvoicePage({
         ← Back to invoice
       </Link>
       <h1 style={{ fontSize: "1.75rem", margin: "1rem 0 0.25rem" }}>
-        Edit {invoice.number ?? "draft invoice"}
+        Edit {invoice.number ?? "draft — number assigned on finalise"}
       </h1>
       <p style={{ color: "#666", marginBottom: "2rem" }}>
         Drafts are fully editable. Once you finalise (mark as sent) the invoice
@@ -103,6 +158,8 @@ export default async function EditInvoicePage({
       </p>
       <InvoiceForm
         businesses={businessOptions}
+        customers={customerOptions}
+        products={productOptions}
         initialBusinessId={invoice.businessId}
         editingInvoiceId={id}
         initial={initial}

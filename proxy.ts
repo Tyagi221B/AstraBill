@@ -53,5 +53,9 @@ export const config = {
     "/onboarding/:path*",
     "/invoices",
     "/invoices/:path*",
+    "/customers",
+    "/customers/:path*",
+    "/products",
+    "/products/:path*",
   ],
 };

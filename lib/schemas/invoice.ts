@@ -45,10 +45,34 @@ const lineItemSchema = z.object({
   hsnCode: z.string().max(20).nullable().optional(),
   quantity,
   unit: z.enum(unitEnum.enumValues),
+  /** Optional informational second unit — glass billed per sqm, counted in
+   *  pcs. GST math runs on the rate-bearing quantity+unit ONLY. */
+  secondaryQuantity: quantity.nullable().optional(),
+  secondaryUnit: z.enum(unitEnum.enumValues).nullable().optional(),
   unitPrice: money,
   discountAmount: money.default("0"),
   gstRate,
 });
+
+// ---- Extra charges ------------------------------------------------------
+
+const extraChargeSchema = z
+  .object({
+    label: z.string().trim().min(1).max(120),
+    amount: money,
+    taxable: z.boolean(),
+    /** Required when taxable; ignored otherwise. */
+    gstRate: gstRate.nullable().optional(),
+  })
+  .superRefine((c, ctx) => {
+    if (c.taxable && (c.gstRate == null || c.gstRate === "")) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["gstRate"],
+        message: "Taxable charges require a GST rate",
+      });
+    }
+  });
 
 // ---- Create invoice -----------------------------------------------------
 
@@ -72,6 +96,16 @@ export const createInvoiceSchema = z.object({
   notes: z.string().max(2000).nullable().optional(),
   issueDate: isoDate.optional(),
   dueDate: isoDate.nullable().optional(),
+  // Consignee (ship-to) — optional; null means the bill-to customer is also
+  // the ship-to party.
+  shipToName: z.string().trim().max(200).nullable().optional(),
+  shipToAddress: z.string().trim().max(1000).nullable().optional(),
+  // Ad-hoc charges (cutting / labour / freight / loading…).
+  extraCharges: z.array(extraChargeSchema).default([]),
+  // Goods-movement metadata, printed on tax invoices and delivery challans.
+  transportMode: z.string().trim().max(60).nullable().optional(),
+  vehicleNumber: z.string().trim().max(40).nullable().optional(),
+  ewayBillNumber: z.string().trim().max(40).nullable().optional(),
   lineItems: z.array(lineItemSchema).min(1, "At least one line item is required"),
 });
 
@@ -92,6 +126,13 @@ export const updateInvoiceSchema = z.object({
   notes: z.string().max(2000).nullable().optional(),
   issueDate: isoDate.optional(),
   dueDate: isoDate.nullable().optional(),
+  shipToName: z.string().trim().max(200).nullable().optional(),
+  shipToAddress: z.string().trim().max(1000).nullable().optional(),
+  extraCharges: z.array(extraChargeSchema).default([]),
+  transportMode: z.string().trim().max(60).nullable().optional(),
+  vehicleNumber: z.string().trim().max(40).nullable().optional(),
+  ewayBillNumber: z.string().trim().max(40).nullable().optional(),
+  customerId: z.string().uuid().nullable().optional(),
   lineItems: z.array(lineItemSchema).min(1, "At least one line item is required"),
 });
 

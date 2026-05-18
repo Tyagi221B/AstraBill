@@ -22,6 +22,7 @@ import "server-only";
 
 import { db } from "../db";
 import type {
+  ExtraCharge,
   Invoice,
   InvoiceLineItem,
   NewInvoiceLineItem,
@@ -62,6 +63,8 @@ import {
   softDeleteInvoice,
   updateInvoiceHeader,
 } from "../repositories/invoices";
+import { decrementProductStock } from "../repositories/products";
+import { insertStockMovement } from "../repositories/stock-movements";
 
 export interface ServiceContext {
   ipAddress?: string | null;
@@ -143,7 +146,16 @@ export async function createInvoice(
       if (!a) throw new Error("internal: lineAmounts misaligned");
       return { ...line, ...a };
     });
-    const totals = computeInvoiceTotals(linesForTotals);
+    const extraCharges: ExtraCharge[] = (input.extraCharges ?? []).map((c) => ({
+      label: c.label,
+      amount: c.amount,
+      taxable: c.taxable,
+      ...(c.taxable && c.gstRate ? { gstRate: c.gstRate } : {}),
+    }));
+    const totals = computeInvoiceTotals(linesForTotals, {
+      extraCharges,
+      taxClass,
+    });
 
     // 3e. Insert the invoice header. `number` is NULL — drafts are unnumbered;
     //     the real number is stamped on at finalise from the then-current
@@ -169,6 +181,12 @@ export async function createInvoice(
       total: totals.total,
       amountPaid: "0",
       notes: input.notes ?? null,
+      shipToName: input.shipToName ?? null,
+      shipToAddress: input.shipToAddress ?? null,
+      extraCharges,
+      transportMode: input.transportMode ?? null,
+      vehicleNumber: input.vehicleNumber ?? null,
+      ewayBillNumber: input.ewayBillNumber ?? null,
       issueDate,
       dueDate: input.dueDate ?? null,
       createdBy: actorUserId,
@@ -186,6 +204,8 @@ export async function createInvoice(
         hsnCode: line.hsnCode ?? null,
         quantity: line.quantity,
         unit: line.unit,
+        secondaryQuantity: line.secondaryQuantity ?? null,
+        secondaryUnit: line.secondaryUnit ?? null,
         unitPrice: line.unitPrice,
         discountAmount: line.discountAmount ?? "0",
         gstRate: line.gstRate,
@@ -326,7 +346,16 @@ export async function updateInvoice(
       if (!a) throw new Error("internal: lineAmounts misaligned");
       return { ...line, ...a };
     });
-    const totals = computeInvoiceTotals(linesForTotals);
+    const extraCharges: ExtraCharge[] = (input.extraCharges ?? []).map((c) => ({
+      label: c.label,
+      amount: c.amount,
+      taxable: c.taxable,
+      ...(c.taxable && c.gstRate ? { gstRate: c.gstRate } : {}),
+    }));
+    const totals = computeInvoiceTotals(linesForTotals, {
+      extraCharges,
+      taxClass,
+    });
 
     // 5. Replace line items atomically — delete all, insert fresh.
     await deleteLineItemsForInvoice(tx, invoiceId);
@@ -341,6 +370,8 @@ export async function updateInvoice(
         hsnCode: line.hsnCode ?? null,
         quantity: line.quantity,
         unit: line.unit,
+        secondaryQuantity: line.secondaryQuantity ?? null,
+        secondaryUnit: line.secondaryUnit ?? null,
         unitPrice: line.unitPrice,
         discountAmount: line.discountAmount ?? "0",
         gstRate: line.gstRate,
@@ -357,10 +388,20 @@ export async function updateInvoice(
     // 6. Update invoice header (editable fields only — number/type/status
     //    stay locked).
     await updateInvoiceHeader(tx, invoiceId, {
+      customerId:
+        input.customerId === undefined
+          ? existing.customerId
+          : (input.customerId ?? null),
       placeOfSupplyStateCode: placeOfSupply,
       notes: input.notes ?? null,
       issueDate: input.issueDate ?? existing.issueDate,
       dueDate: input.dueDate ?? null,
+      shipToName: input.shipToName ?? null,
+      shipToAddress: input.shipToAddress ?? null,
+      extraCharges,
+      transportMode: input.transportMode ?? null,
+      vehicleNumber: input.vehicleNumber ?? null,
+      ewayBillNumber: input.ewayBillNumber ?? null,
       subtotal: totals.subtotal,
       discountAmount: totals.discountAmount,
       taxableAmount: totals.taxableAmount,
@@ -504,13 +545,37 @@ export async function finalizeInvoice(
       throw err;
     }
 
+    // Move stock: every line tied to a product writes one `stock_movements`
+    // row (type: 'out') and decrements `products.stock` by its quantity.
+    // Non-product lines (cutting / labour / freight) don't touch stock.
+    // Drafts never moved stock — only here, inside the same tx, so a
+    // post-finalise failure rolls the whole thing back.
+    for (const line of existing.lineItems) {
+      if (!line.productId) continue;
+      await insertStockMovement(tx, {
+        businessId: existing.businessId,
+        productId: line.productId,
+        type: "out",
+        quantity: line.quantity,
+        invoiceId,
+        note: null,
+        createdBy: actorUserId,
+      });
+      await decrementProductStock(tx, line.productId, line.quantity);
+    }
+
     await writeAuditEntry(tx, {
       action: "invoice.finalize",
       businessId: existing.businessId,
       actorUserId,
       entityType: "invoice",
       entityId: invoiceId,
-      changes: { number, from: "draft", to: "sent" },
+      changes: {
+        number,
+        from: "draft",
+        to: "sent",
+        stockMovements: existing.lineItems.filter((l) => l.productId).length,
+      },
       ipAddress: ctx.ipAddress ?? null,
       userAgent: ctx.userAgent ?? null,
     });

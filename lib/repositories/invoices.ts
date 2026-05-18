@@ -21,6 +21,7 @@ import { db, type DB, type Tx } from "../db";
 import {
   type Business,
   type Customer,
+  type ExtraCharge,
   type Invoice,
   type InvoiceLineItem,
   type NewInvoice,
@@ -259,10 +260,17 @@ export async function deleteLineItemsForInvoice(
  *  fields (number, type, businessId, status, originalInvoiceId, createdBy)
  *  are not part of the patch shape — the service builds it. */
 export interface InvoiceHeaderPatch {
+  customerId: string | null;
   placeOfSupplyStateCode: string | null;
   notes: string | null;
   issueDate: string;
   dueDate: string | null;
+  shipToName: string | null;
+  shipToAddress: string | null;
+  extraCharges: ExtraCharge[];
+  transportMode: string | null;
+  vehicleNumber: string | null;
+  ewayBillNumber: string | null;
   subtotal: string;
   discountAmount: string;
   taxableAmount: string;
