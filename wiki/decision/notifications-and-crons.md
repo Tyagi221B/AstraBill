@@ -121,22 +121,23 @@ cron.schedule('0 9 * * *', paymentRemindersJob, {     // daily 9am IST
 Each job is:
 1. **Idempotent**: running it twice has the same result as once
 2. **Logged**: structured log at start, end, and on error
-3. **Alerting**: on failure → Sentry (free tier handles this fine)
+3. **Alerting**: on failure → PostHog `captureException` (see `DECISIONS.md`)
 
-## Error Alerting (Non-Negotiable, Free)
+## Error Alerting (Non-Negotiable)
 
-Add **Sentry free tier** to both the Next.js app and the DO worker. When a cron job crashes silently, you find out 3 days later when a user complains. With Sentry:
-- Every unhandled exception → Sentry alert → your email/Slack
-- You know within minutes, not days
-- Free tier: 5,000 errors/month — more than enough for V1
+Every unhandled exception — in the Next.js app and the DO worker — must
+surface, not fail silently. When a cron job crashes quietly, you find out
+three days later when a user complains. The tool is **PostHog** (analytics +
+error tracking in one — see `DECISIONS.md` → "Analytics + error tracking";
+Sentry is deferred).
 
 ```typescript
 // In every job:
 try {
   await markOverdueJob()
 } catch (err) {
-  Sentry.captureException(err, { tags: { job: 'mark-overdue' } })
-  logger.error({ job: 'mark-overdue', err }, 'Job failed')
+  posthog.captureException(err, { job: "mark-overdue" })
+  logger.error({ job: "mark-overdue", err }, "Job failed")
 }
 ```
 

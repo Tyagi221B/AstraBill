@@ -24,7 +24,8 @@ Last reconciled: 2026-05-17
 | PDF generation | Puppeteer microservice on Digital Ocean | `@react-pdf/renderer`, serverless Puppeteer | [[decision/pdf-generation]] |
 | Job scheduling | node-cron on the DO worker | DB-polling jobs table, pg_cron | [[decision/notifications-and-crons]] |
 | WhatsApp send queue | BullMQ + Redis on DO | — | [[decision/notifications-and-crons]] |
-| Error alerting | Sentry (free tier) | silent failures | [[decision/notifications-and-crons]] |
+| Analytics + error tracking | PostHog — product analytics, funnels, session replay AND exception capture. `posthog-js` (client) + `posthog-node` (server), reverse-proxied via `/ingest` to dodge ad-blockers | a second error tracker running in parallel; silent failures | [[decision/infrastructure]] |
+| Sentry | Deferred — PostHog covers error tracking for V1. Revisit Sentry only if PostHog's error tracking proves insufficient | wiring Sentry now (two error trackers) | [[decision/infrastructure]] |
 | File storage | Cloudinary — invoice PDFs, business logos, customer-facing images. Free tier covers V1; image transforms + Indian CDN built in | Supabase Storage; binaries in Postgres | [[decision/infrastructure]] |
 | Supabase scope | Postgres only — no Auth, no Storage, no Realtime, no Edge Functions. We talk to it via the `postgres` driver / Drizzle | calling Supabase JS from the browser; `@supabase/supabase-js` anywhere in the codebase | [[decision/infrastructure]] |
 | Transactional email | Loops.so. FROM `hello@astrabill.com` (display "AstraBill"), Reply-To same; sending domain `astrabill.com` authenticated (SPF + DKIM + DMARC) | sending from `asmit@astrabill.com`; `noreply@` for default sends | [[decision/infrastructure]] |

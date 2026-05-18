@@ -132,12 +132,33 @@ CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 PDF_SERVICE_URL=           # Internal DO URL
-SENTRY_DSN=
+NEXT_PUBLIC_POSTHOG_KEY=   # PostHog — analytics + error tracking
+NEXT_PUBLIC_POSTHOG_HOST=
+POSTHOG_API_KEY=           # server-side (posthog-node)
 
 # Digital Ocean (PDF + worker, shares Cloudinary + Meta creds, plus)
 REDIS_URL=                 # TCP endpoint for BullMQ (Upstash supports this too)
 CHROMIUM_PATH=/usr/bin/google-chrome-stable
 ```
+
+## Analytics + Error Tracking — PostHog
+
+One tool covers both: **product analytics** (events, funnels, session replay)
+and **error tracking** (`captureException`). `posthog-js` on the client
+(initialised in `instrumentation-client.ts`), `posthog-node` on the server
+(`lib/posthog-server.ts`). Client traffic is reverse-proxied through
+`/ingest` (rewrites in `next.config.ts`) so ad-blockers don't drop events.
+
+**Sentry is deferred.** PostHog's error tracking is a GA feature and covers
+V1; running Sentry alongside would mean two error trackers and two bills.
+Revisit Sentry only if PostHog's error tracking proves insufficient. The
+`reportInternalError` hook in `lib/http.ts` routes unhandled 500s to PostHog
+server-side capture.
+
+Event hygiene rule: a domain/conversion event fires from **one** place —
+server-side for things that must not be missed (`invoice_finalized`,
+`business_created`), client-side for UI interactions (`sign_in_method_selected`).
+Never fire the same event name from both, or funnels double-count.
 
 ## Cost at Launch
 

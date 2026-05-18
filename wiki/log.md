@@ -242,3 +242,24 @@ Reframed the section as "The Kacha Question — Our Position":
 
 DECISIONS.md unchanged — its terse "never label it kacha" row was already
 fine. Pure wiki framing refinement; no code, no decision change.
+
+## [2026-05-18] decision | analytics + error tracking = PostHog; Sentry deferred
+
+PostHog was added to the codebase via its setup wizard during Phase 2A but
+had never been a recorded decision — SSOT drift. User's call: PostHog covers
+**both** product analytics and error tracking for V1 (proven in their other
+projects); Sentry is **deferred**, revisit only if PostHog's error tracking
+proves insufficient — running both = two error trackers, two bills.
+
+Updated DECISIONS.md: replaced the "Error alerting | Sentry" Stack row with
+"Analytics + error tracking | PostHog" plus a "Sentry | Deferred" row.
+Updated infrastructure.md (new "Analytics + Error Tracking — PostHog"
+section, env-var list, event-hygiene rule) and notifications-and-crons.md
+(the cron alerting path now names PostHog, not Sentry).
+
+Code follow-up (not done here — separate pass): commit the wizard's
+still-unstaged standalone files (instrumentation-client.ts, lib/posthog-server.ts,
+next.config.ts, etc.), dedupe the double-fired events (`invoice_finalized` /
+`invoice_draft_created` currently fire from both client and server with the
+same name), wire `lib/http.ts`'s `reportInternalError` hook to PostHog, and
+add the POSTHOG_* keys to .env.example.
