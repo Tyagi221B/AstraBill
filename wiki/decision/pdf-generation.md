@@ -32,19 +32,20 @@ For a simple invoice: fine. For a hardware shop invoice with cutting charges, mu
 ```
 Next.js app (Vercel)
      ↓  POST /generate-pdf  { invoiceData: {...} }
-PDF Service (Railway / Render / Hetzner VPS)
+PDF Service (Digital Ocean droplet — see [[decision/infrastructure]])
      ↓  renders invoice HTML with Puppeteer
-     ↓  returns PDF buffer (or uploads to Supabase Storage)
+     ↓  uploads via the `IStorageProvider` interface
+     ↓  returns the storage URL
 Next.js app
-     ↓  serves PDF to user / sends to WhatsApp
+     ↓  serves PDF via /i/[invoiceId]/pdf → 302 to storage URL
 ```
 
 **PDF Service stack:**
 - Node.js + Express (or Fastify)
 - Puppeteer with full Chromium
 - Renders a server-side React/HTML template
-- Returns PDF as buffer or uploads to Supabase Storage → returns URL
-- Hosted on Railway (~$5/month) or a Hetzner VPS (~€3.29/month)
+- Uploads the bytes through the storage provider (Cloudinary, per
+  `DECISIONS.md` → "File storage"); call site is provider-agnostic.
 
 **Why Railway/Render vs a Lambda:**
 - Always-on process = no cold starts
@@ -94,31 +95,42 @@ The output is indistinguishable from a professionally printed invoice. Any CSS g
 | Dynamic page count (long invoices) | ✅ | ✅ |
 | Devanagari/regional script | Tricky | ✅ |
 
-## PDF Storage + URL Strategy (Critical)
+## PDF URL Strategy (Critical)
 
-PDF generated → uploaded to **Supabase Storage** → but we NEVER expose the raw Supabase URL externally.
+The PDF is stored at the file-storage provider (see `DECISIONS.md` → "File
+storage"), but **we never put the provider's raw URL into a WhatsApp message
+or any customer-facing surface**.
 
-**The problem**: Supabase signed URLs expire. If we put a signed URL in a WhatsApp message, it breaks after 7 days. The contractor clicks the link a week later → 403 error → support ticket.
+**The problem**: every CDN / storage provider eventually rotates URLs, expires
+signed links, or changes their public format. If we hand a contractor a
+storage-provider URL today and that URL is dead a year later, the WhatsApp
+history goes 404 and we get support tickets we can't fix.
 
-**The fix**: A redirect endpoint on our Next.js app:
+**The fix**: a stable redirect endpoint on our domain.
+
 ```
-/i/[invoiceId]/pdf  →  checks auth/invoice ownership  →  regenerates fresh signed URL  →  302 redirect to PDF
+/i/[invoiceId]/pdf
+  → checks auth / invoice ownership
+  → asks the storage provider for a fresh access URL
+  → 302 redirect
 ```
 
-- WhatsApp message always contains `https://astrabill.com/i/INV-0047/pdf`
-- That URL never expires (it's our domain)
-- The underlying Supabase URL regenerates on each click (5-minute expiry is fine)
-- Bonus: we log every PDF view (who opened it, when)
-- Bonus: we can gate access (unpaid invoice = show payment prompt instead of PDF)
+- WhatsApp message always contains `https://astrabill.com/i/INV-0047/pdf`.
+- That URL never expires (it's ours).
+- The underlying storage URL can rotate, get signed, get re-signed, switch
+  providers — none of it leaks out.
+- Bonus: we log every PDF view (who opened it, when).
+- Bonus: we can gate access (unpaid invoice → payment prompt instead of PDF).
 
-**Idempotency**: Only regenerate the PDF if invoice data has changed (track `pdf_version` on invoice). Same version = serve existing file.
+**Idempotency**: regenerate the PDF only if invoice data has changed (track
+`pdf_version` on the invoice row). Same version = serve the existing file.
 
 ```
 invoice finalized → POST /generate-pdf
-     → PDF bytes → upload to Supabase Storage
-     → return: { pdfUrl: "https://xxx.supabase.co/storage/v1/..." }
+     → PDF bytes → IStorageProvider.upload(...)
+     → returns storage URL
      → stored on invoice record: invoice.pdf_url
-     → send pdfUrl to WhatsApp via Meta API (document message)
+     → send https://astrabill.com/i/.../pdf to WhatsApp (document message)
 ```
 
 ## Invoice Template Versioning

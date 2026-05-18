@@ -34,10 +34,12 @@ sources: 0
 │                        └──────────────────────────────┘  │
 └─────────────────────────────────────────────────────────┘
                      │
-          ┌──────────┼──────────┐
-          ▼          ▼          ▼
-      Supabase    Razorpay   Meta API
-    (DB + Storage) (payments) (WhatsApp)
+     ┌────────┬──────┴──┬─────────┬─────────┐
+     ▼        ▼         ▼         ▼         ▼
+  Supabase  Cloudinary Razorpay  Meta API  Loops.so
+  (DB only) (files,    (payments)(WhatsApp)(email)
+            images,
+            PDFs)
 ```
 
 ## Layer Responsibilities
@@ -54,7 +56,7 @@ sources: 0
 - Single Node.js + Express + Puppeteer process
 - Always-on (no cold starts)
 - Receives `POST /generate { invoiceData }` → returns PDF bytes
-- Uploads to Supabase Storage → returns signed URL
+- Uploads to Cloudinary (resource type `raw`) → returns the secure URL
 - Reuse same droplet as Worker service (co-locate to save $)
 - ~$6-12/month for a basic droplet
 
@@ -63,32 +65,77 @@ sources: 0
 - Runs all scheduled jobs (overdue marking, reminders, GSTR prep, cleanup)
 - Full job map and architecture: see [[decision/notifications-and-crons]]
 
-### Supabase
-- PostgreSQL database (primary datastore)
-- Supabase Storage (PDF files, invoice attachments, business logos)
-- Used as a plain database ONLY — NOT Supabase Auth (see [[decision/auth-strategy]])
-- No RLS — tenant isolation is enforced in the repository layer (see [[decision/database-and-rbac]])
-- Realtime subscriptions for live udhaar updates (optional nice-to-have)
+### Supabase — Postgres only
+- PostgreSQL database (the primary datastore — that's it).
+- **No** Supabase Auth (see [[decision/auth-strategy]]), **no** Supabase Storage
+  (see Cloudinary below), **no** Supabase Realtime, **no** `@supabase/supabase-js`
+  anywhere in the codebase. We talk to Postgres via the `postgres` driver /
+  Drizzle, full stop.
+- No RLS — tenant isolation lives in the repository layer
+  (see [[decision/database-and-rbac]]).
+
+### Cloudinary — all file storage
+- Invoice PDFs (uploaded by the PDF service), business logos (uploaded from
+  the Vercel API when an owner sets up their business), customer-facing
+  attachments.
+- Why Cloudinary over Supabase Storage / S3:
+  - Free tier (25 GB storage, 25 GB bandwidth/mo) easily covers V1.
+  - Image transformations (`/w_200,q_auto,f_auto/...`) — logo resizing for
+    the invoice PDF, no separate image pipeline.
+  - Strong Indian CDN presence.
+  - Built-in OCR + AI add-ons we'll likely want for the photograph→invoice
+    feature ([[decision/drafts-and-multi-device]]).
+- All access through the `IStorageProvider` interface
+  ([[decision/code-architecture]]) — Cloudinary is the implementation; the
+  call sites don't know.
+- Public-asset URLs come back signed/transformable; we never expose the
+  Cloudinary cloud-name to a customer-facing URL — the redirect endpoint
+  on our domain still fronts everything (see [[decision/pdf-generation]]
+  for the PDF case).
+
+### Loops.so — transactional email
+- All app-sent email (welcome, paid-plan receipt, plan-limit nudge, CA
+  invitation, etc.) goes through Loops's transactional API.
+- The sending domain `astrabill.com` is authenticated once (SPF + DKIM +
+  DMARC TXT records in the registrar's DNS). After that, any
+  `*@astrabill.com` FROM works without per-address auth.
+- The canonical FROM / Reply-To is `hello@astrabill.com` (a real, monitored
+  Zoho mailbox), display name "AstraBill". `asmit@astrabill.com` is the
+  founder's inbox and is never used as a FROM for app email — it conflates
+  personal with system. `noreply@` is reserved for purely automated
+  high-volume sends we add later; never the default.
+- WhatsApp remains the primary channel for invoice delivery + OTP. Email is
+  a secondary surface (notifications, recovery, CA collaboration) — not a
+  channel an Indian SME owner is checking hourly.
 
 ## Environment Variables — Clean Split
 
+For the canonical, up-to-date list, see [`.env.example`](../../.env.example) at
+the repo root. The shapes are:
+
 ```bash
-# Vercel env
-DATABASE_URL=          # Supabase connection string
-NEXTAUTH_SECRET=
-NEXTAUTH_URL=
+# Vercel
+DATABASE_URL=              # Supabase Postgres pooler (port 6543)
+DIRECT_DATABASE_URL=       # Supabase Postgres session pooler (5432, for migrations)
+AUTH_SECRET=
+AUTH_URL=
+AUTH_GOOGLE_ID=
+AUTH_GOOGLE_SECRET=
+UPSTASH_REDIS_REST_URL=    # OTP + rate limit
+UPSTASH_REDIS_REST_TOKEN=
+WHATSAPP_PHONE_NUMBER_ID=
+WHATSAPP_ACCESS_TOKEN=
 RAZORPAY_KEY_ID=
 RAZORPAY_KEY_SECRET=
-META_ACCESS_TOKEN=
-META_PHONE_NUMBER_ID=
-PDF_SERVICE_URL=       # Internal DO URL
-WORKER_SERVICE_URL=    # Internal DO URL (or just enqueue via Redis)
-SUPABASE_URL=
-SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_KEY=
+RAZORPAY_WEBHOOK_SECRET=
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+PDF_SERVICE_URL=           # Internal DO URL
+SENTRY_DSN=
 
-# Digital Ocean env (same Supabase + Meta creds, plus)
-REDIS_URL=
+# Digital Ocean (PDF + worker, shares Cloudinary + Meta creds, plus)
+REDIS_URL=                 # TCP endpoint for BullMQ (Upstash supports this too)
 CHROMIUM_PATH=/usr/bin/google-chrome-stable
 ```
 
@@ -116,7 +163,7 @@ Start with a $6/month DO droplet. PDF service + Worker + Redis all on it. Scale 
 | WhatsApp read receipt (Meta webhook) | ✅ | — |
 | GSTR-1 data aggregation | — | ✅ Worker cron |
 | User auth / session | ✅ | — |
-| File upload (logo, attachments) | ✅ (to Supabase) | — |
+| File upload (logo, attachments) | ✅ (to Cloudinary) | — |
 
 ## Related Pages
 

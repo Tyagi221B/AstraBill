@@ -111,3 +111,36 @@ breakdown. Also removed the restated-fact decision table at the top of that
 page (SSOT rule — pre-existing duplication caught now). Account linking when
 a "missing channel" already belongs to another account is V1.1 (V1: refuse
 and tell them to log in via the existing one).
+
+## [2026-05-18] decision | file storage = Cloudinary; transactional email = Loops.so; Supabase scope clarified
+
+Three related infra decisions after auth smoke-test green:
+
+(1) **File storage moves from Supabase Storage to Cloudinary.** Free tier
+covers V1 (25 GB storage + 25 GB bandwidth/month), built-in image transforms
+make logo resizing for invoice PDFs trivial, strong Indian CDN presence, and
+the OCR + AI add-ons compose with the future photograph→invoice feature
+([[decision/drafts-and-multi-device]]).
+
+(2) **Transactional email = Loops.so**, FROM `hello@astrabill.com` (display
+"AstraBill"), Reply-To same; sending domain `astrabill.com` authenticated
+once via SPF + DKIM + DMARC DNS records. Never use `asmit@astrabill.com` as a
+FROM (conflates personal with system). WhatsApp remains the primary delivery
+channel; email is secondary.
+
+(3) **Supabase scope clarified — Postgres only.** New DECISIONS row makes
+explicit what we don't use: no Supabase Auth, no Supabase Storage, no
+Supabase Realtime, no `@supabase/supabase-js` anywhere. Codebase talks to
+Postgres via `postgres` driver / Drizzle, full stop.
+
+Updates: DECISIONS.md (3 new rows: File storage, Supabase scope, Transactional
+email), wiki/decision/infrastructure.md (rewrote Supabase + Cloudinary +
+Loops sections, refreshed env-vars listing), wiki/decision/pdf-generation.md
+(removed Supabase Storage restatements; storage now described as the
+provider-agnostic `IStorageProvider`), .env.example (Supabase Storage block
+out, Cloudinary + Loops blocks in). Memory: created astrabill-email.md.
+
+Pre-existing SSOT drift on pdf-generation.md cleaned up in the same pass —
+the page now describes the redirect strategy without naming a specific
+storage provider, which is the right level of abstraction for a "PDF
+generation" decision page.

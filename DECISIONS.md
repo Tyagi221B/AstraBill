@@ -25,7 +25,9 @@ Last reconciled: 2026-05-17
 | Job scheduling | node-cron on the DO worker | DB-polling jobs table, pg_cron | [[decision/notifications-and-crons]] |
 | WhatsApp send queue | BullMQ + Redis on DO | — | [[decision/notifications-and-crons]] |
 | Error alerting | Sentry (free tier) | silent failures | [[decision/notifications-and-crons]] |
-| File storage | Supabase Storage | — | [[decision/infrastructure]] |
+| File storage | Cloudinary — invoice PDFs, business logos, customer-facing images. Free tier covers V1; image transforms + Indian CDN built in | Supabase Storage; binaries in Postgres | [[decision/infrastructure]] |
+| Supabase scope | Postgres only — no Auth, no Storage, no Realtime, no Edge Functions. We talk to it via the `postgres` driver / Drizzle | calling Supabase JS from the browser; `@supabase/supabase-js` anywhere in the codebase | [[decision/infrastructure]] |
+| Transactional email | Loops.so. FROM `hello@astrabill.com` (display "AstraBill"), Reply-To same; sending domain `astrabill.com` authenticated (SPF + DKIM + DMARC) | sending from `asmit@astrabill.com`; `noreply@` for default sends | [[decision/infrastructure]] |
 
 ## Auth
 
