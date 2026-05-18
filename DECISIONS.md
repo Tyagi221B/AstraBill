@@ -96,8 +96,9 @@ Implemented in Phase 2 — see [[decision/phase-2-plan]].
 |------|----------|-------|-----------|
 | Dual-unit line items | A line carries a rate-bearing `quantity`+`unit` AND an optional secondary `quantity`+`unit` (informational — glass billed per sq.m, counted in pcs). GST math runs on the rate-bearing pair only | a single unit per line | [[customer/hardware-shop-owner]] |
 | Bill-to vs ship-to | Invoice carries an optional ship-to name + address, distinct from the bill-to customer | — | [[decision/phase-2-plan]] |
-| Freight | Optional `freight` amount on the invoice, added **post-tax** (matches trade practice on real invoices) | taxing freight as a composite supply in V1 | [[decision/phase-2-plan]] |
+| Extra charges | Invoice carries a list of named **post-tax** charges (`label` + `amount`) — Freight, Loading, Packing, etc. Stored as a JSONB array (amounts as strings) | a single fixed `freight` column; taxing these as a composite supply in V1 | [[decision/phase-2-plan]] |
 | Transport fields | Optional transport mode + vehicle number on the invoice | — | [[decision/phase-2-plan]] |
+| Invoice terms | Business-level default T&C text (late-payment interest, jurisdiction…), printed on the invoice PDF; per-invoice override optional | — | [[decision/phase-2-plan]] |
 | Invoice types | `tax_invoice`, `estimate`, `cash_receipt`, `credit_note`, `debit_note`, `delivery_challan` (non-GST goods-movement note) | — | [[customer/hardware-shop-owner]] |
 | Amount in words | Rendered on the invoice PDF; derived at render time, not stored | a stored words column | [[decision/phase-2-plan]] |
 

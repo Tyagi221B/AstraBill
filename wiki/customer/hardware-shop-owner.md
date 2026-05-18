@@ -1,7 +1,7 @@
 ---
 type: customer
 updated: 2026-05-18
-sources: 4
+sources: 5
 ---
 
 # Customer Profile: Hardware / Glass / Building Materials Shop Owner
@@ -82,6 +82,23 @@ A non-GST delivery note: "Azam", no GSTIN, particulars (Handle 12", locks),
 qty / rate / remarks, total, "Received the material in Good Condition". The
 kacha / delivery-note reality — to be handled by a `delivery_challan`
 invoice type with no GST treatment.
+
+### A supplier invoice (Hitesh Hardware, Delhi → Om Glass, #2843)
+
+The buy side — the brother's shop *receiving* a bill. Same invoice anatomy,
+three extra lessons:
+
+- **Interstate confirmed.** Seller TIN `07…` (Delhi), buyer GSTIN `05…`
+  (Uttarakhand) → the invoice charges **IGST @ 18%**, with CGST/SGST blank.
+  Real-world validation of the `classifyTax` rule.
+- **The `set` unit.** "Ground Bottom Fitting — 30 **set** — ₹530/set."
+  Hardware sells in sets — a unit our enum was missing.
+- **Extra charges are a list.** This invoice has **both** "Loading" *and*
+  "Freight" as separate rows. A single `freight` field is wrong — invoices
+  need a flexible list of named post-tax charges.
+- **Terms & Conditions** printed on the invoice: late-payment interest
+  ("24% if not paid within 15 days"), "goods once sold not taken back",
+  jurisdiction. → a business-level default terms block on the PDF.
 
 ## What This Customer Needs from Software
 

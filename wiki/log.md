@@ -170,3 +170,24 @@ auth-first vs anon-first divergence in onboarding-flow.md. Indexed.
 
 Phase 1 (auth + the invoice CRUD round-trip loop) is complete and
 smoke-tested. The build continues from phase-2-plan.md in a fresh session.
+
+## [2026-05-18] ingest | supplier invoice (Hitesh Hardware → Om Glass) — 3 refinements
+
+A 4th document: a supplier invoice billing the brother's shop (Hitesh
+Hardware, Delhi → Om Glass, Uttarakhand). Refines the Phase 2 plan:
+
+- **Interstate confirmed** — Delhi (07) → Uttarakhand (05) charges IGST @ 18%,
+  CGST/SGST blank. Real-world validation of `classifyTax`. No change.
+- **`set` unit** — hardware sells in sets ("30 set @ ₹530/set"). Added to the
+  Phase 2 `unit`-enum migration alongside `sqm`.
+- **Extra charges are a list, not one field** — this invoice has both
+  "Loading" and "Freight" as separate rows. The earlier single-`freight`
+  column decision is superseded: invoices carry a JSONB array of
+  `{ label, amount }` post-tax charges. DECISIONS.md "Freight" row replaced
+  with "Extra charges"; phase-2-plan.md migration updated.
+- **Invoice terms** — real invoices print a T&C block (late-payment interest,
+  jurisdiction). New DECISIONS row + `businesses.invoice_terms` in the
+  Phase 2 migration.
+
+Updated customer/hardware-shop-owner.md (sources 4 → 5), DECISIONS.md
+"Product — Invoice Anatomy", and decision/phase-2-plan.md.

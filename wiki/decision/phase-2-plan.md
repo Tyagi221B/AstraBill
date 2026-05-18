@@ -31,19 +31,26 @@ No external dependencies. Buildable immediately. This is the detailed LLD.
 Additive only — every new column is nullable or defaulted, so the migration
 is safe on the existing rows.
 
-- `unit` enum → add `sqm` (square metre; real glass invoices bill in sq.m).
+- `unit` enum → add `sqm` (glass bills in sq.m) and `set` (hardware sells in
+  sets — "30 set @ ₹530/set").
 - `invoice_type` enum → add `delivery_challan` (non-GST goods-movement note).
 - `invoice_line_items` → add `secondary_quantity numeric(12,3)` (nullable),
   `secondary_unit unit` (nullable). The existing `quantity` + `unit` stay as
   the **rate-bearing** pair (GST math unchanged); the secondary pair is
   **informational** (glass: `quantity`=11.34 `unit`=sqm, `secondary`=4 pcs).
 - `invoices` → add `ship_to_name text`, `ship_to_address text`,
-  `freight numeric(12,2) NOT NULL DEFAULT '0'`, `transport_mode text`,
+  `extra_charges jsonb NOT NULL DEFAULT '[]'`, `transport_mode text`,
   `vehicle_number text`.
-- `lib/gst.ts` → `computeInvoiceTotals` takes an optional `freight` arg;
-  `total = round(taxable + tax) + freight` (freight is added **post-tax,
-  post-round-off** — matches the real invoices). Freight is not itself taxed
-  in V1.
+- `businesses` → add `invoice_terms text` (default T&C block printed on the
+  PDF — late-payment interest, jurisdiction, etc.).
+- **Extra charges** = a JSONB array of `{ label, amount }` (amounts stored as
+  *strings* — keeps decimal precision and dodges the JSON-number trap).
+  Real invoices carry Freight *and* Loading as separate rows, so a single
+  `freight` column would be wrong — it's a list.
+- `lib/gst.ts` → `computeInvoiceTotals` takes an optional `extraCharges`
+  arg; `total = round(taxable + tax) + Σ extraCharges` (charges are added
+  **post-tax, post-round-off** — matches the real invoices; not themselves
+  taxed in V1).
 
 ⚠️ Reads that touch line items already use flat `db.select()` — keep it that
 way (see the "Relational reads" rule in [[decision/database-and-rbac]]).
