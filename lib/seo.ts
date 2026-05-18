@@ -59,7 +59,7 @@ export function organizationJsonLd() {
     legalName: `${SITE_NAME} by ${COMPANY}`,
     url: SITE_URL,
     description: SITE_DESCRIPTION,
-    logo: `${SITE_URL}/astrabill-logo-primary.png`,
+    logo: `${SITE_URL}/astrabill-logo-primary.webp`,
     parentOrganization: { "@type": "Organization", name: COMPANY },
     areaServed: "IN",
   };
