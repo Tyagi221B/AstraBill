@@ -41,6 +41,7 @@ import {
 } from "../gst";
 import { buildInvoiceNumber } from "../invoice-number";
 import { requirePermission, roleHas } from "../rbac";
+import { generateShareToken } from "../share-token";
 import { writeAuditEntry } from "../audit";
 import type {
   CreateInvoiceInput,
@@ -533,9 +534,13 @@ export async function finalizeInvoice(
       sequence: finalizedSoFar + 1,
       customPrefix: business.invoiceNumberPrefix,
     });
+    // Customer-facing share token — locked in at finalise alongside the
+    // number, so the `/i/[shareToken]` URL is ready the moment the invoice
+    // becomes a real document.
+    const shareToken = generateShareToken();
 
     try {
-      await finalizeInvoiceRow(tx, invoiceId, number);
+      await finalizeInvoiceRow(tx, invoiceId, number, shareToken);
     } catch (err) {
       if (isUniqueViolation(err)) {
         throw new ConflictError(

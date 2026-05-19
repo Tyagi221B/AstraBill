@@ -140,6 +140,21 @@ export async function updateCustomer(
   return row;
 }
 
+/**
+ * Unscoped fetch by id — no membership check. Used by the public-invoice
+ * path where the share token has already authorised the read. DO NOT call
+ * this from any code path that needs tenant isolation.
+ */
+export async function findCustomerById(
+  customerId: string,
+): Promise<Customer | null> {
+  const [customer] = await db
+    .select()
+    .from(customers)
+    .where(and(eq(customers.id, customerId), isNull(customers.deletedAt)));
+  return customer ?? null;
+}
+
 /** Soft-delete — invoices keep their customerId snapshot via `set null`
  *  semantics on the FK; the row is retained for audit. */
 export async function softDeleteCustomer(

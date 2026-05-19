@@ -353,6 +353,13 @@ export const invoices = pgTable(
     // The sequence resets per business + type + financial year and counts only
     // finalised rows, so an abandoned draft never burns a number.
     number: text("number"),
+    // Customer-facing share identifier — the `/i/[shareToken]` public-view URL
+    // the WhatsApp button points at. 16 chars of URL-safe random (~96 bits of
+    // entropy — unguessable; not the row UUID, which we don't expose to keep
+    // enumeration off the table). Generated at finalise alongside the number;
+    // NULL for drafts (and for finalised rows from before this column existed,
+    // which the send path backfills lazily).
+    shareToken: text("share_token").unique(),
     status: invoiceStatus("status").notNull().default("draft"),
     // Self-reference: credit/debit note → the invoice it adjusts.
     originalInvoiceId: uuid("original_invoice_id").references(

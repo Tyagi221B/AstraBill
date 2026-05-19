@@ -27,6 +27,7 @@ import type {
 import type { Business, Customer } from "../db/schema";
 import { getCustomer } from "./customers";
 import { getInvoice, listInvoicesForUser } from "./invoices";
+import { getPublicInvoiceView } from "./public-invoice";
 
 type CreatedInvoiceRow = NonNullable<Awaited<ReturnType<typeof getInvoice>>>;
 
@@ -304,6 +305,27 @@ export async function renderInvoicePdf(
   const payload = buildRenderRequest(invoice, business, customer);
   const bytes = await postRender(payload);
   const safeNumber = (invoice.number ?? "draft").replace(/[^\w-]+/g, "-");
+  return { bytes, filename: `${safeNumber}.pdf` };
+}
+
+/**
+ * Render the PDF for the public `/i/[shareToken]` path — same renderer, but
+ * the auth is the token itself, not a user session. Used by both the
+ * "Download PDF" button on the public page and (later) the WhatsApp send
+ * code if it ever attaches the PDF as a document.
+ *
+ * Throws NotFoundError if the token resolves to nothing; AppError(503/502)
+ * if the pdf-service is unconfigured or fails.
+ */
+export async function renderPublicInvoicePdfByToken(
+  shareToken: string,
+): Promise<RenderedInvoicePdf> {
+  const view = await getPublicInvoiceView(shareToken);
+  if (!view) throw new NotFoundError("Invoice not found");
+
+  const payload = buildRenderRequest(view.invoice, view.business, view.customer);
+  const bytes = await postRender(payload);
+  const safeNumber = (view.invoice.number ?? "draft").replace(/[^\w-]+/g, "-");
   return { bytes, filename: `${safeNumber}.pdf` };
 }
 

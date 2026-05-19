@@ -13,6 +13,8 @@ export default function robots(): MetadataRoute.Robots {
         "/dashboard",
         // Every business-scoped app page (Phase 2D).
         "/b/",
+        // Public invoice views — share links, not for the index.
+        "/i/",
         "/onboarding",
         "/sign-in",
       ],

@@ -115,6 +115,22 @@ export async function getBusinessForUser(
   return member ? business : null;
 }
 
+/**
+ * Unscoped fetch by id — no membership check, no user context. For the
+ * auth-free public-invoice path where the caller has *already* proven access
+ * through a different channel (the share token). DO NOT use this from any
+ * code path that needs tenant isolation — use `getBusinessForUser` instead.
+ */
+export async function findBusinessById(
+  businessId: string,
+): Promise<Business | null> {
+  const [business] = await db
+    .select()
+    .from(businesses)
+    .where(and(eq(businesses.id, businessId), isNull(businesses.deletedAt)));
+  return business ?? null;
+}
+
 /** Patch a business row. `updatedAt` auto-bumps via the column's $onUpdate. */
 export async function updateBusinessRow(
   tx: Tx,

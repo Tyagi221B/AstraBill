@@ -158,6 +158,22 @@ depend on. Rationale + LLD: [[decision/payment-recording]].
 | Voiding a payment | A void is a **soft delete** (`deleted_at`) + recompute. The row stays; the audit log keeps both `payment.record` and `payment.delete`. Correcting a mis-keyed payment = void + re-record | editing a payment in place; hard-deleting it (both erase that a wrong figure was entered) | [[decision/payment-recording]] |
 | RBAC | `payment:record` = owner / admin / accountant; `payment:delete` = owner / admin. A salesman collecting cash cannot record it in V1 — recording is an accountant-grade action | giving salesman `payment:record` without a deliberate decision | [[decision/database-and-rbac]] |
 
+## Product — Public invoice share
+
+The customer-facing read surface — `/i/[shareToken]` + its PDF download —
+that the WhatsApp button URL points to. Rationale + LLD:
+[[decision/public-invoice-share]].
+
+| Area | Decision | Never | Rationale |
+|------|----------|-------|-----------|
+| URL pattern | `/i/[shareToken]` — **locked** by the Meta-approved template button URL (`https://www.astrabill.com/i/{{1}}`). Changing this invalidates every already-sent invoice link and requires a new Meta template version | `/i/{uuid}`; rotating the path shape after templates approve | [[decision/public-invoice-share]] |
+| Share token | 16-char URL-safe random — `randomBytes(12).toString("base64url")`, ~96 bits of entropy. Stored in `invoices.share_token`, unique. Stamped on at finalise alongside the invoice number, one transaction | the invoice UUID as the public identifier; a sequential / guessable handle; a signed JWT (over-engineering — entropy IS the auth) | [[decision/public-invoice-share]] |
+| Token nullability | Nullable column. Drafts have `share_token IS NULL`; the row gets a token the moment it's finalised | generating a token at draft create (drafts may never be issued); a NOT NULL constraint that would block adoption for existing finalised invoices | [[decision/public-invoice-share]] |
+| Auth model | The token IS the auth. The public page + the public PDF endpoint do NO membership check, NO `requireUser`. Anyone with the URL sees the invoice, by design | wrapping the public page in `requireUser`; rate-limiting in v1 (acceptable; entropy + obscurity are enough); signed query strings on top of the token | [[decision/public-invoice-share]] |
+| Unscoped repo reads | `findBusinessById` and `findCustomerById` (no membership filter) are the ONLY repository helpers callable from the public path. Named `find*` (vs `get*ForUser`) to signal the semantic difference; explicit comments warn against general use | calling the auth-scoped repo helpers and "pretending" a system user; inlining raw SQL in the public service to bypass the convention | [[decision/database-and-rbac]] |
+| SEO | Pages set `robots: { index: false, follow: false }` in `generateMetadata`; `robots.ts` also disallows `/i/`. Both layers because Google sometimes indexes `robots`-blocked pages via inbound links — the meta tag is the harder block | relying on `robots.txt` alone | [[decision/public-invoice-share]] |
+| Plan-gated mark | A small "Made with AstraBill" link sits below the invoice card **only on the free plan** — same rule as the PDF footer ([[decision/invoice-design-system]]). The customer-facing surface is the customer-facing surface, regardless of medium | a different gating policy for web vs PDF | [[decision/public-invoice-share]] |
+
 ## Product — Pricing
 
 | Plan | Price | Key limits | Rationale |

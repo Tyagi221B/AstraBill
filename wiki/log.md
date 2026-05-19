@@ -714,3 +714,48 @@ WhatsApped invoices open on phones, that was a real gap.
 owner's branded billing dashboard on every screen size. Status tables
 in `decision/white-label-app-shell.md` + `decision/phase-2-plan.md`
 updated; no new decision page (Step 4 of an existing decision).
+
+## [2026-05-19] build | Phase 2B kick-off — public invoice share
+
+Two Meta WhatsApp templates submitted for review — `astrabill_invoice`
++ `astrabill_payment_reminder` — both Utility, with a dynamic URL
+button pointing at `https://www.astrabill.com/i/{{1}}`. ETA ≈ 3h.
+The button URL **locks the public-view path in stone** (changing it
+later invalidates every sent invoice + needs a new template). So the
+work this commit lands is the infrastructure the URL points at,
+built first so it exists by the time Meta approves.
+
+Built:
+
+- `invoices.share_token` — text column, unique, nullable for drafts
+  (`drizzle/0004_faithful_marvel_apes.sql`).
+- `lib/share-token.ts` — `generateShareToken()`: 12 random bytes →
+  16-char base64url (~96 bits of entropy; URL-safe; not the row
+  UUID).
+- `finalizeInvoice` now stamps both `number` AND `shareToken` in one
+  transaction — invariant: a finalised invoice always has both.
+- Unscoped repo reads: `getInvoiceByShareToken`, `findBusinessById`,
+  `findCustomerById` — named `find*` (vs `get*ForUser`) to signal
+  these skip tenant scoping; explicit comments warn off general use.
+- `lib/services/public-invoice.ts` — `getPublicInvoiceView(token)`.
+- `lib/services/invoice-pdf.ts` — `renderPublicInvoicePdfByToken`
+  beside the existing auth-path renderer; both reuse
+  `buildRenderRequest`.
+- `/i/[shareToken]` page — mobile-first, brand-coloured accent
+  stripe + button, full invoice readout, Download PDF CTA. Sets
+  `noindex, nofollow` per page.
+- `/api/i/[shareToken]/pdf` — public PDF endpoint, no
+  `requireUser`; same pdf-service the authed download uses.
+- `robots.ts` — `/i/` added to disallow list (belt-and-suspenders
+  with the per-page noindex).
+
+Auth model is **token IS the auth** — anyone with the URL sees the
+invoice, by design. Same model as Stripe/Razorpay receipt links. No
+rate limiting in v1.
+
+Decision page: `decision/public-invoice-share.md`. Binding facts in
+DECISIONS.md under a new "Product — Public invoice share" section.
+
+Remaining for 2B (blocked on Meta approval): WhatsApp client module
++ "Send on WhatsApp" button on the invoice page +
+`whatsapp_messages` logging.

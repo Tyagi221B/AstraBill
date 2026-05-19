@@ -355,25 +355,51 @@ export async function softDeleteInvoice(
 }
 
 /**
- * Stamp a draft with its issued number and flip status to `sent` — the single
- * write that finalises an invoice. Combined into one statement so the row is
- * never observed with `status='sent'` but `number IS NULL`.
+ * Stamp a draft with its issued number and the customer-facing share token,
+ * and flip status to `sent` — the single write that finalises an invoice.
+ * Combined into one statement so the row is never observed with
+ * `status='sent'` but `number IS NULL` (or `share_token IS NULL`).
  *
- * Throws a Postgres `23505` (unique violation) if `(business_id, number)`
- * collides — the service maps that to `ConflictError`.
+ * Throws a Postgres `23505` on either of two unique violations:
+ *   - `(business_id, number)` — number collision (the service maps to
+ *     ConflictError; the typical case under concurrent finalises).
+ *   - `share_token` — astronomically unlikely at 96 bits of entropy, but the
+ *     constraint exists. The same ConflictError mapping applies; the caller
+ *     can retry to get a fresh token.
  */
 export async function finalizeInvoiceRow(
   tx: Tx,
   invoiceId: string,
   number: string,
+  shareToken: string,
 ): Promise<Invoice> {
   const [row] = await tx
     .update(invoices)
-    .set({ number, status: "sent" })
+    .set({ number, shareToken, status: "sent" })
     .where(eq(invoices.id, invoiceId))
     .returning();
   if (!row) throw new Error("Finalise invoice returned no row");
   return row;
+}
+
+/**
+ * Fetch an invoice + its line items by `share_token` — the auth-free path
+ * for the customer-facing `/i/[shareToken]` view. The token IS the auth: any
+ * holder of the URL can read the invoice, by design (it's a share link).
+ * Returns null for "no such token" or "the invoice was soft-deleted".
+ */
+export async function getInvoiceByShareToken(
+  shareToken: string,
+): Promise<InvoiceWithLineItems | null> {
+  const [invoice] = await db
+    .select()
+    .from(invoices)
+    .where(
+      and(eq(invoices.shareToken, shareToken), isNull(invoices.deletedAt)),
+    );
+  if (!invoice) return null;
+  const lineItems = await selectLineItems(db, invoice.id);
+  return { ...invoice, lineItems };
 }
 
 /** The business row (no lock) — used during update to recompute tax class. */

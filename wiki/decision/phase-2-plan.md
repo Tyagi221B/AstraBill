@@ -84,19 +84,30 @@ become real with it in place.
 
 ## Phase 2B — WhatsApp Send + UPI  (the hero loop)
 
-Three parts. Detailed LLD lands when each is started.
+Kicked off 2026-05-19. Two Meta utility templates submitted for review
+(`astrabill_invoice` + `astrabill_payment_reminder`) — both Utility,
+text body + dynamic URL button at `https://www.astrabill.com/i/{{1}}`.
+ETA ≈ 3h for approval. The button URL **locks the public-view path
+in stone** — once Meta approves, changing it invalidates every sent
+link + needs a new template.
 
-1. **PDF microservice** — separate Node + Express + Puppeteer service on
-   Digital Ocean ([[decision/pdf-generation]]). Renders the invoice HTML →
-   PDF → uploads to Cloudinary → returns the URL. AstraBill calls it via
-   `PDF_SERVICE_URL`. Includes designing the actual invoice template —
-   modern, mobile-readable, 2026-grade (not a carbon-copy clone). The
-   template renders the HSN tax summary and amount-in-words (both derived at
-   render time — see `DECISIONS.md`).
-2. **WhatsApp invoice send** — `astrabill_invoice_v1` template (PDF document
-   header + payment-link button), sent through the BullMQ queue on the DO
-   worker ([[decision/notifications-and-crons]]). `IWhatsAppProvider` already
-   exists.
+While Meta reviews, the prerequisites land:
+
+0. **Public invoice share** *(shipped)* — the URL the button points
+   at. `share_token` column on invoices, generated at finalise; auth-
+   free `/i/[shareToken]` page; `/api/i/[shareToken]/pdf` public
+   download; the token IS the auth. See
+   [[decision/public-invoice-share]].
+
+1. **PDF microservice** *(shipped in 2C)* — Node + Express + Puppeteer
+   on Digital Ocean ([[decision/pdf-generation]]). The same renderer
+   now backs both the authed download and the public PDF endpoint.
+
+2. **WhatsApp invoice send** *(pending Meta)* — `astrabill_invoice`
+   template (text + URL button), sent direct from Next via the Meta
+   Cloud API. `IWhatsAppProvider` interface; manual trigger from the
+   invoice detail page in v1; queueing is a later refactor when
+   volume justifies it.
 3. **Razorpay** — `IPaymentProvider` interface + `RazorpayProvider`. Payment
    Link per invoice; webhook → mark invoice paid → send receipt. The webhook
    is the first genuinely server-only event, so this is where server-side
