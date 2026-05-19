@@ -220,3 +220,237 @@ export const MODERN_CSS = `
   .terms { margin-top: 12px; }
   .terms .info-body { color: #64748b; }
 `;
+
+/**
+ * Print stylesheet for the Classic template.
+ *
+ * Where Modern is borderless and airy, Classic is the traditional Indian
+ * tax-invoice look: a continuous ruled frame, a centred masthead, a
+ * "TAX INVOICE" banner, fully-gridded line items, and a signature block.
+ *
+ * The frame is NOT one outer-border div — a single border on a multi-page
+ * element only draws on the first and last pages. Instead every section
+ * carries its own 1px border and stacks flush via `.section + .section
+ * { margin-top: -1px }`, so adjacent borders collapse into one line and a
+ * page break still leaves every fragment correctly ruled.
+ *
+ * The brand colour is used sparingly — the 3px crown stroke, the banner
+ * text, the table-header text + its 1.5px underline, and the grand-total
+ * band. The ruled grid itself stays neutral grey; too much colour would
+ * read as a brochure, not an invoice.
+ *
+ * `--brand` and `--font` are set inline on .doc from branding.
+ */
+export const CLASSIC_CSS = `
+  @page { size: A4; }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    color: #2b3543;
+    font-size: 9.5px;
+    line-height: 1.5;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    background: #ffffff;
+  }
+
+  /* repeat table headers; never split a row or a key block */
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+  .masthead, .banner, .info-strip, .parties,
+  .summary, .info, .terms, .foot, .sign { break-inside: avoid; }
+
+  .doc {
+    padding: 0 12mm;
+    font-family: var(--font, Georgia, "Times New Roman", serif);
+  }
+
+  /* every section is bordered; adjacent borders collapse into one line */
+  .section { border: 1px solid #b4bcc8; }
+  .section + .section { margin-top: -1px; }
+
+  /* the single bold brand stroke, crowning the frame */
+  .crown { height: 3px; background: var(--brand); }
+
+  /* ---- masthead ---- */
+  .masthead { text-align: center; padding: 11px 16px; }
+  .brand-logo {
+    max-height: 46px; max-width: 180px;
+    object-fit: contain; margin: 0 auto 7px; display: block;
+  }
+  .biz-name {
+    font-size: 20px; font-weight: 700; color: #0f172a;
+    letter-spacing: 0.01em;
+  }
+  .biz-sub {
+    font-size: 9px; color: #6b7686; margin-top: 4px;
+    line-height: 1.6; white-space: pre-line;
+  }
+  .biz-gst {
+    font-size: 9px; color: #0f172a; font-weight: 600;
+    margin-top: 4px; letter-spacing: 0.03em;
+  }
+
+  /* ---- banner ---- */
+  .banner {
+    text-align: center; padding: 5px 0; background: #f7f8fa;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--brand);
+  }
+
+  /* ---- invoice-info strip ---- */
+  .info-strip { display: flex; }
+  .info-cell { flex: 1; padding: 6px 12px; }
+  .info-cell + .info-cell { border-left: 1px solid #b4bcc8; }
+  .info-cell .k {
+    font-size: 7.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.1em; color: #8b94a3; display: block;
+  }
+  .info-cell .v {
+    font-size: 10.5px; font-weight: 600; color: #0f172a;
+    margin-top: 2px; font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- parties ---- */
+  .parties { display: flex; }
+  .party { flex: 1; padding: 7px 12px; }
+  .party + .party { border-left: 1px solid #b4bcc8; }
+  .party-label {
+    font-size: 7.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.1em; color: #8b94a3;
+  }
+  .party-name {
+    font-size: 11.5px; font-weight: 700; color: #0f172a; margin-top: 3px;
+  }
+  .party-meta {
+    font-size: 9px; color: #6b7686; margin-top: 2px;
+    line-height: 1.6; white-space: pre-line;
+  }
+
+  /* ---- line items ---- */
+  table.items { width: 100%; border-collapse: collapse; }
+  .items thead th {
+    background: #f7f8fa; color: var(--brand);
+    font-size: 8px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; padding: 6px 8px; text-align: left;
+    white-space: nowrap;
+    border-bottom: 1.5px solid var(--brand);
+    border-right: 1px solid #b4bcc8;
+  }
+  .items thead th:last-child { border-right: none; }
+  .items thead th.n { text-align: right; }
+  .items tbody td {
+    padding: 5px 8px; font-size: 9.5px; vertical-align: top;
+    border-bottom: 1px solid #d8dde4; border-right: 1px solid #d8dde4;
+  }
+  .items tbody td:last-child { border-right: none; }
+  .items tbody td.n {
+    text-align: right; font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .items tbody tr:last-child td { border-bottom: none; }
+  .items .idx { color: #8b94a3; width: 24px; }
+  .items .desc-main { font-weight: 600; color: #0f172a; }
+  .items .sub { color: #8b94a3; font-size: 8.5px; margin-top: 2px; }
+  .items .hsn-cell { color: #6b7686; white-space: nowrap; }
+  .items .charge-row td { background: #fafbfc; }
+
+  /* ---- summary (words + totals) ---- */
+  .summary { display: flex; }
+  .summary-words {
+    flex: 1; padding: 9px 12px; border-right: 1px solid #b4bcc8;
+  }
+  .words-label {
+    font-size: 7.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.1em; color: #8b94a3;
+  }
+  .words {
+    font-size: 10.5px; color: #0f172a; font-weight: 600;
+    margin-top: 4px; line-height: 1.5;
+  }
+  .summary-totals { width: 250px; flex-shrink: 0; padding: 7px 12px; }
+  .t-row {
+    display: flex; justify-content: space-between;
+    font-size: 9.5px; padding: 2.5px 0;
+  }
+  .t-row .k { color: #6b7686; }
+  .t-row .v { color: #0f172a; font-variant-numeric: tabular-nums; }
+  .t-rule { height: 1px; background: #b4bcc8; margin: 4px 0; }
+  .t-grand {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-top: 5px; padding: 7px 11px; background: var(--brand);
+  }
+  .t-grand .k {
+    color: #ffffff; font-size: 9.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .t-grand .v {
+    color: #ffffff; font-size: 15px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .t-note {
+    font-size: 8px; color: #8b94a3; text-align: right; margin-top: 6px;
+  }
+
+  /* ---- HSN summary ---- */
+  table.hsn { width: 100%; border-collapse: collapse; font-size: 8.5px; }
+  .hsn thead th {
+    background: #f7f8fa; color: #6b7686;
+    font-size: 7.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.04em; padding: 5px 8px; text-align: right;
+    border-bottom: 1px solid #b4bcc8; border-right: 1px solid #d8dde4;
+  }
+  .hsn thead th:first-child { text-align: left; }
+  .hsn thead th:last-child { border-right: none; }
+  .hsn tbody td {
+    padding: 5px 8px; text-align: right; color: #2b3543;
+    font-variant-numeric: tabular-nums;
+    border-bottom: 1px solid #d8dde4; border-right: 1px solid #d8dde4;
+  }
+  .hsn tbody td:first-child {
+    text-align: left; font-weight: 600; color: #0f172a;
+  }
+  .hsn tbody td:last-child { border-right: none; }
+  .hsn tbody tr:last-child td { border-bottom: none; }
+
+  /* ---- info cards (transport, notes) ---- */
+  .info { display: flex; }
+  .info-card { flex: 1; padding: 7px 12px; }
+  .info-card + .info-card { border-left: 1px solid #b4bcc8; }
+  .label {
+    font-size: 7.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.1em; color: #8b94a3; display: block;
+  }
+  .info-body {
+    font-size: 9px; color: #4b5563; line-height: 1.6;
+    white-space: pre-line; margin-top: 4px;
+  }
+
+  /* ---- terms ---- */
+  .terms { padding: 7px 12px; }
+  .terms .info-body { color: #6b7686; }
+
+  /* ---- foot: payment details + signature share the closing row ---- */
+  .foot { display: flex; }
+  .foot-bank { flex: 1; padding: 8px 12px; border-right: 1px solid #b4bcc8; }
+  .foot-sign { width: 200px; flex-shrink: 0; padding: 8px 14px; }
+  .bank-grid {
+    display: flex; flex-wrap: wrap; gap: 5px 24px; margin-top: 4px;
+  }
+  .bank-item .bk { font-size: 8px; color: #8b94a3; }
+  .bank-item .bv {
+    font-size: 9.5px; color: #0f172a; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* signature — in .foot-sign, or a standalone .sign section if no bank */
+  .sign { padding: 8px 14px; }
+  .foot-sign, .sign { text-align: right; }
+  .sign-for { font-size: 9.5px; font-weight: 700; color: #0f172a; }
+  .sign-space { height: 26px; }
+  .sign-label {
+    font-size: 8.5px; color: #6b7686; border-top: 1px solid #b4bcc8;
+    display: inline-block; padding-top: 3px; min-width: 130px;
+  }
+`;
