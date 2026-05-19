@@ -38,3 +38,4 @@
 | [concept/whatsapp-billing-opportunity.md](concept/whatsapp-billing-opportunity.md) | concept | The biggest wedge: 98% open rate, ₹0.14/invoice, UPI payment link workflow |
 | [concept/gst-compliance.md](concept/gst-compliance.md) | concept | The mandatory hook: GST forces software adoption, CA dependency problem |
 | [concept/pricing-model.md](concept/pricing-model.md) | concept | Pricing analysis: ₹499/₹999/₹1,999/month, annual preferred |
+| [concept/ai-on-invoices.md](concept/ai-on-invoices.md) | concept | The V2 wedge: highlight, suggest, rewrite, customer-history, voice-in. None changes V1 architecture; all compose on the existing data layer. |
