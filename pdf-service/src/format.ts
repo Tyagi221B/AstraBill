@@ -41,11 +41,15 @@ export function formatInr(value: string): string {
   return `${negative ? "-" : ""}₹${grouped}.${decPart}`;
 }
 
-/** Plain number with Indian grouping, no currency symbol (qty columns). */
-export function formatQty(value: string): string {
-  // Quantities can be decimal (11.34 sqm) — keep what the contract sent,
-  // it's already trimmed upstream.
-  return value;
+/**
+ * Trim trailing decimal zeros: "1.000" → "1", "12.000" → "12", "11.34"
+ * stays, "6.20" → "6.2", "18.00" → "18". Integers without a "." are
+ * untouched. Used for quantities and GST rates — NUMERIC(12,3)/(5,2)
+ * columns arrive zero-padded.
+ */
+export function trimNumber(value: string): string {
+  if (!value.includes(".")) return value;
+  return value.replace(/0+$/, "").replace(/\.$/, "");
 }
 
 /** ISO date (YYYY-MM-DD) → "14 May 2026". Returns input on a parse miss. */

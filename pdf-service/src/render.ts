@@ -57,9 +57,10 @@ export async function renderInvoicePdf(
       // template still suppresses Puppeteer's default date/title strip.
       headerTemplate: "<div></div>",
       footerTemplate: footerTemplate(req.branding.showFooterMark),
-      // Top/bottom margins leave room for the footer + breathing space on
-      // continuation pages; the template owns its own horizontal gutter.
-      margin: { top: "14mm", bottom: "16mm", left: "0mm", right: "0mm" },
+      // Bottom margin leaves room for the footer strip; the top is kept
+      // tight so the accent bar hugs the page edge. The template owns its
+      // own horizontal gutter.
+      margin: { top: "9mm", bottom: "16mm", left: "0mm", right: "0mm" },
     });
     return Buffer.from(pdf);
   } finally {

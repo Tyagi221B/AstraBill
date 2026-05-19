@@ -13,7 +13,7 @@ import type { CSSProperties } from "react";
 
 import type { InvoiceType, RenderRequest } from "../contract.js";
 import { INTER_FONT_CSS } from "../fonts.js";
-import { formatDate, formatInr } from "../format.js";
+import { formatDate, formatInr, trimNumber } from "../format.js";
 import { MODERN_CSS } from "../styles.js";
 
 const TYPE_LABEL: Record<InvoiceType, string> = {
@@ -45,7 +45,7 @@ export function Modern({ invoice, branding }: RenderRequest) {
       <head>
         <meta charSet="utf-8" />
         <title>
-          {invoice.number ?? "Draft"} — {invoice.business.name}
+          {`${invoice.number ?? "Draft"} — ${invoice.business.name}`}
         </title>
         <style
           dangerouslySetInnerHTML={{ __html: INTER_FONT_CSS + MODERN_CSS }}
@@ -142,7 +142,8 @@ export function Modern({ invoice, branding }: RenderRequest) {
                       line.secondaryQuantity &&
                       line.secondaryUnit && (
                         <div className="sub">
-                          {line.secondaryQuantity} {line.secondaryUnit}
+                          {trimNumber(line.secondaryQuantity)}{" "}
+                          {line.secondaryUnit}
                         </div>
                       )}
                   </td>
@@ -150,7 +151,7 @@ export function Modern({ invoice, branding }: RenderRequest) {
                     <td className="hsn-cell">{line.hsnCode ?? "—"}</td>
                   )}
                   <td className="n">
-                    {line.quantity} {line.unit}
+                    {trimNumber(line.quantity)} {line.unit}
                   </td>
                   <td className="n">{formatInr(line.unitPrice)}</td>
                   {showDiscount && (
@@ -160,7 +161,9 @@ export function Modern({ invoice, branding }: RenderRequest) {
                         : "—"}
                     </td>
                   )}
-                  {showTax && <td className="n">{line.gstRate}%</td>}
+                  {showTax && (
+                    <td className="n">{trimNumber(line.gstRate)}%</td>
+                  )}
                   <td className="n desc">{formatInr(line.amount)}</td>
                 </tr>
               ))}
@@ -171,7 +174,7 @@ export function Modern({ invoice, branding }: RenderRequest) {
                     <div className="desc">{charge.label}</div>
                     <div className="sub">
                       {charge.taxable
-                        ? `Taxable charge · GST ${charge.gstRate ?? "0"}%`
+                        ? `Taxable charge · GST ${trimNumber(charge.gstRate ?? "0")}%`
                         : "Non-taxable charge"}
                     </div>
                   </td>
@@ -181,7 +184,9 @@ export function Modern({ invoice, branding }: RenderRequest) {
                   {showDiscount && <td className="n" />}
                   {showTax && (
                     <td className="n">
-                      {charge.taxable ? `${charge.gstRate ?? "0"}%` : "—"}
+                      {charge.taxable
+                        ? `${trimNumber(charge.gstRate ?? "0")}%`
+                        : "—"}
                     </td>
                   )}
                   <td className="n desc">{formatInr(charge.amount)}</td>
