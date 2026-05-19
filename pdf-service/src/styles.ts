@@ -1,125 +1,219 @@
 /**
  * Print stylesheet for the Modern template.
  *
- * Stage 1: clean, structurally complete, deliberately restrained. The
- * "premium" typography + spacing pass is Stage 2 — this is the skeleton
- * that proves the wiring renders.
+ * Multi-page model: content flows naturally — there is NO fixed-height page
+ * div and NO absolute-positioned footer. Puppeteer paginates; its
+ * displayHeaderFooter draws the "Made with AstraBill" + page-number strip on
+ * every physical page (see render.ts). The rules that make a page break look
+ * deliberate:
  *
- * `--brand` is set as an inline CSS variable on the template root from
- * `branding.color`, so this string stays static.
+ *   - thead { display: table-header-group }  → column headers repeat
+ *   - tr { break-inside: avoid }             → no row splits across pages
+ *   - .summary / .party / .bank / .info-card → these blocks never split;
+ *                                              if they don't fit they move
+ *                                              whole to the next page
  *
- * Fonts: Stage 1 uses a system stack. Stage 2 bundles Inter / Poppins /
- * Noto as local .woff2 (no CDN — print determinism, see
- * decision/invoice-design-system.md).
+ * Spacing is deliberately tight: a typical invoice (3-12 line items + every
+ * section) must land on ONE page. An invoice only paginates when it is
+ * genuinely long — never because the rhythm was loose enough to strand a
+ * lone block on page 2.
+ *
+ * `--brand` is set inline on .doc from branding.color. Inter is embedded via
+ * INTER_FONT_CSS (fonts.ts); this string only references the family.
  */
 export const MODERN_CSS = `
-  @page { size: A4; margin: 0; }
+  @page { size: A4; }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   html, body {
-    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
-      Arial, sans-serif;
-    color: #0f172a;
+    font-family: 'Inter', -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: #334155;
+    font-size: 9.5px;
+    line-height: 1.5;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
-  }
-
-  .page {
-    width: 210mm;
-    min-height: 297mm;
-    padding: 14mm 14mm 16mm;
-    position: relative;
     background: #ffffff;
   }
 
-  .accent-bar { height: 4px; background: var(--brand); border-radius: 2px; }
+  /* repeat table headers; never split a row or a key block */
+  thead { display: table-header-group; }
+  tr { break-inside: avoid; }
+  .summary, .party, .bank, .info-card { break-inside: avoid; }
+
+  .doc { padding: 0 14mm; }
+
+  /* ---- top accent ---- */
+  .accent {
+    height: 3px; background: var(--brand);
+    border-radius: 3px; margin-bottom: 13px;
+  }
 
   /* ---- header ---- */
-  .header { display: flex; justify-content: space-between; gap: 24px;
-    margin-top: 16px; }
-  .biz-name { font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
-  .biz-meta { font-size: 10px; color: #5b6b84; margin-top: 4px;
-    line-height: 1.5; white-space: pre-line; }
-  .doc-block { text-align: right; min-width: 200px; }
-  .doc-title { font-size: 15px; font-weight: 700; color: var(--brand);
-    text-transform: uppercase; letter-spacing: 0.06em; }
-  .doc-rows { font-size: 10px; color: #334155; margin-top: 6px;
-    line-height: 1.7; }
-  .doc-rows .label { color: #94a3b8; display: inline-block; min-width: 64px;
-    text-align: left; }
-  .status-pill { display: inline-block; margin-top: 6px; font-size: 8px;
-    font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
-    padding: 2px 8px; border-radius: 999px; background: #f1f5f9;
-    color: #5b6b84; }
+  .head {
+    display: flex; justify-content: space-between;
+    gap: 28px; align-items: flex-start;
+  }
+  .brand-logo {
+    max-height: 48px; max-width: 190px;
+    object-fit: contain; margin-bottom: 7px; display: block;
+  }
+  .brand-name {
+    font-size: 18px; font-weight: 700; color: #0f172a;
+    letter-spacing: -0.015em;
+  }
+  .brand-meta {
+    font-size: 9px; color: #64748b; margin-top: 4px;
+    line-height: 1.55; white-space: pre-line;
+  }
+
+  .head-doc { text-align: right; flex-shrink: 0; min-width: 184px; }
+  .doc-title {
+    font-size: 12px; font-weight: 700; color: var(--brand);
+    text-transform: uppercase; letter-spacing: 0.14em;
+  }
+  .doc-rows { margin-top: 8px; }
+  .doc-row {
+    display: flex; justify-content: flex-end; gap: 14px;
+    font-size: 9.5px; padding: 1px 0;
+  }
+  .doc-row .k { color: #94a3b8; }
+  .doc-row .v { color: #0f172a; font-weight: 600; min-width: 92px;
+    text-align: right; font-variant-numeric: tabular-nums; }
+  .status {
+    display: inline-block; margin-top: 7px;
+    font-size: 7.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.09em; padding: 3px 9px; border-radius: 999px;
+    background: #f1f5f9; color: #64748b;
+  }
 
   /* ---- parties ---- */
-  .parties { display: flex; gap: 16px; margin-top: 22px; }
-  .party { flex: 1; border: 1px solid #e2e8f0; border-radius: 8px;
-    padding: 11px 13px; }
-  .party-label { font-size: 8px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 0.08em; color: #94a3b8; }
-  .party-name { font-size: 12px; font-weight: 600; margin-top: 4px; }
-  .party-meta { font-size: 10px; color: #5b6b84; margin-top: 3px;
-    line-height: 1.5; white-space: pre-line; }
+  .parties { display: flex; gap: 12px; margin-top: 16px; }
+  .party {
+    flex: 1; border: 1px solid #e7ecf2; border-radius: 9px;
+    padding: 9px 12px; background: #ffffff;
+  }
+  .label {
+    font-size: 7.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.1em; color: #94a3b8;
+  }
+  .party-name {
+    font-size: 11.5px; font-weight: 600; color: #0f172a; margin-top: 4px;
+  }
+  .party-meta {
+    font-size: 9px; color: #64748b; margin-top: 3px;
+    line-height: 1.55; white-space: pre-line;
+  }
 
   /* ---- line items ---- */
   table { width: 100%; border-collapse: collapse; }
-  .items { margin-top: 20px; font-size: 10px; }
-  .items thead th { background: var(--brand); color: #ffffff;
-    font-size: 8.5px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.04em; padding: 7px 8px; text-align: left; }
-  .items thead th.num { text-align: right; }
-  .items tbody td { padding: 7px 8px; border-bottom: 1px solid #eef2f7;
-    vertical-align: top; }
-  .items tbody td.num { text-align: right;
-    font-variant-numeric: tabular-nums; }
+  .items { margin-top: 16px; }
+  .items thead th {
+    background: var(--brand); color: #ffffff;
+    font-size: 8px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.045em; padding: 6px 9px; text-align: left;
+    white-space: nowrap;
+  }
+  .items thead th:first-child { border-radius: 6px 0 0 6px; }
+  .items thead th:last-child { border-radius: 0 6px 6px 0; }
+  .items thead th.n { text-align: right; }
+  .items tbody td {
+    padding: 6.5px 9px; border-bottom: 1px solid #f1f5f9;
+    vertical-align: top; font-size: 9.5px;
+  }
+  .items tbody td.n {
+    text-align: right; font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .items tbody tr:last-child td { border-bottom: none; }
+  .items .idx { color: #94a3b8; width: 22px; }
   .items .desc { font-weight: 500; color: #0f172a; }
-  .items .sub { color: #94a3b8; font-size: 9px; margin-top: 2px; }
+  .items .sub { color: #94a3b8; font-size: 8.5px; margin-top: 2px;
+    font-weight: 400; }
+  .items .hsn-cell { color: #64748b; white-space: nowrap; }
+  .items .charge-row td { background: #fbfcfe; }
 
-  /* ---- totals ---- */
-  .lower { display: flex; gap: 20px; margin-top: 18px;
-    align-items: flex-start; }
-  .lower-left { flex: 1; }
-  .totals { width: 240px; font-size: 10px; }
-  .totals .row { display: flex; justify-content: space-between;
-    padding: 4px 0; }
-  .totals .row .k { color: #5b6b84; }
-  .totals .row .v { font-variant-numeric: tabular-nums; }
-  .totals .grand { margin-top: 6px; border-top: 2px solid #0f172a;
-    padding-top: 7px; font-size: 13px; font-weight: 700; }
-  .totals .grand .v { color: var(--brand); }
-  .tax-note { font-size: 8px; color: #94a3b8; text-align: right;
-    margin-top: 4px; }
+  /* ---- summary (words + totals) ---- */
+  .summary {
+    display: flex; gap: 26px; margin-top: 16px; align-items: flex-start;
+  }
+  .summary-left { flex: 1; padding-top: 2px; }
+  .words-label {
+    font-size: 7.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.1em; color: #94a3b8;
+  }
+  .words {
+    font-size: 10px; color: #0f172a; font-weight: 600; margin-top: 4px;
+    line-height: 1.5;
+  }
 
-  /* ---- blocks ---- */
-  .block { margin-top: 14px; }
-  .block-label { font-size: 8px; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 0.08em; color: #94a3b8; margin-bottom: 4px; }
-  .block-body { font-size: 10px; color: #334155; line-height: 1.55;
-    white-space: pre-line; }
-  .words { font-size: 10px; color: #0f172a; }
-  .words strong { font-weight: 600; }
+  .totals { width: 234px; flex-shrink: 0; }
+  .t-row {
+    display: flex; justify-content: space-between;
+    font-size: 9.5px; padding: 3px 0;
+  }
+  .t-row .k { color: #64748b; }
+  .t-row .v { color: #0f172a; font-variant-numeric: tabular-nums; }
+  .t-divide { height: 1px; background: #e7ecf2; margin: 4px 0; }
+  .t-grand {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-top: 6px; padding: 9px 12px;
+    background: var(--brand); border-radius: 9px;
+  }
+  .t-grand .k {
+    color: #ffffff; font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.07em; opacity: 0.85;
+  }
+  .t-grand .v {
+    color: #ffffff; font-size: 16px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .t-note {
+    font-size: 8px; color: #94a3b8; text-align: right; margin-top: 5px;
+  }
 
   /* ---- HSN summary ---- */
-  .hsn { margin-top: 16px; font-size: 9px; }
-  .hsn thead th { background: #f1f5f9; color: #5b6b84; font-size: 8px;
-    font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
-    padding: 5px 7px; text-align: right; }
-  .hsn thead th:first-child { text-align: left; }
-  .hsn tbody td { padding: 5px 7px; border-bottom: 1px solid #eef2f7;
-    text-align: right; font-variant-numeric: tabular-nums; }
-  .hsn tbody td:first-child { text-align: left; font-weight: 500; }
+  .hsn-wrap { margin-top: 16px; }
+  .hsn { font-size: 8.5px; }
+  .hsn thead th {
+    background: #f8fafc; color: #64748b;
+    font-size: 7.5px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.04em; padding: 5px 9px; text-align: right;
+  }
+  .hsn thead th:first-child { text-align: left; border-radius: 6px 0 0 6px; }
+  .hsn thead th:last-child { border-radius: 0 6px 6px 0; }
+  .hsn tbody td {
+    padding: 5px 9px; border-bottom: 1px solid #f1f5f9;
+    text-align: right; font-variant-numeric: tabular-nums; color: #334155;
+  }
+  .hsn tbody td:first-child {
+    text-align: left; font-weight: 600; color: #0f172a;
+  }
+  .hsn tbody tr:last-child td { border-bottom: none; }
 
-  /* ---- bank ---- */
-  .bank { margin-top: 14px; border: 1px solid #e2e8f0; border-radius: 8px;
-    padding: 10px 13px; }
-  .bank-grid { display: flex; gap: 24px; font-size: 9.5px;
-    color: #334155; margin-top: 4px; }
-  .bank-grid .k { color: #94a3b8; }
+  /* ---- info cards (transport, notes, bank) ---- */
+  .info-grid {
+    display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap;
+  }
+  .info-card {
+    flex: 1; min-width: 220px;
+    border: 1px solid #e7ecf2; border-radius: 9px; padding: 10px 13px;
+  }
+  .info-card .label { margin-bottom: 5px; display: block; }
+  .info-body {
+    font-size: 9px; color: #475569; line-height: 1.55;
+    white-space: pre-line;
+  }
+  .bank-grid {
+    display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 2px;
+  }
+  .bank-item .bk { font-size: 8px; color: #94a3b8; }
+  .bank-item .bv {
+    font-size: 9.5px; color: #0f172a; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
 
-  /* ---- footer ---- */
-  .footer-mark { position: absolute; left: 0; right: 0; bottom: 7mm;
-    text-align: center; font-size: 7.5px; color: #cbd5e1;
-    letter-spacing: 0.04em; }
+  /* ---- terms ---- */
+  .terms { margin-top: 12px; }
+  .terms .info-body { color: #64748b; }
 `;

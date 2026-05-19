@@ -4,6 +4,10 @@
  * The Puppeteer Browser is owned by index.ts (one shared instance, launched
  * once) and passed in — launching per request would add ~300ms of cold
  * Chromium start to every invoice.
+ *
+ * Pagination is Puppeteer's: content flows, and `displayHeaderFooter` draws
+ * the footer strip ("Made with AstraBill" + page numbers) on every physical
+ * page. The page margins leave room for it.
  */
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -11,6 +15,20 @@ import type { Browser } from "puppeteer";
 
 import type { RenderRequest } from "./contract.js";
 import { TEMPLATES } from "./templates/registry.js";
+
+/** Per-physical-page footer. Puppeteer fills .pageNumber / .totalPages. */
+function footerTemplate(showMark: boolean): string {
+  const mark = showMark ? "Made with AstraBill" : "";
+  return (
+    `<div style="width:100%;box-sizing:border-box;padding:0 14mm;` +
+    `font-family:'Helvetica',Arial,sans-serif;font-size:7px;color:#9aa7bd;` +
+    `display:flex;justify-content:space-between;align-items:center;">` +
+    `<span>${mark}</span>` +
+    `<span>Page <span class="pageNumber"></span> / ` +
+    `<span class="totalPages"></span></span>` +
+    `</div>`
+  );
+}
 
 export async function renderInvoicePdf(
   req: RenderRequest,
@@ -34,7 +52,14 @@ export async function renderInvoicePdf(
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,
-      margin: { top: 0, right: 0, bottom: 0, left: 0 },
+      displayHeaderFooter: true,
+      // Empty header — the full invoice header is page-1 content; an empty
+      // template still suppresses Puppeteer's default date/title strip.
+      headerTemplate: "<div></div>",
+      footerTemplate: footerTemplate(req.branding.showFooterMark),
+      // Top/bottom margins leave room for the footer + breathing space on
+      // continuation pages; the template owns its own horizontal gutter.
+      margin: { top: "14mm", bottom: "16mm", left: "0mm", right: "0mm" },
     });
     return Buffer.from(pdf);
   } finally {

@@ -404,11 +404,140 @@ export const fixtureComplex: RenderRequest = {
   },
 };
 
+/**
+ * Fixture 4 — LONG. Tax invoice, 22 line items, intrastate. Deliberately
+ * overflows one A4 page — the multi-page stress test. Verifies the table
+ * header repeats, no row splits, and the summary / HSN / bank / terms
+ * blocks land whole on the continuation page.
+ */
+const LONG_ITEMS: ReadonlyArray<[string, string, string, string, string]> = [
+  // [description, hsn, qty, unitPrice, amount]
+  ["Wood screws 2\" — zinc plated", "7318", "500", "2.40", "1200.00"],
+  ["Door hinge 4\" — stainless steel", "8302", "50", "17.00", "850.00"],
+  ["Mortice lock set — brass", "8302", "8", "300.00", "2400.00"],
+  ["L-bracket — 3 inch", "7318", "100", "6.00", "600.00"],
+  ["Emulsion paint — white, 4 litre", "3208", "5", "350.00", "1750.00"],
+  ["Sandpaper sheets — assorted grit", "3208", "200", "4.90", "980.00"],
+  ["Plywood 18mm — 8 ft × 4 ft", "4412", "4", "800.00", "3200.00"],
+  ["Wall plug pack — 8mm", "7318", "30", "15.00", "450.00"],
+  ["Tower bolt 6\" — chrome", "8302", "22", "50.00", "1100.00"],
+  ["Aldrop — heavy duty", "8302", "25", "110.00", "2750.00"],
+  ["Hacksaw blade — bi-metal", "8202", "60", "12.00", "720.00"],
+  ["PVC pipe 1\" — 10 ft length", "7307", "38", "50.00", "1900.00"],
+  ["Pipe elbow 1\" — PVC", "7307", "60", "9.00", "540.00"],
+  ["Teflon tape — roll", "3919", "150", "9.00", "1350.00"],
+  ["Cabinet handle — stainless steel", "8302", "42", "50.00", "2100.00"],
+  ["Drawer slide — pair, 18 inch", "8302", "16", "55.00", "880.00"],
+  ["Gate latch — galvanised", "8302", "32", "50.00", "1600.00"],
+  ["Curtain bracket — adjustable", "8302", "90", "11.00", "990.00"],
+  ["Door closer — hydraulic", "8302", "10", "230.00", "2300.00"],
+  ["Magnetic catch — small", "8302", "95", "8.00", "760.00"],
+  ["Glass clamp — D-shape", "8302", "29", "50.00", "1450.00"],
+  ["Rubber beading — 50 m roll", "4016", "8", "160.00", "1280.00"],
+];
+
+export const fixtureLong: RenderRequest = {
+  branding: MODERN_FREE,
+  invoice: {
+    number: "INV/26-27/0120",
+    type: "tax_invoice",
+    status: "sent",
+    issueDate: "2026-05-16",
+    dueDate: "2026-05-31",
+    business: OM_GLASS,
+    billTo: {
+      name: "Bansal Builders & Contractors",
+      gstin: "05AABCB7711K1Z2",
+      address: "Plot 9, Ramnagar Industrial Estate\nHaridwar, Uttarakhand 249403",
+      phone: "94120 55667",
+      stateCode: "05",
+    },
+    shipTo: null,
+    lineItems: LONG_ITEMS.map(
+      ([description, hsnCode, quantity, unitPrice, amount]) => ({
+        description,
+        hsnCode,
+        quantity,
+        unit: "pcs",
+        secondaryQuantity: null,
+        secondaryUnit: null,
+        unitPrice,
+        discountAmount: "0.00",
+        gstRate: "18",
+        amount,
+      }),
+    ),
+    extraCharges: [],
+    hsnSummary: [
+      {
+        hsnCode: "7318",
+        taxableValue: "8200.00",
+        cgstRate: "9",
+        cgstAmount: "738.00",
+        sgstRate: "9",
+        sgstAmount: "738.00",
+        igstRate: "",
+        igstAmount: "",
+      },
+      {
+        hsnCode: "8302",
+        taxableValue: "9650.00",
+        cgstRate: "9",
+        cgstAmount: "868.50",
+        sgstRate: "9",
+        sgstAmount: "868.50",
+        igstRate: "",
+        igstAmount: "",
+      },
+      {
+        hsnCode: "3208",
+        taxableValue: "7300.00",
+        cgstRate: "9",
+        cgstAmount: "657.00",
+        sgstRate: "9",
+        sgstAmount: "657.00",
+        igstRate: "",
+        igstAmount: "",
+      },
+      {
+        hsnCode: "7307",
+        taxableValue: "6000.00",
+        cgstRate: "9",
+        cgstAmount: "540.00",
+        sgstRate: "9",
+        sgstAmount: "540.00",
+        igstRate: "",
+        igstAmount: "",
+      },
+    ],
+    totals: {
+      subtotal: "31150.00",
+      discountAmount: "0.00",
+      extraChargesTaxable: "0.00",
+      extraChargesNonTaxable: "0.00",
+      taxableAmount: "31150.00",
+      cgstAmount: "2803.50",
+      sgstAmount: "2803.50",
+      igstAmount: "0.00",
+      roundOff: "0.00",
+      total: "36757.00",
+      totalInWords: "Thirty Six Thousand Seven Hundred Fifty Seven Rupees Only",
+      taxClass: "intrastate",
+    },
+    transport: { mode: "Road", vehicleNumber: "UK 08 BG 7240", ewayBillNumber: null },
+    notes: "Delivery in two trips. Second trip after the paint stock arrives.",
+    terms:
+      "Payment due within 15 days. Goods once sold will not be taken back. "
+      + "Interest @18% p.a. on overdue amounts. Subject to Roorkee jurisdiction.",
+  },
+};
+
 /** All fixtures, keyed — the preview route + pdf-service tests iterate this. */
 export const fixtures = {
   small: fixtureSmall,
   medium: fixtureMedium,
   complex: fixtureComplex,
+  long: fixtureLong,
 } as const;
 
 export type FixtureKey = keyof typeof fixtures;

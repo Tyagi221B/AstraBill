@@ -5,12 +5,14 @@
  * complete <html> document. renderToStaticMarkup turns it into the HTML
  * string Puppeteer prints.
  *
- * Stage 1: every section is structurally present and correct. Stage 2 is
- * the typography / spacing / logo / bundled-font polish pass.
+ * Multi-page: the content flows; Puppeteer paginates and draws the per-page
+ * footer (render.ts). The CSS keeps rows + key blocks unbroken — see
+ * styles.ts.
  */
 import type { CSSProperties } from "react";
 
 import type { InvoiceType, RenderRequest } from "../contract.js";
+import { INTER_FONT_CSS } from "../fonts.js";
 import { formatDate, formatInr } from "../format.js";
 import { MODERN_CSS } from "../styles.js";
 
@@ -30,57 +32,76 @@ export function Modern({ invoice, branding }: RenderRequest) {
   const showTax = columns.tax;
   const showSecondary = columns.secondaryQty;
   const intrastate = invoice.totals.taxClass === "intrastate";
+  const t = invoice.totals;
+  const bank = invoice.business.bank;
+  const tr = invoice.transport;
+  const hasTransport = Boolean(tr.mode || tr.vehicleNumber || tr.ewayBillNumber);
 
+  // Column count, for the empty cells on charge rows.
   const rootStyle = { "--brand": branding.color } as CSSProperties;
 
   return (
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
-        <title>{invoice.number ?? "Draft"} — {invoice.business.name}</title>
-        <style dangerouslySetInnerHTML={{ __html: MODERN_CSS }} />
+        <title>
+          {invoice.number ?? "Draft"} — {invoice.business.name}
+        </title>
+        <style
+          dangerouslySetInnerHTML={{ __html: INTER_FONT_CSS + MODERN_CSS }}
+        />
       </head>
       <body>
-        <div className="page" style={rootStyle}>
-          <div className="accent-bar" />
+        <div className="doc" style={rootStyle}>
+          <div className="accent" />
 
           {/* ---- header ---- */}
-          <div className="header">
-            <div>
-              <div className="biz-name">{invoice.business.name}</div>
-              <div className="biz-meta">
+          <div className="head">
+            <div className="head-brand">
+              {branding.logoUrl && (
+                <img
+                  className="brand-logo"
+                  src={branding.logoUrl}
+                  alt={invoice.business.name}
+                />
+              )}
+              <div className="brand-name">{invoice.business.name}</div>
+              <div className="brand-meta">
                 {invoice.business.gstin && `GSTIN ${invoice.business.gstin}\n`}
                 {invoice.business.address}
                 {invoice.business.phone && `\n${invoice.business.phone}`}
-                {invoice.business.email && `  ·  ${invoice.business.email}`}
+                {invoice.business.email &&
+                  `${invoice.business.phone ? "  ·  " : "\n"}${invoice.business.email}`}
               </div>
             </div>
-            <div className="doc-block">
+            <div className="head-doc">
               <div className="doc-title">{TYPE_LABEL[invoice.type]}</div>
               <div className="doc-rows">
-                <div>
-                  <span className="label">Number</span>
-                  {invoice.number ?? "Draft"}
+                <div className="doc-row">
+                  <span className="k">Number</span>
+                  <span className="v">{invoice.number ?? "Draft"}</span>
                 </div>
-                <div>
-                  <span className="label">Issued</span>
-                  {formatDate(invoice.issueDate)}
+                <div className="doc-row">
+                  <span className="k">Issued</span>
+                  <span className="v">{formatDate(invoice.issueDate)}</span>
                 </div>
                 {invoice.dueDate && (
-                  <div>
-                    <span className="label">Due</span>
-                    {formatDate(invoice.dueDate)}
+                  <div className="doc-row">
+                    <span className="k">Due</span>
+                    <span className="v">{formatDate(invoice.dueDate)}</span>
                   </div>
                 )}
               </div>
-              <div className="status-pill">{invoice.status.replace("_", " ")}</div>
+              <span className="status">
+                {invoice.status.replace(/_/g, " ")}
+              </span>
             </div>
           </div>
 
           {/* ---- parties ---- */}
           <div className="parties">
             <div className="party">
-              <div className="party-label">Bill to</div>
+              <span className="label">Bill to</span>
               <div className="party-name">{invoice.billTo.name}</div>
               <div className="party-meta">
                 {invoice.billTo.gstin && `GSTIN ${invoice.billTo.gstin}\n`}
@@ -90,7 +111,7 @@ export function Modern({ invoice, branding }: RenderRequest) {
             </div>
             {invoice.shipTo && (
               <div className="party">
-                <div className="party-label">Ship to</div>
+                <span className="label">Ship to</span>
                 <div className="party-name">{invoice.shipTo.name}</div>
                 <div className="party-meta">{invoice.shipTo.address}</div>
               </div>
@@ -101,20 +122,20 @@ export function Modern({ invoice, branding }: RenderRequest) {
           <table className="items">
             <thead>
               <tr>
-                <th>#</th>
+                <th className="n">#</th>
                 <th>Description</th>
                 {showHsn && <th>HSN</th>}
-                <th className="num">Qty</th>
-                <th className="num">Rate</th>
-                {showDiscount && <th className="num">Disc.</th>}
-                {showTax && <th className="num">GST</th>}
-                <th className="num">Amount</th>
+                <th className="n">Qty</th>
+                <th className="n">Rate</th>
+                {showDiscount && <th className="n">Disc.</th>}
+                {showTax && <th className="n">GST</th>}
+                <th className="n">Amount</th>
               </tr>
             </thead>
             <tbody>
               {invoice.lineItems.map((line, i) => (
                 <tr key={i}>
-                  <td>{i + 1}</td>
+                  <td className="n idx">{i + 1}</td>
                   <td>
                     <div className="desc">{line.description}</div>
                     {showSecondary &&
@@ -125,25 +146,27 @@ export function Modern({ invoice, branding }: RenderRequest) {
                         </div>
                       )}
                   </td>
-                  {showHsn && <td>{line.hsnCode ?? "—"}</td>}
-                  <td className="num">
+                  {showHsn && (
+                    <td className="hsn-cell">{line.hsnCode ?? "—"}</td>
+                  )}
+                  <td className="n">
                     {line.quantity} {line.unit}
                   </td>
-                  <td className="num">{formatInr(line.unitPrice)}</td>
+                  <td className="n">{formatInr(line.unitPrice)}</td>
                   {showDiscount && (
-                    <td className="num">
+                    <td className="n">
                       {Number(line.discountAmount) > 0
-                        ? formatInr(line.discountAmount)
+                        ? `−${formatInr(line.discountAmount)}`
                         : "—"}
                     </td>
                   )}
-                  {showTax && <td className="num">{line.gstRate}%</td>}
-                  <td className="num">{formatInr(line.amount)}</td>
+                  {showTax && <td className="n">{line.gstRate}%</td>}
+                  <td className="n desc">{formatInr(line.amount)}</td>
                 </tr>
               ))}
               {invoice.extraCharges.map((charge, i) => (
-                <tr key={`x${i}`}>
-                  <td />
+                <tr key={`x${i}`} className="charge-row">
+                  <td className="n idx" />
                   <td>
                     <div className="desc">{charge.label}</div>
                     <div className="sub">
@@ -152,105 +175,85 @@ export function Modern({ invoice, branding }: RenderRequest) {
                         : "Non-taxable charge"}
                     </div>
                   </td>
-                  {showHsn && <td>—</td>}
-                  <td className="num" />
-                  <td className="num" />
-                  {showDiscount && <td className="num" />}
+                  {showHsn && <td className="hsn-cell">—</td>}
+                  <td className="n" />
+                  <td className="n" />
+                  {showDiscount && <td className="n" />}
                   {showTax && (
-                    <td className="num">
+                    <td className="n">
                       {charge.taxable ? `${charge.gstRate ?? "0"}%` : "—"}
                     </td>
                   )}
-                  <td className="num">{formatInr(charge.amount)}</td>
+                  <td className="n desc">{formatInr(charge.amount)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
 
-          {/* ---- words + totals ---- */}
-          <div className="lower">
-            <div className="lower-left">
-              <div className="words">
-                <strong>Amount in words: </strong>
-                {invoice.totals.totalInWords}
-              </div>
-              {invoice.notes && (
-                <div className="block">
-                  <div className="block-label">Notes</div>
-                  <div className="block-body">{invoice.notes}</div>
-                </div>
-              )}
+          {/* ---- summary ---- */}
+          <div className="summary">
+            <div className="summary-left">
+              <div className="words-label">Amount in words</div>
+              <div className="words">{t.totalInWords}</div>
             </div>
             <div className="totals">
-              <div className="row">
+              <div className="t-row">
                 <span className="k">Subtotal</span>
-                <span className="v">{formatInr(invoice.totals.subtotal)}</span>
+                <span className="v">{formatInr(t.subtotal)}</span>
               </div>
-              {Number(invoice.totals.discountAmount) > 0 && (
-                <div className="row">
+              {Number(t.discountAmount) > 0 && (
+                <div className="t-row">
                   <span className="k">Discount</span>
-                  <span className="v">
-                    −{formatInr(invoice.totals.discountAmount)}
-                  </span>
+                  <span className="v">−{formatInr(t.discountAmount)}</span>
                 </div>
               )}
-              {Number(invoice.totals.extraChargesTaxable) > 0 && (
-                <div className="row">
+              {Number(t.extraChargesTaxable) > 0 && (
+                <div className="t-row">
                   <span className="k">Taxable charges</span>
-                  <span className="v">
-                    {formatInr(invoice.totals.extraChargesTaxable)}
-                  </span>
+                  <span className="v">{formatInr(t.extraChargesTaxable)}</span>
                 </div>
               )}
-              <div className="row">
+              <div className="t-row">
                 <span className="k">Taxable value</span>
-                <span className="v">
-                  {formatInr(invoice.totals.taxableAmount)}
-                </span>
+                <span className="v">{formatInr(t.taxableAmount)}</span>
               </div>
               {intrastate ? (
                 <>
-                  <div className="row">
+                  <div className="t-row">
                     <span className="k">CGST</span>
-                    <span className="v">
-                      {formatInr(invoice.totals.cgstAmount)}
-                    </span>
+                    <span className="v">{formatInr(t.cgstAmount)}</span>
                   </div>
-                  <div className="row">
+                  <div className="t-row">
                     <span className="k">SGST</span>
-                    <span className="v">
-                      {formatInr(invoice.totals.sgstAmount)}
-                    </span>
+                    <span className="v">{formatInr(t.sgstAmount)}</span>
                   </div>
                 </>
               ) : (
-                <div className="row">
+                <div className="t-row">
                   <span className="k">IGST</span>
-                  <span className="v">
-                    {formatInr(invoice.totals.igstAmount)}
-                  </span>
+                  <span className="v">{formatInr(t.igstAmount)}</span>
                 </div>
               )}
-              {Number(invoice.totals.extraChargesNonTaxable) > 0 && (
-                <div className="row">
+              {Number(t.extraChargesNonTaxable) > 0 && (
+                <div className="t-row">
                   <span className="k">Freight / other</span>
                   <span className="v">
-                    {formatInr(invoice.totals.extraChargesNonTaxable)}
+                    {formatInr(t.extraChargesNonTaxable)}
                   </span>
                 </div>
               )}
-              {invoice.totals.roundOff !== "0.00" &&
-                invoice.totals.roundOff !== "0" && (
-                  <div className="row">
-                    <span className="k">Round-off</span>
-                    <span className="v">{formatInr(invoice.totals.roundOff)}</span>
-                  </div>
-                )}
-              <div className="row grand">
+              {t.roundOff !== "0.00" && t.roundOff !== "0" && (
+                <div className="t-row">
+                  <span className="k">Round-off</span>
+                  <span className="v">{formatInr(t.roundOff)}</span>
+                </div>
+              )}
+              <div className="t-divide" />
+              <div className="t-grand">
                 <span className="k">Total</span>
-                <span className="v">{formatInr(invoice.totals.total)}</span>
+                <span className="v">{formatInr(t.total)}</span>
               </div>
-              <div className="tax-note">
+              <div className="t-note">
                 {intrastate
                   ? "Intrastate supply — CGST + SGST"
                   : "Interstate supply — IGST"}
@@ -260,113 +263,120 @@ export function Modern({ invoice, branding }: RenderRequest) {
 
           {/* ---- HSN summary ---- */}
           {showHsn && invoice.hsnSummary.length > 0 && (
-            <table className="hsn">
-              <thead>
-                <tr>
-                  <th>HSN / SAC</th>
-                  <th>Taxable value</th>
-                  {intrastate ? (
-                    <>
-                      <th>CGST</th>
-                      <th>SGST</th>
-                    </>
-                  ) : (
-                    <th>IGST</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {invoice.hsnSummary.map((row, i) => (
-                  <tr key={i}>
-                    <td>{row.hsnCode}</td>
-                    <td>{formatInr(row.taxableValue)}</td>
+            <div className="hsn-wrap">
+              <table className="hsn">
+                <thead>
+                  <tr>
+                    <th>HSN / SAC</th>
+                    <th>Taxable value</th>
                     {intrastate ? (
                       <>
-                        <td>
-                          {row.cgstRate}% · {formatInr(row.cgstAmount)}
-                        </td>
-                        <td>
-                          {row.sgstRate}% · {formatInr(row.sgstAmount)}
-                        </td>
+                        <th>CGST</th>
+                        <th>SGST</th>
                       </>
                     ) : (
-                      <td>
-                        {row.igstRate}% · {formatInr(row.igstAmount)}
-                      </td>
+                      <th>IGST</th>
                     )}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {invoice.hsnSummary.map((row, i) => (
+                    <tr key={i}>
+                      <td>{row.hsnCode}</td>
+                      <td>{formatInr(row.taxableValue)}</td>
+                      {intrastate ? (
+                        <>
+                          <td>
+                            {row.cgstRate}% · {formatInr(row.cgstAmount)}
+                          </td>
+                          <td>
+                            {row.sgstRate}% · {formatInr(row.sgstAmount)}
+                          </td>
+                        </>
+                      ) : (
+                        <td>
+                          {row.igstRate}% · {formatInr(row.igstAmount)}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
 
-          {/* ---- transport ---- */}
-          {(invoice.transport.mode ||
-            invoice.transport.vehicleNumber ||
-            invoice.transport.ewayBillNumber) && (
-            <div className="block">
-              <div className="block-label">Transport</div>
-              <div className="block-body">
-                {[
-                  invoice.transport.mode && `Mode: ${invoice.transport.mode}`,
-                  invoice.transport.vehicleNumber &&
-                    `Vehicle: ${invoice.transport.vehicleNumber}`,
-                  invoice.transport.ewayBillNumber &&
-                    `E-way bill: ${invoice.transport.ewayBillNumber}`,
-                ]
-                  .filter(Boolean)
-                  .join("    ")}
-              </div>
+          {/* ---- transport + notes ---- */}
+          {(hasTransport || invoice.notes) && (
+            <div className="info-grid">
+              {hasTransport && (
+                <div className="info-card">
+                  <span className="label">Transport</span>
+                  <div className="info-body">
+                    {[
+                      tr.mode && `Mode — ${tr.mode}`,
+                      tr.vehicleNumber && `Vehicle — ${tr.vehicleNumber}`,
+                      tr.ewayBillNumber &&
+                        `E-way bill — ${tr.ewayBillNumber}`,
+                    ]
+                      .filter(Boolean)
+                      .join("\n")}
+                  </div>
+                </div>
+              )}
+              {invoice.notes && (
+                <div className="info-card">
+                  <span className="label">Notes</span>
+                  <div className="info-body">{invoice.notes}</div>
+                </div>
+              )}
             </div>
           )}
 
           {/* ---- bank ---- */}
-          {invoice.business.bank && (
-            <div className="bank">
-              <div className="block-label">Payment details</div>
-              <div className="bank-grid">
-                {invoice.business.bank.accountHolder && (
-                  <div>
-                    <span className="k">A/c name</span>
-                    <br />
-                    {invoice.business.bank.accountHolder}
-                  </div>
-                )}
-                {invoice.business.bank.accountNumber && (
-                  <div>
-                    <span className="k">A/c no.</span>
-                    <br />
-                    {invoice.business.bank.accountNumber}
-                  </div>
-                )}
-                {invoice.business.bank.ifsc && (
-                  <div>
-                    <span className="k">IFSC</span>
-                    <br />
-                    {invoice.business.bank.ifsc}
-                  </div>
-                )}
-                {invoice.business.bank.upiId && (
-                  <div>
-                    <span className="k">UPI</span>
-                    <br />
-                    {invoice.business.bank.upiId}
-                  </div>
-                )}
+          {bank &&
+            (bank.accountHolder ||
+              bank.accountNumber ||
+              bank.ifsc ||
+              bank.upiId) && (
+              <div className="info-card" style={{ marginTop: "12px" }}>
+                <span className="label">Payment details</span>
+                <div className="bank-grid">
+                  {bank.accountHolder && (
+                    <div className="bank-item">
+                      <div className="bk">Account name</div>
+                      <div className="bv">{bank.accountHolder}</div>
+                    </div>
+                  )}
+                  {bank.accountNumber && (
+                    <div className="bank-item">
+                      <div className="bk">Account no.</div>
+                      <div className="bv">{bank.accountNumber}</div>
+                    </div>
+                  )}
+                  {bank.ifsc && (
+                    <div className="bank-item">
+                      <div className="bk">IFSC</div>
+                      <div className="bv">{bank.ifsc}</div>
+                    </div>
+                  )}
+                  {bank.upiId && (
+                    <div className="bank-item">
+                      <div className="bk">UPI ID</div>
+                      <div className="bv">{bank.upiId}</div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           {/* ---- terms ---- */}
           {invoice.terms && (
-            <div className="block">
-              <div className="block-label">Terms &amp; conditions</div>
-              <div className="block-body">{invoice.terms}</div>
+            <div className="terms">
+              <div className="info-card">
+                <span className="label">Terms &amp; conditions</span>
+                <div className="info-body">{invoice.terms}</div>
+              </div>
             </div>
-          )}
-
-          {branding.showFooterMark && (
-            <div className="footer-mark">Made with AstraBill</div>
           )}
         </div>
       </body>
