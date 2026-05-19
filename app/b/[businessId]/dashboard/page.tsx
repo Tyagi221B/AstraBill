@@ -15,6 +15,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
+import { Kpi } from "@/components/app/Kpi";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/Button";
@@ -24,7 +25,6 @@ import { getBusinessForUser } from "@/lib/repositories/businesses";
 import { getBusinessDashboard } from "@/lib/services/dashboard";
 import { routes } from "@/lib/routes";
 import { requireUser } from "@/lib/session";
-import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -210,36 +210,3 @@ export default async function BusinessDashboardPage({
   );
 }
 
-function Kpi({
-  label,
-  value,
-  hint,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  tone?: "neutral" | "warning" | "success";
-}) {
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="text-xs uppercase tracking-wider text-muted-foreground">
-          {label}
-        </div>
-        <div
-          className={cn(
-            "mt-1.5 text-2xl font-bold tabular-nums",
-            tone === "warning" && "text-destructive",
-            tone === "success" && "text-success",
-          )}
-        >
-          {value}
-        </div>
-        {hint && (
-          <div className="mt-1 text-xs text-muted-foreground/70">{hint}</div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}

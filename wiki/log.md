@@ -667,3 +667,28 @@ landed first (every figure is a function of what's been paid).
 2D is now Steps 1–3 done; only the mobile shell (Step 4) remains.
 No new decision page — this is Step 3 of `decision/white-label-app-
 shell.md`, whose Status table is updated.
+
+## [2026-05-19] build | Customer detail — the udhaar tracker
+
+V1 feature #3 (udhaar tracker), seller side. `/b/[businessId]/
+customers/[id]` — until now there was only a customer *edit* page;
+no way to open a customer and see what they owe.
+
+- Three udhaar KPIs: **outstanding** (`billed - paid` — what this
+  customer still owes), **total billed**, **total paid** — all
+  lifetime, computed over the customer's non-draft invoices
+  (decimal.js, in the service).
+- Contact card — phone / email / GSTIN / state / address / notes.
+- Invoice history — every invoice for the customer, each with its
+  own balance (`total - amount_paid`), click-through to the detail.
+- Layers: `listInvoicesForCustomer` repo query →
+  `getCustomerDetail` service (returns customer + invoices + stats,
+  membership-scoped) → the new page. The customers list now links
+  each name through to the detail page.
+- `Kpi` card extracted to `components/app/Kpi.tsx` — shared by the
+  dashboard and this page.
+
+Real numbers throughout, possible because payment recording landed
+first. No new decision page — a straightforward read view on top of
+the payment primitive; `decision/payment-recording.md` Status
+updated to mark the udhaar view shipped.

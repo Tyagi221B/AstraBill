@@ -106,10 +106,12 @@ Shipped 2026-05-19: schema (the `payments` table already existed) → repository
 → service → API (`POST /api/invoices/[id]/payments`, `DELETE
 /api/payments/[id]`) → `PaymentPanel` on the invoice detail page.
 
-Unblocked next:
-- **Dashboard KPIs** (2D Step 3) — outstanding ₹, paid this month, now real.
-- **Customer detail / udhaar view** — "this customer owes ₹X across N
-  invoices", now computable.
+What it unblocked, both now shipped 2026-05-19:
+- **Dashboard KPIs** (2D Step 3) — outstanding ₹, paid this month, revenue
+  this month.
+- **Customer detail / udhaar view** — `/b/[businessId]/customers/[id]`:
+  billed / paid / outstanding per customer + their invoice history. The
+  seller-side udhaar tracker (V1 feature #3).
 
 ## Related
 

@@ -35,7 +35,8 @@ export const routes = {
         `${base}/invoices/${invoiceId}/edit`,
       customers: `${base}/customers`,
       newCustomer: `${base}/customers/new`,
-      // No customer detail page yet — the only per-customer page is edit.
+      /** Customer detail — contact, udhaar stats, invoice history. */
+      customer: (customerId: string) => `${base}/customers/${customerId}`,
       editCustomer: (customerId: string) =>
         `${base}/customers/${customerId}/edit`,
       products: `${base}/products`,

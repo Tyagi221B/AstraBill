@@ -76,7 +76,14 @@ export default async function CustomersPage({
                       key={c.id}
                       className="border-t border-border text-foreground"
                     >
-                      <td className="px-4 py-3 font-medium">{c.name}</td>
+                      <td className="px-4 py-3 font-medium">
+                        <Link
+                          href={b.customer(c.id)}
+                          className="hover:underline"
+                        >
+                          {c.name}
+                        </Link>
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         {c.phone ?? "—"}
                       </td>
@@ -88,10 +95,10 @@ export default async function CustomersPage({
                       </td>
                       <td className="px-4 py-3 text-right">
                         <Link
-                          href={b.editCustomer(c.id)}
+                          href={b.customer(c.id)}
                           className="text-sm text-primary hover:underline"
                         >
-                          Edit →
+                          View →
                         </Link>
                       </td>
                     </tr>

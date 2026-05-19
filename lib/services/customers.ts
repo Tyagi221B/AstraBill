@@ -7,9 +7,10 @@
  * navigable for audit, just no longer surfaced in customer lists).
  */
 import "server-only";
+import Decimal from "decimal.js";
 
 import { db } from "../db";
-import type { Customer } from "../db/schema";
+import type { Customer, Invoice } from "../db/schema";
 import { NotFoundError } from "../errors";
 import { requirePermission } from "../rbac";
 import { writeAuditEntry } from "../audit";
@@ -25,6 +26,7 @@ import {
   softDeleteCustomer,
   updateCustomer as updateCustomerRow,
 } from "../repositories/customers";
+import { listInvoicesForCustomer } from "../repositories/invoices";
 
 export interface ServiceContext {
   ipAddress?: string | null;
@@ -128,6 +130,64 @@ export async function getCustomer(
   actorUserId: string,
 ): Promise<Customer | null> {
   return getCustomerForUser(actorUserId, customerId);
+}
+
+export interface CustomerDetail {
+  customer: Customer;
+  invoices: Invoice[];
+  stats: {
+    /** Lifetime invoice value, non-draft only. */
+    billed: string;
+    /** Lifetime money received, non-draft only. */
+    paid: string;
+    /** What the customer still owes — `billed - paid`. The udhaar figure. */
+    outstanding: string;
+    /** Count of non-draft invoices. */
+    invoiceCount: number;
+  };
+}
+
+/**
+ * A customer plus their full invoice history and udhaar stats — the data
+ * behind the customer detail page. Membership-scoped: null if the customer
+ * isn't visible to the caller.
+ *
+ * The stats run over **non-draft** invoices only — a draft is not an issued
+ * document and owes nothing. The invoice list itself includes drafts so the
+ * page can show the complete history.
+ */
+export async function getCustomerDetail(
+  customerId: string,
+  actorUserId: string,
+): Promise<CustomerDetail | null> {
+  const customer = await getCustomerForUser(actorUserId, customerId);
+  if (!customer) return null;
+
+  const invoices = await listInvoicesForCustomer(
+    customer.businessId,
+    customerId,
+  );
+
+  let billed = new Decimal(0);
+  let paid = new Decimal(0);
+  let invoiceCount = 0;
+  for (const inv of invoices) {
+    if (inv.status === "draft") continue;
+    billed = billed.plus(inv.total);
+    paid = paid.plus(inv.amountPaid);
+    invoiceCount += 1;
+  }
+
+  return {
+    customer,
+    invoices,
+    stats: {
+      billed: billed.toFixed(2),
+      paid: paid.toFixed(2),
+      outstanding: billed.minus(paid).toFixed(2),
+      invoiceCount,
+    },
+  };
 }
 
 export { listCustomersForUser };

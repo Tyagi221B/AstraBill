@@ -426,6 +426,28 @@ export async function listInvoicesForUser(opts: {
     .limit(opts.limit ?? 50);
 }
 
+/**
+ * Every non-deleted invoice for one customer within a business, newest
+ * first. Drafts included — the customer detail page shows the full history
+ * and computes its udhaar stats over the non-draft subset itself.
+ */
+export async function listInvoicesForCustomer(
+  businessId: string,
+  customerId: string,
+): Promise<Invoice[]> {
+  return db
+    .select()
+    .from(invoices)
+    .where(
+      and(
+        eq(invoices.businessId, businessId),
+        eq(invoices.customerId, customerId),
+        isNull(invoices.deletedAt),
+      ),
+    )
+    .orderBy(desc(invoices.createdAt));
+}
+
 // ---- Dashboard aggregates ----------------------------------------------
 
 /**
