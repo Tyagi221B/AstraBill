@@ -219,12 +219,40 @@ The non-binding choices that resolve in design review, not SSOT:
   Deferred at the user's call (2026-05-19) — add it if production
   invoices actually land in that window.
 
-## Brand-colour application — resolved in build (Stage 2)
+## Brand-colour application — resolved in build
 
-The Modern template uses the brand colour on: the 3px top accent
+**Modern** (Stage 2) uses the brand colour on: the 3px top accent
 bar, the line-items table header band, and the grand-total box.
 The H1, body, and section labels stay token-neutral. Too much
 colour reads as a brochure, not an invoice.
+
+**Classic** uses it more sparingly still — the look is a neutral
+ruled grid, and the brand colour appears only on the 3px crown
+stroke, the "TAX INVOICE" banner text, the table-header text + its
+1.5px underline, and the grand-total band. The ruled lines stay
+grey. Same principle: an invoice, not a brochure.
+
+## Font application — resolved in build
+
+The picker is global per business, and both templates' `font-family`
+follows `branding.font` (not a per-template fixed face). Classic's
+"classic" character comes from layout — the ruled grid, the boxed
+sections, the centred masthead, the signature block — so it reads as
+traditional even when the picked font is a sans. `fonts.ts` embeds
+only the *one* picked family per render (base64 data-URI, no CDN);
+Poppins and Noto Sans additionally embed their Devanagari subset so a
+Hindi business name renders.
+
+## Live preview — resolved in build (Stage 6)
+
+`/i/preview` renders the business's most-recent *finalised* invoice
+(fallback: a sample fixture) through the real pdf-service, and the
+settings page embeds it in a debounced iframe — the preview is
+literally the print output, not a re-implementation. The iframe
+carries the *unsaved* settings as query params; `showFooterMark` is
+the one branding field NOT passed as a param — it is plan-derived
+server-side so a Free-plan user cannot fake the footer away through
+the preview URL.
 
 ## Related Pages
 
@@ -237,8 +265,10 @@ colour reads as a brochure, not an invoice.
 
 ## Status
 
-In build (2026-05-19). **Stages 0–5 shipped + tested end-to-end** — an
-invoice downloads as a real branded PDF from its detail page.
+**2C-1 (V1 scope) shipped + tested end-to-end (2026-05-19).** An
+invoice downloads as a branded PDF, and `/settings/branding` lets an
+owner pick the template, colour, font, logo, and column visibility
+with a live preview.
 
 - **Stage 0** — render contract (`lib/pdf/contract.ts` + a mirror in
   `pdf-service/src/contract.ts`) + four typed fixtures. `c70b908`.
@@ -253,31 +283,27 @@ invoice downloads as a real branded PDF from its detail page.
 - **Stage 4** — Cloudinary signed logo upload, the secure backend:
   `lib/cloudinary.ts`, `POST /api/uploads/signature` (owner-gated),
   `isOurCloudinaryUrl` SSRF guard. `f8990ce`.
-- **Stage 5** — `lib/services/invoice-pdf.ts` bridges DB → contract
-  (HSN summary, amount-in-words, taxClass derived here);
+- **Stage 5** — `lib/services/invoice-pdf.ts` bridges DB → contract;
   `GET /api/invoices/[id]/pdf` streams the PDF; "Download PDF"
-  button on the invoice page; shared-secret guards `/render`.
-  `bda31cd`.
+  button; shared-secret guards `/render`. `bda31cd`.
 - Polish from real renders: trailing-zero trim on qty/GST, tighter
   top margin (`b9cfdee`); the line "Amount" column is the pre-GST
   taxable value so it reconciles with the subtotal (`59fb4ce`).
+- **Fonts** — `fonts.ts` now embeds any of the four families
+  (`fontFaceCss(font)`); both templates' `font-family` follows
+  `branding.font`; Poppins / Noto Sans carry their Devanagari
+  subset. `856dcbc`.
+- **Classic template** — the second real template; the registry no
+  longer aliases `classic` → Modern. `5737c14`.
+- **Stage 6** — `/settings/branding` (Template · Colors · Font ·
+  Columns + logo upload), `GET /i/preview`, and
+  `renderBrandingPreviewPdf`. `3ee03ae`.
 
-**Remaining — pick up here in the next chat:**
-
-1. **Fonts** — Poppins / Noto Serif / Noto Sans packages are
-   installed in `pdf-service/` (commit after `59fb4ce`); not yet
-   wired. `pdf-service/src/fonts.ts` needs a `fontFaceCss(font)` per
-   family, and the templates' `font-family` must follow
-   `branding.font` (currently hard-Inter). Inter is already wired.
-2. **Classic template** (was Stage 7) — second template component in
-   `pdf-service/src/templates/`; registry currently aliases
-   `classic` → Modern. Serif, traditional; Om Glass real invoices
-   are the reference.
-3. **Stage 6 — `/settings/branding`** (the capstone, build last):
-   template picker (Modern/Classic), brand-colour picker, font
-   picker, logo-upload widget (uses the Stage 4 signature endpoint
-   → Cloudinary → PATCH), live preview. Reordered *after* fonts +
-   Classic so every control it exposes is real.
+**Deferred to 2C.5** (unchanged): thermal-80 template, festive /
+themed templates, the pharma column set (batch / MFG / EXP) and a
+template that renders it, the custom-T&C library. The Columns tab
+ships in V1 but its toggles are plan-gated — column visibility is a
+paid feature per the "Branding free vs paid" decision.
 
 Local run: pdf-service `cd pdf-service && npm run dev` (:4000);
 `.env.local` has `PDF_SERVICE_URL`. Cloudinary creds are set.

@@ -506,3 +506,23 @@ Remaining (next chat): wire the 3 newly-installed fonts (Poppins /
 Noto Serif / Noto Sans) into `fonts.ts` + the templates; build the
 Classic template; then Stage 6 — the `/settings/branding` UI as the
 capstone. Full state in decision/invoice-design-system.md "Status".
+
+## [2026-05-19] build | Phase 2C-1 complete — branding customization shipped
+
+The Invoice Design System's V1 scope (2C-1) is done. Picking up from
+Stages 0–5:
+
+- **Fonts** `856dcbc` — `fonts.ts` embeds any of the four families
+  (`fontFaceCss`); both templates' `font-family` follows
+  `branding.font`; Poppins / Noto Sans carry their Devanagari subset.
+- **Classic template** `5737c14` — the second real template (a ruled,
+  traditional invoice with a signature block); the registry no longer
+  aliases `classic` → Modern.
+- **Stage 6** `3ee03ae` — `/settings/branding` (Template · Colors ·
+  Font · Columns + logo upload), `GET /i/preview`, and a debounced
+  live-preview iframe that renders through the real pdf-service.
+
+2C ships before 2B as planned. Remaining 2C work is all 2C.5
+(thermal-80, festive templates, the pharma column set + its template,
+custom-T&C library). Full state in
+decision/invoice-design-system.md "Status".
