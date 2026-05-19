@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { AppShell } from "@/components/app/AppShell";
 import { Badge } from "@/components/ui/badge";
+import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getInvoice } from "@/lib/services/invoices";
 import { requireUser } from "@/lib/session";
@@ -71,6 +72,14 @@ export default async function InvoicePage({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <a
+            href={`/api/invoices/${invoice.id}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={buttonClasses("outline", "sm")}
+          >
+            Download PDF
+          </a>
           <InvoiceActions invoiceId={invoice.id} status={invoice.status} />
           <Badge tone={STATUS_TONE[invoice.status] ?? "neutral"}>
             {invoice.status.replace("_", " ")}

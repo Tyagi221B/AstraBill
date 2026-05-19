@@ -87,6 +87,34 @@ export async function getBusinessForUserTx(
   return { business, role: member.role };
 }
 
+/**
+ * The business by id, if the user is an active member — non-transaction
+ * variant of getBusinessForUserTx, for plain reads. Null = not found or
+ * not a member.
+ */
+export async function getBusinessForUser(
+  userId: string,
+  businessId: string,
+): Promise<Business | null> {
+  const [business] = await db
+    .select()
+    .from(businesses)
+    .where(and(eq(businesses.id, businessId), isNull(businesses.deletedAt)));
+  if (!business) return null;
+
+  const [member] = await db
+    .select({ id: businessMembers.id })
+    .from(businessMembers)
+    .where(
+      and(
+        eq(businessMembers.businessId, businessId),
+        eq(businessMembers.userId, userId),
+        isNull(businessMembers.deletedAt),
+      ),
+    );
+  return member ? business : null;
+}
+
 /** Patch a business row. `updatedAt` auto-bumps via the column's $onUpdate. */
 export async function updateBusinessRow(
   tx: Tx,

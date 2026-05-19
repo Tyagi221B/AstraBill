@@ -17,6 +17,10 @@ import { renderInvoicePdf, RenderError } from "./render.js";
 
 const PORT = Number(process.env.PORT ?? 4000);
 
+// Shared-secret auth for /render. When PDF_SERVICE_TOKEN is set (prod), the
+// Next.js app must present it as a Bearer token; unset (local dev) = open.
+const RENDER_TOKEN = process.env.PDF_SERVICE_TOKEN;
+
 // ---- shared browser ----------------------------------------------------
 
 let browserPromise: Promise<Browser> | null = null;
@@ -44,6 +48,11 @@ app.get("/health", (_req, res) => {
 });
 
 app.post("/render", async (req, res) => {
+  if (RENDER_TOKEN && req.headers.authorization !== `Bearer ${RENDER_TOKEN}`) {
+    res.status(401).json({ error: "Unauthorized." });
+    return;
+  }
+
   const body = req.body as Partial<RenderRequest> | undefined;
   if (!body?.invoice || !body?.branding) {
     res
