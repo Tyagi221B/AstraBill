@@ -1,30 +1,15 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import { AppShell } from "@/components/app/AppShell";
+import { buttonClasses } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/card";
 import { listBusinessesForUser } from "@/lib/services/businesses";
 import { listProductsForUser } from "@/lib/services/products";
 import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Products · AstraBill",
-};
-
-const card: React.CSSProperties = {
-  padding: "1rem 1.25rem",
-  border: "1px solid #e5e5e5",
-  borderRadius: 12,
-  background: "#fff",
-};
-
-const ctaPrimary: React.CSSProperties = {
-  display: "inline-block",
-  padding: "0.5rem 1rem",
-  background: "#111",
-  color: "#fff",
-  borderRadius: 8,
-  textDecoration: "none",
-  fontSize: "0.9rem",
-  fontWeight: 500,
 };
 
 const formatINR = (n: string) =>
@@ -62,154 +47,99 @@ export default async function ProductsPage({
   }`;
 
   return (
-    <main
-      style={{
-        maxWidth: 1040,
-        margin: "3rem auto",
-        padding: "0 1.25rem",
-        fontFamily: "system-ui, sans-serif",
-      }}
-    >
-      <Link
-        href="/dashboard"
-        style={{ fontSize: "0.85rem", color: "#666", textDecoration: "none" }}
-      >
-        ← Dashboard
-      </Link>
-      <header
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          justifyContent: "space-between",
-          margin: "1rem 0 1.5rem",
-        }}
-      >
-        <h1 style={{ fontSize: "1.75rem", margin: 0 }}>Products</h1>
-        <Link href={newHref} style={ctaPrimary}>
+    <AppShell crumbs={[{ label: "Products" }]}>
+      <header className="mb-6 flex items-baseline justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight">Products</h1>
+        <Link href={newHref} className={buttonClasses("primary", "sm")}>
           + New product
         </Link>
       </header>
 
       {products.length === 0 ? (
-        <section style={card}>
-          <p style={{ margin: 0, color: "#666" }}>
-            No products yet. Add the items you sell to make invoicing
-            one-tap, and your stock will follow.
-          </p>
-        </section>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-muted-foreground">
+              No products yet. Add the items you sell to make invoicing
+              one-tap, and your stock will follow.
+            </p>
+          </CardContent>
+        </Card>
       ) : (
-        <section style={card}>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: "0.9rem",
-            }}
-          >
-            <thead>
-              <tr style={{ textAlign: "left", color: "#666" }}>
-                <th style={{ padding: "0.5rem 0.5rem" }}>Name</th>
-                <th style={{ padding: "0.5rem 0.5rem" }}>HSN</th>
-                <th style={{ padding: "0.5rem 0.5rem" }}>Unit</th>
-                <th style={{ padding: "0.5rem 0.5rem" }}>GST</th>
-                <th style={{ padding: "0.5rem 0.5rem", textAlign: "right" }}>
-                  Selling
-                </th>
-                {showProfitColumn && (
-                  <th
-                    style={{ padding: "0.5rem 0.5rem", textAlign: "right" }}
-                  >
-                    Cost
-                  </th>
-                )}
-                <th style={{ padding: "0.5rem 0.5rem", textAlign: "right" }}>
-                  Stock
-                </th>
-                <th style={{ padding: "0.5rem 0.5rem" }}>Business</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {products.map((p) => {
-                const biz = businessById.get(p.businessId);
-                return (
-                  <tr
-                    key={p.id}
-                    style={{ borderTop: "1px solid #f0f0f0", color: "#333" }}
-                  >
-                    <td style={{ padding: "0.65rem 0.5rem", fontWeight: 500 }}>
-                      {p.name}
-                      {!p.isActive && (
-                        <span style={{ color: "#aaa", marginLeft: "0.4rem" }}>
-                          (inactive)
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: "0.65rem 0.5rem", color: "#666" }}>
-                      {p.hsnCode ?? "—"}
-                    </td>
-                    <td style={{ padding: "0.65rem 0.5rem", color: "#666" }}>
-                      {p.unit}
-                    </td>
-                    <td style={{ padding: "0.65rem 0.5rem", color: "#666" }}>
-                      {p.gstRate}%
-                    </td>
-                    <td
-                      style={{
-                        padding: "0.65rem 0.5rem",
-                        textAlign: "right",
-                        fontVariantNumeric: "tabular-nums",
-                      }}
-                    >
-                      {formatINR(p.sellingPrice)}
-                    </td>
+        <Card>
+          <CardContent className="px-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted-foreground">
+                    <th className="px-4 py-3 font-medium">Name</th>
+                    <th className="px-4 py-3 font-medium">HSN</th>
+                    <th className="px-4 py-3 font-medium">Unit</th>
+                    <th className="px-4 py-3 font-medium">GST</th>
+                    <th className="px-4 py-3 text-right font-medium">Selling</th>
                     {showProfitColumn && (
-                      <td
-                        style={{
-                          padding: "0.65rem 0.5rem",
-                          textAlign: "right",
-                          color: "#666",
-                          fontVariantNumeric: "tabular-nums",
-                        }}
-                      >
-                        {p.purchasePrice
-                          ? formatINR(p.purchasePrice)
-                          : p.purchasePrice === undefined
-                            ? "—"
-                            : "—"}
-                      </td>
+                      <th className="px-4 py-3 text-right font-medium">Cost</th>
                     )}
-                    <td
-                      style={{
-                        padding: "0.65rem 0.5rem",
-                        textAlign: "right",
-                        fontVariantNumeric: "tabular-nums",
-                      }}
-                    >
-                      {p.stock}
-                    </td>
-                    <td style={{ padding: "0.65rem 0.5rem", color: "#666" }}>
-                      {biz?.name ?? "—"}
-                    </td>
-                    <td style={{ padding: "0.65rem 0.5rem" }}>
-                      <Link
-                        href={`/products/${p.id}/edit`}
-                        style={{
-                          color: "#2563eb",
-                          textDecoration: "none",
-                          fontSize: "0.85rem",
-                        }}
-                      >
-                        Edit →
-                      </Link>
-                    </td>
+                    <th className="px-4 py-3 text-right font-medium">Stock</th>
+                    <th className="px-4 py-3 font-medium">Business</th>
+                    <th className="px-4 py-3" />
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </section>
+                </thead>
+                <tbody>
+                  {products.map((p) => {
+                    const biz = businessById.get(p.businessId);
+                    return (
+                      <tr
+                        key={p.id}
+                        className="border-t border-border text-foreground"
+                      >
+                        <td className="px-4 py-3 font-medium">
+                          {p.name}
+                          {!p.isActive && (
+                            <span className="ml-2 text-muted-foreground/70">
+                              (inactive)
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                          {p.hsnCode ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {p.unit}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {p.gstRate}%
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {formatINR(p.sellingPrice)}
+                        </td>
+                        {showProfitColumn && (
+                          <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
+                            {p.purchasePrice ? formatINR(p.purchasePrice) : "—"}
+                          </td>
+                        )}
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {p.stock}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {biz?.name ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Link
+                            href={`/products/${p.id}/edit`}
+                            className="text-sm text-primary hover:underline"
+                          >
+                            Edit →
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
       )}
-    </main>
+    </AppShell>
   );
 }

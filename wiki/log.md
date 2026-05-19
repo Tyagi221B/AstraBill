@@ -360,3 +360,70 @@ Architecture) rows; created decision/frontend-architecture.md (rationale);
 indexed. Next.js + Tailwind build green, tsc clean, vitest 41/41.
 
 Still F2: the blog (MDX pipeline). Legal content needs a real review pass.
+
+## [2026-05-19] decision | frontend app pass (F3) — shadcn/ui adopted, app pages migrated off inline styles, AppShell + welcoming sign-in
+
+The companion to F1: every authed page (`/sign-in`, `/dashboard`, `/onboarding`,
+`/customers/*`, `/products/*`, `/invoices/*`) had still been carrying inline
+`React.CSSProperties` from Phase 2A. F3 finishes that migration, brings the
+shadcn/ui foundation in, and dedupes the chrome that every app page was
+hand-rolling.
+
+Decisions taken:
+- **shadcn/ui adopted, no preset.** Ran `npx shadcn@latest init` properly for
+  the canonical setup (writes `components.json`, `lib/utils.ts` with `cn()`,
+  installs `clsx` + `tailwind-merge` + `class-variance-authority` +
+  `lucide-react` + `radix-ui` + `tw-animate-css`), but reverted the
+  radix-nova preset's destructive parts: it had rewritten `Button.tsx` with
+  dense `h-7`/`h-8`/`h-9` sizes that would have shrunk every marketing CTA,
+  switched the brand-blue `--primary` to a grayscale OKLCH, and injected a
+  duplicate Geist font import into `layout.tsx`. Kept the genuinely scalable
+  pieces — the expanded token set (`--popover`, `--secondary`, `--chart-*`,
+  `--sidebar-*` + the full radius scale) so future Dialog/Sheet/Sidebar
+  primitives drop in without touching `globals.css`. `components.json` is
+  now `style: new-york`, `baseColor: slate` (matches our blue brand).
+- **Form primitives hand-rolled in shadcn v4 shape** — `Input`, `Label`,
+  `Textarea`, `Card` (+ `CardHeader`/`CardTitle`/`CardDescription`/
+  `CardAction`/`CardContent`/`CardFooter`), `Badge` (with a `tone` variant
+  matching invoice statuses: neutral / info / success / warning /
+  destructive). Each carries the `data-slot` attribute, uses
+  `React.ComponentProps<...>` (no `forwardRef`), composes classes via
+  `cn()`. Future `npx shadcn@latest add dialog` lands alongside.
+- **`AppShell` server component** — sticky header (Logo · breadcrumbs ·
+  ThemeToggle · SignOut) wrapped in `<Container>`, used by every authed
+  page. The dashboard's hand-rolled header is gone; pages now declare
+  `crumbs={[…]}` instead of inlining a back-link.
+- **Welcoming copy on `/sign-in`** — the page now opens with
+  "Welcome to AstraBill" (brand-gradient wordmark) and a one-sentence pitch
+  ("Sign in to raise GST invoices, send them on WhatsApp, and get paid on
+  UPI — all from your phone."), sign-in card centered in the viewport, Terms
+  + Privacy footnote, and the "It's that simple." tagline at the bottom.
+
+Constraints respected:
+- `Button.tsx` and its `buttonClasses()` export are unchanged — marketing
+  call sites (Hero, Header, Pricing, CtaBand) keep working untouched.
+- `app/layout.tsx` unchanged — single Geist font source via `geist/font/sans`.
+- Brand colors (blue `--primary`, gradient `--brand-from` → `--brand-to`)
+  preserved in both light and dark.
+- `Container` now uses `cn()` so callers' `max-w-*` reliably overrides the
+  default via `tailwind-merge`.
+
+Files: `components.json`, `lib/utils.ts`; `components/ui/{input,label,textarea,card,badge}.tsx`;
+`components/app/AppShell.tsx`; `app/globals.css` (token expansion +
+brand-restore merge); rewrote `app/sign-in/{page,SignInForm}.tsx`,
+`app/dashboard/page.tsx`, `app/onboarding/{page,OnboardingForm}.tsx`,
+`app/customers/{page,CustomerForm,new/page,[id]/edit/page}.tsx`,
+`app/products/{page,ProductForm,new/page,[id]/edit/page}.tsx`,
+`app/invoices/{page,[id]/page,[id]/InvoiceActions,[id]/edit/page,new/page,new/InvoiceForm}.tsx`;
+`components/ui/Container.tsx` (cn() merge).
+
+Wiki: DECISIONS.md unchanged (the Styling + Site structure rows already
+covered Tailwind v4 + the route-group / app-shell split; shadcn adoption
+was the *anticipated* path called out in those rows). decision/frontend-
+architecture.md updated — the "shadcn deferred" paragraph is now "shadcn
+adopted (F3)" with the rationale for the non-destructive merge and the
+hand-rolled-vs-CLI tradeoff. overview.md thesis-evolution line added.
+
+Typecheck clean. Dev-server smoke test: every migrated route returns 200.
+The "app pass" branch of frontend work is now complete; further frontend
+polish lands on top of this foundation.

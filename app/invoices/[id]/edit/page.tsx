@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import type { Metadata } from "next";
 
+import { AppShell } from "@/components/app/AppShell";
 import { listBusinessesForUser } from "@/lib/services/businesses";
 import { listCustomersForUser } from "@/lib/services/customers";
 import { getInvoice } from "@/lib/services/invoices";
@@ -135,27 +135,22 @@ export default async function EditInvoicePage({
   };
 
   return (
-    <main
-      style={{
-        maxWidth: 1040,
-        margin: "3rem auto",
-        padding: "0 1.25rem",
-        fontFamily: "system-ui, sans-serif",
-      }}
+    <AppShell
+      crumbs={[
+        { label: "Invoices", href: "/invoices" },
+        { label: invoice.number ?? "Draft", href: `/invoices/${id}` },
+        { label: "Edit" },
+      ]}
     >
-      <Link
-        href={`/invoices/${id}`}
-        style={{ fontSize: "0.85rem", color: "#666", textDecoration: "none" }}
-      >
-        ← Back to invoice
-      </Link>
-      <h1 style={{ fontSize: "1.75rem", margin: "1rem 0 0.25rem" }}>
-        Edit {invoice.number ?? "draft — number assigned on finalise"}
-      </h1>
-      <p style={{ color: "#666", marginBottom: "2rem" }}>
-        Drafts are fully editable. Once you finalise (mark as sent) the invoice
-        becomes immutable — corrections then go through a credit note.
-      </p>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">
+          Edit {invoice.number ?? "draft — number assigned on finalise"}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Drafts are fully editable. Once you finalise (mark as sent) the invoice
+          becomes immutable — corrections then go through a credit note.
+        </p>
+      </div>
       <InvoiceForm
         businesses={businessOptions}
         customers={customerOptions}
@@ -164,6 +159,6 @@ export default async function EditInvoicePage({
         editingInvoiceId={id}
         initial={initial}
       />
-    </main>
+    </AppShell>
   );
 }

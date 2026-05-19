@@ -15,6 +15,11 @@
  */
 import { useMemo, useState, type FormEvent } from "react";
 
+import { Button, buttonClasses } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { INDIAN_STATES } from "@/lib/constants/indian-states";
 import {
   classifyTax,
@@ -22,6 +27,7 @@ import {
   computeLineItem,
   type ExtraChargeInput,
 } from "@/lib/gst";
+import { cn } from "@/lib/utils";
 
 type BusinessOption = {
   id: string;
@@ -111,56 +117,14 @@ const blankCharge = (): ExtraCharge => ({
   gstRate: "18",
 });
 
-// ---- styles -------------------------------------------------------------
+// Native <select> styled to match the Input primitive.
+const SELECT_CLASS =
+  "h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50";
 
-const card: React.CSSProperties = {
-  padding: "1.25rem",
-  border: "1px solid #e5e5e5",
-  borderRadius: 12,
-  background: "#fff",
-  marginBottom: "1.25rem",
-};
-const fieldLabel: React.CSSProperties = {
-  display: "block",
-  fontSize: "0.8rem",
-  marginBottom: "0.35rem",
-  fontWeight: 500,
-  color: "#444",
-};
-const input: React.CSSProperties = {
-  width: "100%",
-  padding: "0.55rem 0.75rem",
-  fontSize: "0.95rem",
-  borderRadius: 6,
-  border: "1px solid #ddd",
-  background: "#fff",
-  boxSizing: "border-box",
-};
-const primaryBtn: React.CSSProperties = {
-  padding: "0.75rem 1.25rem",
-  fontSize: "1rem",
-  fontWeight: 600,
-  borderRadius: 8,
-  border: "1px solid #111",
-  background: "#111",
-  color: "#fff",
-  cursor: "pointer",
-};
-const ghostBtn: React.CSSProperties = {
-  padding: "0.5rem 0.85rem",
-  fontSize: "0.85rem",
-  borderRadius: 6,
-  border: "1px solid #ddd",
-  background: "#fff",
-  cursor: "pointer",
-  color: "#333",
-};
-const totalRow: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  padding: "0.25rem 0",
-  fontSize: "0.9rem",
-};
+// Cell-sized variants for use inside the dense line-items table.
+const CELL_INPUT_CLASS =
+  "h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground shadow-xs focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none";
+const CELL_SELECT_CLASS = CELL_INPUT_CLASS;
 
 // ---- form ---------------------------------------------------------------
 
@@ -253,8 +217,6 @@ export function InvoiceForm({
   // when the user switches type → DC, so the preview matches.
   const isDeliveryChallan = type === "delivery_challan";
 
-  // Default place of supply: explicit field → selected customer's state →
-  // business's own state.
   const effectivePlaceOfSupply =
     placeOfSupplyStateCode ||
     selectedCustomer?.stateCode ||
@@ -424,705 +386,586 @@ export function InvoiceForm({
         Number(l.unitPrice) < 0,
     );
 
+  const TotalRow = ({ label, value }: { label: string; value: string }) => (
+    <div className="flex justify-between py-0.5 text-sm tabular-nums">
+      <span className="text-muted-foreground">{label}</span>
+      <span>{value}</span>
+    </div>
+  );
+
   return (
-    <form onSubmit={submit}>
+    <form onSubmit={submit} className="flex flex-col gap-5">
       {/* ---- Header ---- */}
-      <section style={card}>
-        <h2 style={{ fontSize: "1rem", margin: "0 0 0.85rem" }}>Header</h2>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "0.85rem",
-          }}
-        >
-          <div>
-            <label style={fieldLabel} htmlFor="biz">
-              Business
-              {isEdit && (
-                <span style={{ color: "#888", fontWeight: 400 }}>
-                  {" "}
-                  · locked
+      <Card>
+        <CardContent className="pt-6">
+          <h2 className="mb-4 text-base font-semibold">Header</h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="biz">
+                Business
+                {isEdit && (
+                  <span className="font-normal text-muted-foreground">· locked</span>
+                )}
+              </Label>
+              <select
+                id="biz"
+                value={businessId}
+                onChange={(e) => {
+                  setBusinessId(e.target.value);
+                  setCustomerId(""); // customer list changes with business
+                }}
+                disabled={isEdit}
+                className={SELECT_CLASS}
+              >
+                {businesses.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                    {b.stateCode ? ` (${b.stateCode})` : " (no state set)"}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="type">
+                Type
+                {isEdit && (
+                  <span className="font-normal text-muted-foreground">· locked</span>
+                )}
+              </Label>
+              <select
+                id="type"
+                value={type}
+                onChange={(e) => setType(e.target.value as InvoiceTypeValue)}
+                disabled={isEdit}
+                className={SELECT_CLASS}
+              >
+                {TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="customer">Customer</Label>
+              <select
+                id="customer"
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                className={SELECT_CLASS}
+              >
+                <option value="">Walk-in (no saved customer)</option>
+                {businessCustomers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.gstin ? ` · ${c.gstin}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="pos">
+                Place of supply{" "}
+                <span className="font-normal text-muted-foreground">
+                  (defaults to customer or business state)
                 </span>
-              )}
-            </label>
-            <select
-              id="biz"
-              value={businessId}
-              onChange={(e) => {
-                setBusinessId(e.target.value);
-                setCustomerId(""); // customer list changes with business
-              }}
-              disabled={isEdit}
-              style={{ ...input, opacity: isEdit ? 0.7 : 1 }}
-            >
-              {businesses.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                  {b.stateCode ? ` (${b.stateCode})` : " (no state set)"}
+              </Label>
+              <select
+                id="pos"
+                value={placeOfSupplyStateCode}
+                onChange={(e) => setPlaceOfSupplyStateCode(e.target.value)}
+                className={SELECT_CLASS}
+              >
+                <option value="">
+                  {selectedCustomer?.stateCode
+                    ? `Customer — ${selectedCustomer.stateCode}`
+                    : business.stateCode
+                      ? `Same as business — ${business.stateCode}`
+                      : "— Select —"}
                 </option>
-              ))}
-            </select>
+                {INDIAN_STATES.map((s) => (
+                  <option key={s.code} value={s.code}>
+                    {s.name} ({s.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="due">
+                Due date{" "}
+                <span className="font-normal text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="due"
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </div>
           </div>
-          <div>
-            <label style={fieldLabel} htmlFor="type">
-              Type
-              {isEdit && (
-                <span style={{ color: "#888", fontWeight: 400 }}>
-                  {" "}
-                  · locked
-                </span>
-              )}
-            </label>
-            <select
-              id="type"
-              value={type}
-              onChange={(e) => setType(e.target.value as InvoiceTypeValue)}
-              disabled={isEdit}
-              style={{ ...input, opacity: isEdit ? 0.7 : 1 }}
-            >
-              {TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={fieldLabel} htmlFor="customer">
-              Customer
-            </label>
-            <select
-              id="customer"
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-              style={input}
-            >
-              <option value="">Walk-in (no saved customer)</option>
-              {businessCustomers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.gstin ? ` · ${c.gstin}` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={fieldLabel} htmlFor="pos">
-              Place of supply{" "}
-              <span style={{ color: "#888", fontWeight: 400 }}>
-                (defaults to customer or business state)
-              </span>
-            </label>
-            <select
-              id="pos"
-              value={placeOfSupplyStateCode}
-              onChange={(e) => setPlaceOfSupplyStateCode(e.target.value)}
-              style={input}
-            >
-              <option value="">
-                {selectedCustomer?.stateCode
-                  ? `Customer — ${selectedCustomer.stateCode}`
-                  : business.stateCode
-                    ? `Same as business — ${business.stateCode}`
-                    : "— Select —"}
-              </option>
-              {INDIAN_STATES.map((s) => (
-                <option key={s.code} value={s.code}>
-                  {s.name} ({s.code})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={fieldLabel} htmlFor="due">
-              Due date{" "}
-              <span style={{ color: "#888", fontWeight: 400 }}>(optional)</span>
-            </label>
-            <input
-              id="due"
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              style={input}
-            />
-          </div>
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
       {/* ---- Ship-to ---- */}
-      <section style={card}>
-        <h2 style={{ fontSize: "1rem", margin: "0 0 0.85rem" }}>
-          Ship-to{" "}
-          <span style={{ color: "#888", fontWeight: 400 }}>
-            (optional — leave blank to ship to the bill-to customer)
-          </span>
-        </h2>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 2fr",
-            gap: "0.85rem",
-          }}
-        >
-          <div>
-            <label style={fieldLabel} htmlFor="shipName">
-              Consignee name
-            </label>
-            <input
-              id="shipName"
-              value={shipToName}
-              onChange={(e) => setShipToName(e.target.value)}
-              style={input}
-            />
-          </div>
-          <div>
-            <label style={fieldLabel} htmlFor="shipAddr">
-              Ship-to address
-            </label>
-            <input
-              id="shipAddr"
-              value={shipToAddress}
-              onChange={(e) => setShipToAddress(e.target.value)}
-              style={input}
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* ---- Line items ---- */}
-      <section style={card}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "0.85rem",
-          }}
-        >
-          <h2 style={{ fontSize: "1rem", margin: 0 }}>Line items</h2>
-          <button type="button" onClick={addLine} style={ghostBtn}>
-            + Add line
-          </button>
-        </div>
-        <div style={{ overflowX: "auto" }}>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: "0.85rem",
-            }}
-          >
-            <thead>
-              <tr style={{ textAlign: "left", color: "#888" }}>
-                <th style={{ padding: "0.4rem 0.4rem" }}>Product</th>
-                <th style={{ padding: "0.4rem 0.4rem" }}>Description</th>
-                <th style={{ padding: "0.4rem 0.4rem" }}>HSN</th>
-                <th style={{ padding: "0.4rem 0.4rem" }}>Qty</th>
-                <th style={{ padding: "0.4rem 0.4rem" }}>Unit</th>
-                <th style={{ padding: "0.4rem 0.4rem" }}>2nd qty</th>
-                <th style={{ padding: "0.4rem 0.4rem" }}>2nd unit</th>
-                <th style={{ padding: "0.4rem 0.4rem" }}>Unit price</th>
-                <th style={{ padding: "0.4rem 0.4rem" }}>Discount</th>
-                {!isDeliveryChallan && (
-                  <th style={{ padding: "0.4rem 0.4rem" }}>GST %</th>
-                )}
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {lineItems.map((line, i) => (
-                <tr key={i} style={{ borderTop: "1px solid #f0f0f0" }}>
-                  <td style={{ padding: "0.35rem 0.3rem", minWidth: 140 }}>
-                    <select
-                      value={line.productId ?? ""}
-                      onChange={(e) => pickProductForLine(i, e.target.value)}
-                      style={input}
-                    >
-                      <option value="">— custom —</option>
-                      {businessProducts.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td style={{ padding: "0.35rem 0.3rem", minWidth: 200 }}>
-                    <input
-                      type="text"
-                      value={line.description}
-                      onChange={(e) =>
-                        updateLine(i, { description: e.target.value })
-                      }
-                      placeholder="e.g. 5mm glass cut to size"
-                      style={input}
-                    />
-                  </td>
-                  <td style={{ padding: "0.35rem 0.3rem", width: 90 }}>
-                    <input
-                      type="text"
-                      value={line.hsnCode}
-                      onChange={(e) =>
-                        updateLine(i, { hsnCode: e.target.value })
-                      }
-                      maxLength={20}
-                      style={{ ...input, fontFamily: "monospace" }}
-                    />
-                  </td>
-                  <td style={{ padding: "0.35rem 0.3rem", width: 80 }}>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={line.quantity}
-                      onChange={(e) =>
-                        updateLine(i, { quantity: e.target.value })
-                      }
-                      style={{ ...input, textAlign: "right" }}
-                    />
-                  </td>
-                  <td style={{ padding: "0.35rem 0.3rem", width: 92 }}>
-                    <select
-                      value={line.unit}
-                      onChange={(e) =>
-                        updateLine(i, { unit: e.target.value as UnitValue })
-                      }
-                      style={input}
-                    >
-                      {UNITS.map((u) => (
-                        <option key={u} value={u}>
-                          {u}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td style={{ padding: "0.35rem 0.3rem", width: 80 }}>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={line.secondaryQuantity}
-                      onChange={(e) =>
-                        updateLine(i, { secondaryQuantity: e.target.value })
-                      }
-                      placeholder=""
-                      style={{ ...input, textAlign: "right" }}
-                    />
-                  </td>
-                  <td style={{ padding: "0.35rem 0.3rem", width: 92 }}>
-                    <select
-                      value={line.secondaryUnit}
-                      onChange={(e) =>
-                        updateLine(i, {
-                          secondaryUnit: e.target.value as UnitValue | "",
-                        })
-                      }
-                      style={input}
-                    >
-                      <option value="">—</option>
-                      {UNITS.map((u) => (
-                        <option key={u} value={u}>
-                          {u}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td style={{ padding: "0.35rem 0.3rem", width: 110 }}>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={line.unitPrice}
-                      onChange={(e) =>
-                        updateLine(i, { unitPrice: e.target.value })
-                      }
-                      style={{ ...input, textAlign: "right" }}
-                    />
-                  </td>
-                  <td style={{ padding: "0.35rem 0.3rem", width: 90 }}>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={line.discountAmount}
-                      onChange={(e) =>
-                        updateLine(i, { discountAmount: e.target.value })
-                      }
-                      style={{ ...input, textAlign: "right" }}
-                    />
-                  </td>
-                  {!isDeliveryChallan && (
-                    <td style={{ padding: "0.35rem 0.3rem", width: 80 }}>
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={line.gstRate}
-                        onChange={(e) =>
-                          updateLine(i, { gstRate: e.target.value })
-                        }
-                        style={{ ...input, textAlign: "right" }}
-                      />
-                    </td>
-                  )}
-                  <td style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
-                    <button
-                      type="button"
-                      onClick={() => removeLine(i)}
-                      disabled={lineItems.length === 1}
-                      title={
-                        lineItems.length === 1
-                          ? "An invoice needs at least one line"
-                          : "Remove this line"
-                      }
-                      style={{
-                        ...ghostBtn,
-                        padding: "0.35rem 0.55rem",
-                        color: lineItems.length === 1 ? "#bbb" : "#c00",
-                        cursor:
-                          lineItems.length === 1 ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* ---- Extra charges ---- */}
-      <section style={card}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "0.85rem",
-          }}
-        >
-          <h2 style={{ fontSize: "1rem", margin: 0 }}>
-            Extra charges{" "}
-            <span style={{ color: "#888", fontWeight: 400 }}>
-              (cutting / labour / freight…)
+      <Card>
+        <CardContent className="pt-6">
+          <h2 className="mb-4 text-base font-semibold">
+            Ship-to{" "}
+            <span className="font-normal text-muted-foreground">
+              (optional — leave blank to ship to the bill-to customer)
             </span>
           </h2>
-          <button type="button" onClick={addCharge} style={ghostBtn}>
-            + Add charge
-          </button>
-        </div>
-        {extraCharges.length === 0 ? (
-          <p style={{ margin: 0, color: "#888", fontSize: "0.85rem" }}>
-            None. Add taxable charges (cutting, processing) to fold into the
-            taxable base, or non-taxable charges (informal freight) that ride
-            on top of the rounded total.
-          </p>
-        ) : (
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: "0.85rem",
-            }}
-          >
-            <thead>
-              <tr style={{ textAlign: "left", color: "#888" }}>
-                <th style={{ padding: "0.4rem 0.4rem" }}>Label</th>
-                <th style={{ padding: "0.4rem 0.4rem" }}>Amount</th>
-                <th style={{ padding: "0.4rem 0.4rem" }}>Taxable</th>
-                <th style={{ padding: "0.4rem 0.4rem" }}>GST %</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {extraCharges.map((c, i) => (
-                <tr key={i} style={{ borderTop: "1px solid #f0f0f0" }}>
-                  <td style={{ padding: "0.35rem 0.3rem" }}>
-                    <input
-                      type="text"
-                      value={c.label}
-                      onChange={(e) => updateCharge(i, { label: e.target.value })}
-                      placeholder="e.g. Cutting charge"
-                      style={input}
-                    />
-                  </td>
-                  <td style={{ padding: "0.35rem 0.3rem", width: 130 }}>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={c.amount}
-                      onChange={(e) =>
-                        updateCharge(i, { amount: e.target.value })
-                      }
-                      style={{ ...input, textAlign: "right" }}
-                    />
-                  </td>
-                  <td style={{ padding: "0.35rem 0.3rem", width: 110 }}>
-                    <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.35rem",
-                        fontSize: "0.85rem",
-                      }}
-                    >
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_2fr]">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="shipName">Consignee name</Label>
+              <Input
+                id="shipName"
+                value={shipToName}
+                onChange={(e) => setShipToName(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="shipAddr">Ship-to address</Label>
+              <Input
+                id="shipAddr"
+                value={shipToAddress}
+                onChange={(e) => setShipToAddress(e.target.value)}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ---- Line items ---- */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-base font-semibold">Line items</h2>
+            <Button type="button" variant="outline" size="sm" onClick={addLine}>
+              + Add line
+            </Button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-muted-foreground">
+                  <th className="px-1.5 py-1.5 font-medium">Product</th>
+                  <th className="px-1.5 py-1.5 font-medium">Description</th>
+                  <th className="px-1.5 py-1.5 font-medium">HSN</th>
+                  <th className="px-1.5 py-1.5 font-medium">Qty</th>
+                  <th className="px-1.5 py-1.5 font-medium">Unit</th>
+                  <th className="px-1.5 py-1.5 font-medium">2nd qty</th>
+                  <th className="px-1.5 py-1.5 font-medium">2nd unit</th>
+                  <th className="px-1.5 py-1.5 font-medium">Unit price</th>
+                  <th className="px-1.5 py-1.5 font-medium">Discount</th>
+                  {!isDeliveryChallan && (
+                    <th className="px-1.5 py-1.5 font-medium">GST %</th>
+                  )}
+                  <th className="px-1.5 py-1.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {lineItems.map((line, i) => (
+                  <tr key={i} className="border-t border-border align-top">
+                    <td className="min-w-35 px-1 py-1.5">
+                      <select
+                        value={line.productId ?? ""}
+                        onChange={(e) => pickProductForLine(i, e.target.value)}
+                        className={CELL_SELECT_CLASS}
+                      >
+                        <option value="">— custom —</option>
+                        {businessProducts.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="min-w-50 px-1 py-1.5">
                       <input
-                        type="checkbox"
-                        checked={c.taxable}
+                        type="text"
+                        value={line.description}
                         onChange={(e) =>
-                          updateCharge(i, { taxable: e.target.checked })
+                          updateLine(i, { description: e.target.value })
                         }
+                        placeholder="e.g. 5mm glass cut to size"
+                        className={CELL_INPUT_CLASS}
                       />
-                      Taxable
-                    </label>
-                  </td>
-                  <td style={{ padding: "0.35rem 0.3rem", width: 100 }}>
-                    {c.taxable ? (
+                    </td>
+                    <td className="w-22.5 px-1 py-1.5">
+                      <input
+                        type="text"
+                        value={line.hsnCode}
+                        onChange={(e) =>
+                          updateLine(i, { hsnCode: e.target.value })
+                        }
+                        maxLength={20}
+                        className={cn(CELL_INPUT_CLASS, "font-mono")}
+                      />
+                    </td>
+                    <td className="w-20 px-1 py-1.5">
                       <input
                         type="text"
                         inputMode="decimal"
-                        value={c.gstRate}
+                        value={line.quantity}
                         onChange={(e) =>
-                          updateCharge(i, { gstRate: e.target.value })
+                          updateLine(i, { quantity: e.target.value })
                         }
-                        style={{ ...input, textAlign: "right" }}
+                        className={cn(CELL_INPUT_CLASS, "text-right tabular-nums")}
                       />
-                    ) : (
-                      <span style={{ color: "#aaa", fontSize: "0.8rem" }}>—</span>
+                    </td>
+                    <td className="w-23 px-1 py-1.5">
+                      <select
+                        value={line.unit}
+                        onChange={(e) =>
+                          updateLine(i, { unit: e.target.value as UnitValue })
+                        }
+                        className={CELL_SELECT_CLASS}
+                      >
+                        {UNITS.map((u) => (
+                          <option key={u} value={u}>
+                            {u}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="w-20 px-1 py-1.5">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={line.secondaryQuantity}
+                        onChange={(e) =>
+                          updateLine(i, { secondaryQuantity: e.target.value })
+                        }
+                        className={cn(CELL_INPUT_CLASS, "text-right tabular-nums")}
+                      />
+                    </td>
+                    <td className="w-23 px-1 py-1.5">
+                      <select
+                        value={line.secondaryUnit}
+                        onChange={(e) =>
+                          updateLine(i, {
+                            secondaryUnit: e.target.value as UnitValue | "",
+                          })
+                        }
+                        className={CELL_SELECT_CLASS}
+                      >
+                        <option value="">—</option>
+                        {UNITS.map((u) => (
+                          <option key={u} value={u}>
+                            {u}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="w-27.5 px-1 py-1.5">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={line.unitPrice}
+                        onChange={(e) =>
+                          updateLine(i, { unitPrice: e.target.value })
+                        }
+                        className={cn(CELL_INPUT_CLASS, "text-right tabular-nums")}
+                      />
+                    </td>
+                    <td className="w-22.5 px-1 py-1.5">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={line.discountAmount}
+                        onChange={(e) =>
+                          updateLine(i, { discountAmount: e.target.value })
+                        }
+                        className={cn(CELL_INPUT_CLASS, "text-right tabular-nums")}
+                      />
+                    </td>
+                    {!isDeliveryChallan && (
+                      <td className="w-20 px-1 py-1.5">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={line.gstRate}
+                          onChange={(e) =>
+                            updateLine(i, { gstRate: e.target.value })
+                          }
+                          className={cn(CELL_INPUT_CLASS, "text-right tabular-nums")}
+                        />
+                      </td>
                     )}
-                  </td>
-                  <td style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
-                    <button
-                      type="button"
-                      onClick={() => removeCharge(i)}
-                      style={{
-                        ...ghostBtn,
-                        padding: "0.35rem 0.55rem",
-                        color: "#c00",
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </td>
+                    <td className="px-1 py-1.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => removeLine(i)}
+                        disabled={lineItems.length === 1}
+                        title={
+                          lineItems.length === 1
+                            ? "An invoice needs at least one line"
+                            : "Remove this line"
+                        }
+                        className={cn(
+                          "inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-sm transition-colors",
+                          lineItems.length === 1
+                            ? "cursor-not-allowed text-muted-foreground/50"
+                            : "text-destructive hover:bg-destructive/10",
+                        )}
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ---- Extra charges ---- */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-base font-semibold">
+              Extra charges{" "}
+              <span className="font-normal text-muted-foreground">
+                (cutting / labour / freight…)
+              </span>
+            </h2>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addCharge}
+            >
+              + Add charge
+            </Button>
+          </div>
+          {extraCharges.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              None. Add taxable charges (cutting, processing) to fold into the
+              taxable base, or non-taxable charges (informal freight) that ride
+              on top of the rounded total.
+            </p>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-muted-foreground">
+                  <th className="px-1.5 py-1.5 font-medium">Label</th>
+                  <th className="px-1.5 py-1.5 font-medium">Amount</th>
+                  <th className="px-1.5 py-1.5 font-medium">Taxable</th>
+                  <th className="px-1.5 py-1.5 font-medium">GST %</th>
+                  <th className="px-1.5 py-1.5" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+              </thead>
+              <tbody>
+                {extraCharges.map((c, i) => (
+                  <tr key={i} className="border-t border-border align-top">
+                    <td className="px-1 py-1.5">
+                      <input
+                        type="text"
+                        value={c.label}
+                        onChange={(e) => updateCharge(i, { label: e.target.value })}
+                        placeholder="e.g. Cutting charge"
+                        className={CELL_INPUT_CLASS}
+                      />
+                    </td>
+                    <td className="w-32.5 px-1 py-1.5">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={c.amount}
+                        onChange={(e) =>
+                          updateCharge(i, { amount: e.target.value })
+                        }
+                        className={cn(CELL_INPUT_CLASS, "text-right tabular-nums")}
+                      />
+                    </td>
+                    <td className="w-27.5 px-1 py-1.5">
+                      <label className="flex items-center gap-2 text-sm text-foreground">
+                        <input
+                          type="checkbox"
+                          checked={c.taxable}
+                          onChange={(e) =>
+                            updateCharge(i, { taxable: e.target.checked })
+                          }
+                          className="h-4 w-4 rounded border-input"
+                        />
+                        Taxable
+                      </label>
+                    </td>
+                    <td className="w-25 px-1 py-1.5">
+                      {c.taxable ? (
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={c.gstRate}
+                          onChange={(e) =>
+                            updateCharge(i, { gstRate: e.target.value })
+                          }
+                          className={cn(
+                            CELL_INPUT_CLASS,
+                            "text-right tabular-nums",
+                          )}
+                        />
+                      ) : (
+                        <span className="text-xs text-muted-foreground/70">—</span>
+                      )}
+                    </td>
+                    <td className="px-1 py-1.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => removeCharge(i)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-sm text-destructive transition-colors hover:bg-destructive/10"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ---- Transport / e-way ---- */}
-      <section style={card}>
-        <h2 style={{ fontSize: "1rem", margin: "0 0 0.85rem" }}>
-          Transport &amp; e-way bill{" "}
-          <span style={{ color: "#888", fontWeight: 400 }}>(optional)</span>
-        </h2>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: "0.85rem",
-          }}
-        >
-          <div>
-            <label style={fieldLabel} htmlFor="tmode">
-              Transport mode
-            </label>
-            <input
-              id="tmode"
-              value={transportMode}
-              onChange={(e) => setTransportMode(e.target.value)}
-              placeholder="Road / Rail / Self pickup"
-              style={input}
-            />
+      <Card>
+        <CardContent className="pt-6">
+          <h2 className="mb-4 text-base font-semibold">
+            Transport &amp; e-way bill{" "}
+            <span className="font-normal text-muted-foreground">(optional)</span>
+          </h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="tmode">Transport mode</Label>
+              <Input
+                id="tmode"
+                value={transportMode}
+                onChange={(e) => setTransportMode(e.target.value)}
+                placeholder="Road / Rail / Self pickup"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="veh">Vehicle number</Label>
+              <Input
+                id="veh"
+                value={vehicleNumber}
+                onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
+                placeholder="UP 32 AB 1234"
+                className="uppercase"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="eway">E-way bill number</Label>
+              <Input
+                id="eway"
+                value={ewayBillNumber}
+                onChange={(e) => setEwayBillNumber(e.target.value)}
+                placeholder="generated outside AstraBill"
+              />
+            </div>
           </div>
-          <div>
-            <label style={fieldLabel} htmlFor="veh">
-              Vehicle number
-            </label>
-            <input
-              id="veh"
-              value={vehicleNumber}
-              onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
-              placeholder="UP 32 AB 1234"
-              style={{ ...input, textTransform: "uppercase" }}
-            />
-          </div>
-          <div>
-            <label style={fieldLabel} htmlFor="eway">
-              E-way bill number
-            </label>
-            <input
-              id="eway"
-              value={ewayBillNumber}
-              onChange={(e) => setEwayBillNumber(e.target.value)}
-              placeholder="generated outside AstraBill"
-              style={input}
-            />
-          </div>
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
       {/* ---- Notes + totals ---- */}
-      <section style={card}>
-        <h2 style={{ fontSize: "1rem", margin: "0 0 0.85rem" }}>
-          Notes &amp; totals
-        </h2>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 280px",
-            gap: "1.5rem",
-            alignItems: "start",
-          }}
-        >
-          <div>
-            <label style={fieldLabel} htmlFor="notes">
-              Notes{" "}
-              <span style={{ color: "#888", fontWeight: 400 }}>(optional)</span>
-            </label>
-            <textarea
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={5}
-              style={{ ...input, resize: "vertical", minHeight: 110 }}
-              placeholder="Anything the customer should see on the invoice."
-            />
-          </div>
-          <div
-            style={{
-              padding: "0.85rem 1rem",
-              background: "#f9fafb",
-              borderRadius: 8,
-              border: "1px solid #eee",
-            }}
-          >
-            {totals ? (
-              <>
-                <div style={totalRow}>
-                  <span style={{ color: "#666" }}>Subtotal</span>
-                  <span>₹ {totals.subtotal}</span>
-                </div>
-                {Number(totals.discountAmount) > 0 && (
-                  <div style={totalRow}>
-                    <span style={{ color: "#666" }}>Discount</span>
-                    <span>− ₹ {totals.discountAmount}</span>
+      <Card>
+        <CardContent className="pt-6">
+          <h2 className="mb-4 text-base font-semibold">Notes &amp; totals</h2>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_300px]">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="notes">
+                Notes{" "}
+                <span className="font-normal text-muted-foreground">(optional)</span>
+              </Label>
+              <Textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={5}
+                placeholder="Anything the customer should see on the invoice."
+                className="min-h-28"
+              />
+            </div>
+            <div className="rounded-md border border-border bg-muted/40 px-4 py-3">
+              {totals ? (
+                <>
+                  <TotalRow label="Subtotal" value={`₹ ${totals.subtotal}`} />
+                  {Number(totals.discountAmount) > 0 && (
+                    <TotalRow
+                      label="Discount"
+                      value={`− ₹ ${totals.discountAmount}`}
+                    />
+                  )}
+                  {Number(totals.extraChargesTaxable) > 0 && (
+                    <TotalRow
+                      label="Taxable charges"
+                      value={`₹ ${totals.extraChargesTaxable}`}
+                    />
+                  )}
+                  <TotalRow
+                    label="Taxable"
+                    value={`₹ ${totals.taxableAmount}`}
+                  />
+                  {!isDeliveryChallan && totals.klass === "intrastate" ? (
+                    <>
+                      <TotalRow label="CGST" value={`₹ ${totals.cgstAmount}`} />
+                      <TotalRow label="SGST" value={`₹ ${totals.sgstAmount}`} />
+                    </>
+                  ) : !isDeliveryChallan ? (
+                    <TotalRow label="IGST" value={`₹ ${totals.igstAmount}`} />
+                  ) : null}
+                  <TotalRow
+                    label="Round-off"
+                    value={`${totals.roundOff.startsWith("-") ? "−" : "+"} ₹ ${totals.roundOff.replace(/^-/, "")}`}
+                  />
+                  {Number(totals.extraChargesNonTaxable) > 0 && (
+                    <TotalRow
+                      label="Freight / non-taxable"
+                      value={`+ ₹ ${totals.extraChargesNonTaxable}`}
+                    />
+                  )}
+                  <div className="mt-2 flex justify-between border-t border-border pt-2 text-base font-bold tabular-nums">
+                    <span>Total</span>
+                    <span>₹ {totals.total}</span>
                   </div>
-                )}
-                {Number(totals.extraChargesTaxable) > 0 && (
-                  <div style={totalRow}>
-                    <span style={{ color: "#666" }}>Taxable charges</span>
-                    <span>₹ {totals.extraChargesTaxable}</span>
-                  </div>
-                )}
-                <div style={totalRow}>
-                  <span style={{ color: "#666" }}>Taxable</span>
-                  <span>₹ {totals.taxableAmount}</span>
-                </div>
-                {!isDeliveryChallan && totals.klass === "intrastate" ? (
-                  <>
-                    <div style={totalRow}>
-                      <span style={{ color: "#666" }}>CGST</span>
-                      <span>₹ {totals.cgstAmount}</span>
-                    </div>
-                    <div style={totalRow}>
-                      <span style={{ color: "#666" }}>SGST</span>
-                      <span>₹ {totals.sgstAmount}</span>
-                    </div>
-                  </>
-                ) : !isDeliveryChallan ? (
-                  <div style={totalRow}>
-                    <span style={{ color: "#666" }}>IGST</span>
-                    <span>₹ {totals.igstAmount}</span>
-                  </div>
-                ) : null}
-                <div style={totalRow}>
-                  <span style={{ color: "#666" }}>Round-off</span>
-                  <span>
-                    {totals.roundOff.startsWith("-") ? "−" : "+"} ₹{" "}
-                    {totals.roundOff.replace(/^-/, "")}
-                  </span>
-                </div>
-                {Number(totals.extraChargesNonTaxable) > 0 && (
-                  <div style={totalRow}>
-                    <span style={{ color: "#666" }}>Freight / non-taxable</span>
-                    <span>+ ₹ {totals.extraChargesNonTaxable}</span>
-                  </div>
-                )}
-                <div
-                  style={{
-                    ...totalRow,
-                    fontWeight: 700,
-                    fontSize: "1rem",
-                    marginTop: "0.4rem",
-                    borderTop: "1px solid #ddd",
-                    paddingTop: "0.55rem",
-                  }}
-                >
-                  <span>Total</span>
-                  <span>₹ {totals.total}</span>
-                </div>
-                <p
-                  style={{
-                    margin: "0.6rem 0 0",
-                    fontSize: "0.72rem",
-                    color: "#888",
-                    textAlign: "center",
-                  }}
-                >
-                  {isDeliveryChallan
-                    ? "Delivery challan — no GST"
-                    : totals.klass === "intrastate"
-                      ? "Intrastate — CGST + SGST"
-                      : "Interstate — IGST"}
+                  <p className="mt-2 text-center text-xs text-muted-foreground">
+                    {isDeliveryChallan
+                      ? "Delivery challan — no GST"
+                      : totals.klass === "intrastate"
+                        ? "Intrastate — CGST + SGST"
+                        : "Interstate — IGST"}
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Fill in the line items to preview the total.
                 </p>
-              </>
-            ) : (
-              <p style={{ margin: 0, fontSize: "0.85rem", color: "#888" }}>
-                Fill in the line items to preview the total.
-              </p>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
-      <div
-        style={{
-          display: "flex",
-          gap: "0.75rem",
-          justifyContent: "flex-end",
-          alignItems: "center",
-        }}
-      >
+      <div className="flex flex-wrap items-center justify-end gap-3">
         {error && (
-          <div style={{ marginRight: "auto", color: "#c00", fontSize: "0.9rem" }}>
+          <div className="mr-auto text-sm text-destructive">
             <div>{error}</div>
             {errorDetails ? (
-              <pre
-                style={{
-                  margin: "0.25rem 0 0",
-                  fontSize: "0.72rem",
-                  background: "#fff5f5",
-                  padding: "0.4rem 0.55rem",
-                  borderRadius: 6,
-                  maxWidth: 420,
-                  whiteSpace: "pre-wrap",
-                }}
-              >
+              <pre className="mt-1 max-w-md whitespace-pre-wrap rounded-md bg-destructive/10 px-2.5 py-2 text-xs">
                 {JSON.stringify(errorDetails, null, 2)}
               </pre>
             ) : null}
           </div>
         )}
-        <a href="/dashboard" style={ghostBtn}>
+        <a href="/dashboard" className={buttonClasses("outline", "md")}>
           Cancel
         </a>
-        <button
+        <Button
           type="submit"
+          variant="primary"
+          size="lg"
           disabled={submitDisabled}
-          style={{
-            ...primaryBtn,
-            opacity: submitDisabled ? 0.6 : 1,
-            cursor: submitDisabled ? "not-allowed" : "pointer",
-          }}
         >
           {busy
             ? isEdit
@@ -1131,7 +974,7 @@ export function InvoiceForm({
             : isEdit
               ? "Save changes"
               : "Create draft"}
-        </button>
+        </Button>
       </div>
     </form>
   );

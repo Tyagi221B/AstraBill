@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
+import { AppShell } from "@/components/app/AppShell";
 import { listBusinessesForUser } from "@/lib/services/businesses";
 import { getCustomer } from "@/lib/services/customers";
 import { requireUser } from "@/lib/session";
@@ -43,29 +43,23 @@ export default async function EditCustomerPage({
   };
 
   return (
-    <main
-      style={{
-        maxWidth: 760,
-        margin: "3rem auto",
-        padding: "0 1.25rem",
-        fontFamily: "system-ui, sans-serif",
-      }}
+    <AppShell
+      crumbs={[
+        { label: "Customers", href: `/customers?businessId=${customer.businessId}` },
+        { label: customer.name },
+      ]}
     >
-      <Link
-        href={`/customers?businessId=${customer.businessId}`}
-        style={{ fontSize: "0.85rem", color: "#666", textDecoration: "none" }}
-      >
-        ← Customers
-      </Link>
-      <h1 style={{ fontSize: "1.75rem", margin: "1rem 0 2rem" }}>
-        Edit {customer.name}
-      </h1>
-      <CustomerForm
-        businesses={businessOptions}
-        initialBusinessId={customer.businessId}
-        editingCustomerId={customer.id}
-        initial={initial}
-      />
-    </main>
+      <div className="mx-auto max-w-3xl">
+        <h1 className="mb-6 text-2xl font-bold tracking-tight">
+          Edit {customer.name}
+        </h1>
+        <CustomerForm
+          businesses={businessOptions}
+          initialBusinessId={customer.businessId}
+          editingCustomerId={customer.id}
+          initial={initial}
+        />
+      </div>
+    </AppShell>
   );
 }

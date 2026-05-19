@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
+import { AppShell } from "@/components/app/AppShell";
 import { listBusinessesForUser } from "@/lib/services/businesses";
 import { getMembership, roleHas } from "@/lib/rbac";
 import { requireUser } from "@/lib/session";
@@ -38,28 +38,20 @@ export default async function NewProductPage({
   }));
 
   return (
-    <main
-      style={{
-        maxWidth: 760,
-        margin: "3rem auto",
-        padding: "0 1.25rem",
-        fontFamily: "system-ui, sans-serif",
-      }}
+    <AppShell
+      crumbs={[
+        { label: "Products", href: `/products?businessId=${initialBusinessId}` },
+        { label: "New" },
+      ]}
     >
-      <Link
-        href={`/products?businessId=${initialBusinessId}`}
-        style={{ fontSize: "0.85rem", color: "#666", textDecoration: "none" }}
-      >
-        ← Products
-      </Link>
-      <h1 style={{ fontSize: "1.75rem", margin: "1rem 0 2rem" }}>
-        New product
-      </h1>
-      <ProductForm
-        businesses={businessOptions}
-        initialBusinessId={initialBusinessId}
-        canSeePurchasePrice={canSeePurchasePrice}
-      />
-    </main>
+      <div className="mx-auto max-w-3xl">
+        <h1 className="mb-6 text-2xl font-bold tracking-tight">New product</h1>
+        <ProductForm
+          businesses={businessOptions}
+          initialBusinessId={initialBusinessId}
+          canSeePurchasePrice={canSeePurchasePrice}
+        />
+      </div>
+    </AppShell>
   );
 }

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 /* Class-based dark mode — next-themes toggles `.dark` on <html>.
    (Tailwind v4 defaults to the prefers-color-scheme media query.) */
@@ -9,22 +10,30 @@
    `:root` is light; `.dark` overrides. Components only ever reference the
    semantic names (bg-background, text-foreground, border-border …), never
    raw hex — so re-theming is one block, not a find-and-replace.
+
+   Token set follows the shadcn/ui v4 contract so future primitives (Dialog,
+   Sheet, DropdownMenu, Sidebar, charts) drop in without touching this block.
 --------------------------------------------------------------------------- */
 :root {
   --background: #ffffff;
   --foreground: #0f172a;
   --card: #ffffff;
   --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
   --muted: #f1f5f9;
   --muted-foreground: #5b6b84;
   --border: #e2e8f0;
   --input: #e2e8f0;
   --primary: #2563eb;
   --primary-foreground: #ffffff;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0f172a;
   --accent: #eff4ff;
   --accent-foreground: #1d4ed8;
   --ring: #2563eb;
   --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
   --success: #16a34a;
 
   /* Brand gradient — the blue from the AstraBill mark. */
@@ -32,6 +41,25 @@
   --brand-to: #38bdf8;
 
   --radius: 0.75rem;
+
+  /* Sidebar — mirrors card / primary / accent / border / ring so the same
+     palette flows into the app sidebar when it's built. */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #2563eb;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eff4ff;
+  --sidebar-accent-foreground: #1d4ed8;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #2563eb;
+
+  /* Chart palette — neutral by default; will be replaced when reporting
+     lands. */
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
 }
 
 .dark {
@@ -39,20 +67,40 @@
   --foreground: #e6eaf2;
   --card: #0f1626;
   --card-foreground: #e6eaf2;
+  --popover: #0f1626;
+  --popover-foreground: #e6eaf2;
   --muted: #1a2336;
   --muted-foreground: #9aa7bd;
   --border: #232d42;
   --input: #232d42;
   --primary: #3b82f6;
   --primary-foreground: #ffffff;
+  --secondary: #1a2336;
+  --secondary-foreground: #e6eaf2;
   --accent: #16213a;
   --accent-foreground: #93c5fd;
   --ring: #3b82f6;
   --destructive: #f87171;
+  --destructive-foreground: #ffffff;
   --success: #4ade80;
 
   --brand-from: #3b82f6;
   --brand-to: #7dd3fc;
+
+  --sidebar: #0f1626;
+  --sidebar-foreground: #e6eaf2;
+  --sidebar-primary: #3b82f6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #16213a;
+  --sidebar-accent-foreground: #93c5fd;
+  --sidebar-border: #232d42;
+  --sidebar-ring: #3b82f6;
+
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
 }
 
 /* Map tokens onto Tailwind's utility namespace. `inline` keeps them as
@@ -62,18 +110,44 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-ring: var(--ring);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-success: var(--success);
 
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
   --radius-card: var(--radius);
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;

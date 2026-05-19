@@ -8,43 +8,10 @@
 import { useState, type FormEvent } from "react";
 import posthog from "posthog-js";
 
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { INDIAN_STATES } from "@/lib/constants/indian-states";
-
-const fieldLabel: React.CSSProperties = {
-  display: "block",
-  fontSize: "0.875rem",
-  marginBottom: "0.4rem",
-  fontWeight: 500,
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "0.75rem 1rem",
-  fontSize: "1rem",
-  borderRadius: 8,
-  border: "1px solid #ddd",
-  background: "#fff",
-  boxSizing: "border-box",
-};
-
-const primaryBtn: React.CSSProperties = {
-  width: "100%",
-  padding: "0.85rem 1rem",
-  fontSize: "1rem",
-  fontWeight: 600,
-  borderRadius: 8,
-  border: "1px solid #111",
-  background: "#111",
-  color: "#fff",
-  cursor: "pointer",
-  marginTop: "0.5rem",
-};
-
-const helpText: React.CSSProperties = {
-  fontSize: "0.78rem",
-  color: "#888",
-  margin: "0.25rem 0 0",
-};
 
 export function OnboardingForm() {
   const [name, setName] = useState("");
@@ -83,12 +50,12 @@ export function OnboardingForm() {
   }
 
   return (
-    <form onSubmit={submit} noValidate>
-      <div style={{ marginBottom: "1.25rem" }}>
-        <label htmlFor="biz-name" style={fieldLabel}>
-          Business name <span style={{ color: "#c00" }}>*</span>
-        </label>
-        <input
+    <form onSubmit={submit} noValidate className="flex flex-col gap-5">
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="biz-name">
+          Business name <span className="text-destructive">*</span>
+        </Label>
+        <Input
           id="biz-name"
           type="text"
           value={name}
@@ -97,22 +64,21 @@ export function OnboardingForm() {
           required
           maxLength={200}
           autoFocus
-          style={inputStyle}
         />
       </div>
 
-      <div style={{ marginBottom: "1.25rem" }}>
-        <label htmlFor="biz-state" style={fieldLabel}>
-          State{" "}
-          <span style={{ color: "#888", fontWeight: 400 }}>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="biz-state">
+          State
+          <span className="font-normal text-muted-foreground">
             (you can add this later)
           </span>
-        </label>
+        </Label>
         <select
           id="biz-state"
           value={stateCode}
           onChange={(e) => setStateCode(e.target.value)}
-          style={inputStyle}
+          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
         >
           <option value="">— Select state —</option>
           {INDIAN_STATES.map((s) => (
@@ -121,20 +87,20 @@ export function OnboardingForm() {
             </option>
           ))}
         </select>
-        <p style={helpText}>
-          Drives whether invoices use CGST+SGST (same state) or IGST
-          (different state). Needed before your first GST invoice.
+        <p className="text-xs text-muted-foreground">
+          Drives whether invoices use CGST+SGST (same state) or IGST (different
+          state). Needed before your first GST invoice.
         </p>
       </div>
 
-      <div style={{ marginBottom: "1.5rem" }}>
-        <label htmlFor="biz-gstin" style={fieldLabel}>
-          GSTIN{" "}
-          <span style={{ color: "#888", fontWeight: 400 }}>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="biz-gstin">
+          GSTIN
+          <span className="font-normal text-muted-foreground">
             (optional — only if registered)
           </span>
-        </label>
-        <input
+        </Label>
+        <Input
           id="biz-gstin"
           type="text"
           value={gstin}
@@ -143,29 +109,26 @@ export function OnboardingForm() {
           }
           placeholder="15-character GSTIN"
           maxLength={15}
-          style={{ ...inputStyle, fontFamily: "monospace" }}
+          className="font-mono"
         />
-        <p style={helpText}>
+        <p className="text-xs text-muted-foreground">
           Leave blank if you&apos;re not GST-registered — you can still send
           Cash Receipts and Estimates.
         </p>
       </div>
 
-      <button
+      <Button
         type="submit"
+        variant="primary"
+        size="lg"
         disabled={busy || name.trim().length === 0}
-        style={{
-          ...primaryBtn,
-          opacity: busy || name.trim().length === 0 ? 0.6 : 1,
-          cursor:
-            busy || name.trim().length === 0 ? "not-allowed" : "pointer",
-        }}
+        className="w-full"
       >
         {busy ? "Creating…" : "Create business"}
-      </button>
+      </Button>
 
       {error && (
-        <p style={{ color: "#c00", marginTop: "0.75rem", fontSize: "0.9rem" }}>
+        <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
       )}

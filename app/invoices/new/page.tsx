@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
+import { AppShell } from "@/components/app/AppShell";
 import { listBusinessesForUser } from "@/lib/services/businesses";
 import { listCustomersForUser } from "@/lib/services/customers";
 import { listProductsForUser } from "@/lib/services/products";
@@ -62,27 +63,25 @@ export default async function NewInvoicePage({
     }));
 
   return (
-    <main
-      style={{
-        maxWidth: 1040,
-        margin: "3rem auto",
-        padding: "0 1.25rem",
-        fontFamily: "system-ui, sans-serif",
-      }}
+    <AppShell
+      crumbs={[
+        { label: "Invoices", href: "/invoices" },
+        { label: "New" },
+      ]}
     >
-      <h1 style={{ fontSize: "1.75rem", marginBottom: "0.25rem" }}>
-        New invoice
-      </h1>
-      <p style={{ color: "#666", marginBottom: "2rem" }}>
-        Add at least one line item. GST is computed automatically from your
-        business state and the place of supply.
-      </p>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">New invoice</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Add at least one line item. GST is computed automatically from your
+          business state and the place of supply.
+        </p>
+      </div>
       <InvoiceForm
         businesses={businessOptions}
         customers={customerOptions}
         products={productOptions}
         initialBusinessId={initialBusinessId}
       />
-    </main>
+    </AppShell>
   );
 }

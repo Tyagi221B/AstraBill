@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
+import { AppShell } from "@/components/app/AppShell";
+import { Card, CardContent } from "@/components/ui/card";
 import { listBusinessesForUser } from "@/lib/services/businesses";
 import { requireUser } from "@/lib/session";
 import { OnboardingForm } from "./OnboardingForm";
@@ -17,22 +19,23 @@ export default async function OnboardingPage() {
   if (businesses.length > 0) redirect("/");
 
   return (
-    <main
-      style={{
-        maxWidth: 520,
-        margin: "4rem auto",
-        padding: "0 1.25rem",
-        fontFamily: "system-ui, sans-serif",
-      }}
-    >
-      <h1 style={{ fontSize: "1.75rem", marginBottom: "0.25rem" }}>
-        Set up your business
-      </h1>
-      <p style={{ color: "#666", marginBottom: "2rem" }}>
-        Just the basics. Everything else can wait — finish your profile when
-        you raise your first invoice.
-      </p>
-      <OnboardingForm />
-    </main>
+    <AppShell crumbs={[{ label: "Set up your business" }]}>
+      <div className="mx-auto max-w-xl">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold tracking-tight">
+            Set up your business
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Just the basics. Everything else can wait — finish your profile
+            when you raise your first invoice.
+          </p>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <OnboardingForm />
+          </CardContent>
+        </Card>
+      </div>
+    </AppShell>
   );
 }

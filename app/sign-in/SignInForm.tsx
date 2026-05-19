@@ -7,34 +7,12 @@ import { useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import posthog from "posthog-js";
 
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
 type Mode = "choose" | "phone";
 type PhoneStep = "enter-phone" | "enter-code";
-
-const btnStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "0.75rem 1rem",
-  fontSize: "1rem",
-  borderRadius: 8,
-  border: "1px solid #ddd",
-  background: "#fff",
-  cursor: "pointer",
-};
-
-const primaryBtnStyle: React.CSSProperties = {
-  ...btnStyle,
-  background: "#111",
-  color: "#fff",
-  borderColor: "#111",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "0.75rem 1rem",
-  fontSize: "1rem",
-  borderRadius: 8,
-  border: "1px solid #ddd",
-  marginBottom: "0.75rem",
-};
 
 export function SignInForm() {
   const [mode, setMode] = useState<Mode>("choose");
@@ -46,31 +24,30 @@ export function SignInForm() {
 
   if (mode === "choose") {
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-        <button
+      <div className="flex flex-col gap-3">
+        <Button
           type="button"
-          style={primaryBtnStyle}
+          variant="primary"
+          size="lg"
           onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+          className="w-full"
         >
           Continue with Google
-        </button>
-        <div
-          style={{
-            textAlign: "center",
-            color: "#999",
-            fontSize: "0.875rem",
-            margin: "0.25rem 0",
-          }}
-        >
+        </Button>
+        <div className="flex items-center gap-3 py-1 text-xs text-muted-foreground">
+          <span aria-hidden className="h-px flex-1 bg-border" />
           or
+          <span aria-hidden className="h-px flex-1 bg-border" />
         </div>
-        <button
+        <Button
           type="button"
-          style={btnStyle}
+          variant="outline"
+          size="lg"
           onClick={() => setMode("phone")}
+          className="w-full"
         >
-          Continue with phone
-        </button>
+          Continue with WhatsApp
+        </Button>
       </div>
     );
   }
@@ -121,94 +98,93 @@ export function SignInForm() {
   }
 
   return step === "enter-phone" ? (
-    <form onSubmit={requestCode}>
-      <label
-        htmlFor="phone"
-        style={{
-          display: "block",
-          fontSize: "0.875rem",
-          marginBottom: "0.5rem",
-        }}
-      >
-        Phone number
-      </label>
-      <input
-        id="phone"
-        type="tel"
-        inputMode="numeric"
-        autoComplete="tel"
-        value={phone}
-        onChange={(e) => setPhone(e.target.value)}
-        placeholder="9876543210"
-        required
-        style={inputStyle}
-      />
-      <button
+    <form onSubmit={requestCode} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="phone">Phone number</Label>
+        <Input
+          id="phone"
+          type="tel"
+          inputMode="numeric"
+          autoComplete="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="9876543210"
+          required
+          autoFocus
+        />
+      </div>
+      <Button
         type="submit"
+        variant="primary"
+        size="lg"
         disabled={busy || phone.replace(/\D/g, "").length < 10}
-        style={primaryBtnStyle}
+        className="w-full"
       >
         {busy ? "Sending…" : "Send code on WhatsApp"}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="ghost"
+        size="md"
         onClick={() => {
           setMode("choose");
           setError(null);
         }}
-        style={{ ...btnStyle, marginTop: "0.5rem" }}
+        className="w-full"
       >
         Back
-      </button>
+      </Button>
       {error && (
-        <p style={{ color: "#c00", marginTop: "0.75rem" }}>{error}</p>
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
       )}
     </form>
   ) : (
-    <form onSubmit={verifyCode}>
-      <label
-        htmlFor="code"
-        style={{
-          display: "block",
-          fontSize: "0.875rem",
-          marginBottom: "0.5rem",
-        }}
-      >
-        Enter the 6-digit code from WhatsApp
-      </label>
-      <input
-        id="code"
-        type="text"
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        pattern="\d{6}"
-        maxLength={6}
-        value={code}
-        onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-        placeholder="123456"
-        required
-        style={{ ...inputStyle, letterSpacing: "0.3em", textAlign: "center" }}
-      />
-      <button
+    <form onSubmit={verifyCode} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="code">Enter the 6-digit code from WhatsApp</Label>
+        <Input
+          id="code"
+          type="text"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          pattern="\d{6}"
+          maxLength={6}
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+          placeholder="123456"
+          required
+          autoFocus
+          className="text-center tracking-[0.4em]"
+        />
+      </div>
+      <Button
         type="submit"
+        variant="primary"
+        size="lg"
         disabled={busy || code.length !== 6}
-        style={primaryBtnStyle}
+        className="w-full"
       >
         {busy ? "Verifying…" : "Verify"}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="ghost"
+        size="md"
         onClick={() => {
           setStep("enter-phone");
           setCode("");
           setError(null);
         }}
-        style={{ ...btnStyle, marginTop: "0.5rem" }}
+        className="w-full"
       >
         Change number
-      </button>
+      </Button>
       {error && (
-        <p style={{ color: "#c00", marginTop: "0.75rem" }}>{error}</p>
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
       )}
     </form>
   );

@@ -5,19 +5,12 @@
  * finalised it's immutable, so there are no actions to show (until the
  * WhatsApp-send / payment features land).
  */
+import Link from "next/link";
 import { useState } from "react";
 import posthog from "posthog-js";
 
-const ghostBtn: React.CSSProperties = {
-  padding: "0.4rem 0.85rem",
-  fontSize: "0.85rem",
-  borderRadius: 6,
-  border: "1px solid #ddd",
-  background: "#fff",
-  color: "#333",
-  textDecoration: "none",
-  cursor: "pointer",
-};
+import { Button, buttonClasses } from "@/components/ui/Button";
+import { cn } from "@/lib/utils";
 
 export function InvoiceActions({
   invoiceId,
@@ -79,42 +72,37 @@ export function InvoiceActions({
   }
 
   return (
-    <div style={{ display: "flex", gap: "0.6rem", alignItems: "center" }}>
+    <div className="flex flex-wrap items-center gap-2">
       {error && (
-        <span style={{ color: "#c00", fontSize: "0.8rem", marginRight: "0.25rem" }}>
+        <span role="alert" className="mr-1 text-xs text-destructive">
           {error}
         </span>
       )}
-      <a href={`/invoices/${invoiceId}/edit`} style={ghostBtn}>
+      <Link
+        href={`/invoices/${invoiceId}/edit`}
+        className={buttonClasses("outline", "sm")}
+      >
         Edit
-      </a>
-      <button
+      </Link>
+      <Button
         type="button"
+        variant="primary"
+        size="sm"
         onClick={finalize}
         disabled={busy !== null}
-        style={{
-          ...ghostBtn,
-          borderColor: "#111",
-          background: "#111",
-          color: "#fff",
-          opacity: busy !== null ? 0.6 : 1,
-        }}
       >
         {busy === "finalize" ? "Marking…" : "Mark as sent"}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="outline"
+        size="sm"
         onClick={remove}
         disabled={busy !== null}
-        style={{
-          ...ghostBtn,
-          borderColor: "#f0caca",
-          color: "#c00",
-          opacity: busy !== null ? 0.6 : 1,
-        }}
+        className={cn("border-destructive/30 text-destructive hover:bg-destructive/10")}
       >
         {busy === "delete" ? "Deleting…" : "Delete"}
-      </button>
+      </Button>
     </div>
   );
 }

@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
+import { AppShell } from "@/components/app/AppShell";
 import { listBusinessesForUser } from "@/lib/services/businesses";
 import { requireUser } from "@/lib/session";
 import { CustomerForm } from "../CustomerForm";
@@ -33,27 +33,19 @@ export default async function NewCustomerPage({
   }));
 
   return (
-    <main
-      style={{
-        maxWidth: 760,
-        margin: "3rem auto",
-        padding: "0 1.25rem",
-        fontFamily: "system-ui, sans-serif",
-      }}
+    <AppShell
+      crumbs={[
+        { label: "Customers", href: `/customers?businessId=${initialBusinessId}` },
+        { label: "New" },
+      ]}
     >
-      <Link
-        href={`/customers?businessId=${initialBusinessId}`}
-        style={{ fontSize: "0.85rem", color: "#666", textDecoration: "none" }}
-      >
-        ← Customers
-      </Link>
-      <h1 style={{ fontSize: "1.75rem", margin: "1rem 0 2rem" }}>
-        New customer
-      </h1>
-      <CustomerForm
-        businesses={businessOptions}
-        initialBusinessId={initialBusinessId}
-      />
-    </main>
+      <div className="mx-auto max-w-3xl">
+        <h1 className="mb-6 text-2xl font-bold tracking-tight">New customer</h1>
+        <CustomerForm
+          businesses={businessOptions}
+          initialBusinessId={initialBusinessId}
+        />
+      </div>
+    </AppShell>
   );
 }

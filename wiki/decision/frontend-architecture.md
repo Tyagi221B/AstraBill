@@ -1,6 +1,6 @@
 ---
 type: decision
-updated: 2026-05-18
+updated: 2026-05-19
 sources: 0
 ---
 
@@ -44,25 +44,59 @@ The root `app/layout.tsx` is reduced to what is genuinely global: `<html>` /
 marketing landing; the signed-in dashboard moved to `/dashboard` (a page can
 only own one route, and the landing must be `/` for SEO).
 
-The app pages (`invoices`, `customers`, `products`, `onboarding`) were **left
-in place**, not moved into an `(app)` group. Route groups are optional — those
-pages already render their own chrome and use the root layout fine. They move
-into `(app)/` when they get a shared app shell and are migrated off inline
-styles (a later pass), not before.
+Initially the app pages (`invoices`, `customers`, `products`, `onboarding`)
+were left in place on inline styles. F3 finished the migration: every authed
+page now sits inside `AppShell` and renders via the shadcn primitives below.
+Pages still live at their original paths — no `(app)` route group needed,
+because `AppShell` is a component, not a layout.
 
 ## Components
 
-`components/ui` — primitives (Container, Button, Logo, theme toggle).
+`components/ui` — primitives. `Container`, `Logo`, `Button`, `ThemeToggle`
+predate F3; F3 added `input`, `label`, `textarea`, `card`, `badge`.
 `components/marketing` — Header, Footer, and the landing sections (Hero,
 FeatureGrid, HowItWorks, Pricing, CtaBand, LegalShell). `components/theme` —
-the provider + toggle. `components/app` — authed-app chrome.
+the provider + toggle. `components/app` — authed-app chrome (`AppShell`,
+`SignOutButton`).
 
-The marketing components are **hand-rolled Tailwind**, not shadcn/ui. For
-static marketing sections, Radix-backed components earn nothing — the token
-foundation here is already shadcn-shaped (identical CSS-variable pattern), so
-adopting shadcn later is friction-free. The plan: bring shadcn/ui in for the
-**app** pass, where its accessible Input / Select / Dialog / Table / Form
-primitives genuinely save work — not on the landing page.
+The marketing components stay hand-rolled Tailwind. For static marketing
+sections Radix-backed primitives earn nothing — and the existing `Button`
++ `buttonClasses()` API has ~10 call sites across Hero/Header/Pricing/
+CtaBand/dashboard that the shadcn CLI would have churned into a different
+variant/size scheme.
+
+## shadcn/ui — adopted in F3 with a non-destructive merge
+
+`npx shadcn@latest init` is the canonical setup path, so we ran it: it
+writes `components.json`, `lib/utils.ts` with `cn()` (clsx + tailwind-merge),
+and installs the helper deps. The radix-nova *preset* that the new CLI
+defaults to is more opinionated than the install — it rewrote `Button.tsx`
+with dense `h-7`/`h-8`/`h-9` sizes (would have shrunk every marketing CTA),
+clobbered the brand-blue `--primary` token with a grayscale OKLCH, and
+injected a duplicate Geist font import. We kept the genuinely scalable
+pieces (expanded token set: `--popover`, `--secondary`, `--chart-*`,
+`--sidebar-*`, full radius scale → future Dialog/Sheet/Sidebar drop in
+without touching `globals.css`) and reverted the destructive parts. The
+existing `Button` keeps its `primary`/`secondary`/`outline`/`ghost`
+variants and `sm`/`md`/`lg` sizes; `components.json` is `style: new-york`,
+`baseColor: slate`.
+
+Form primitives are **hand-rolled in shadcn v4 shape** — `data-slot`
+attributes, no `forwardRef` (React 19's prop.ref handles it), classes
+composed via `cn()`. They match the file structure the CLI would have
+produced, so `npx shadcn@latest add dialog`, `add dropdown-menu`, `add sheet`
+etc. land alongside them with no manual cleanup. The `Badge` is
+`class-variance-authority`-backed with a `tone` variant (`neutral` / `info` /
+`success` / `warning` / `destructive` / `primary` / `outline`) that the
+invoice status pills consume directly.
+
+## AppShell
+
+`components/app/AppShell.tsx` is the chrome every authed page sits inside —
+sticky header (Logo, breadcrumbs, ThemeToggle, SignOut), `Container`-bounded
+body. Server component; pages still own their `requireUser()` gate. Each page
+passes `crumbs={[{label, href?}, …]}` instead of inlining a back-link. The
+dashboard's prior hand-rolled header is gone.
 
 ## SEO
 

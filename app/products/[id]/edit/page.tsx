@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
+import { AppShell } from "@/components/app/AppShell";
 import { listBusinessesForUser } from "@/lib/services/businesses";
 import { getProduct } from "@/lib/services/products";
 import { getMembership, roleHas } from "@/lib/rbac";
@@ -47,30 +47,24 @@ export default async function EditProductPage({
   };
 
   return (
-    <main
-      style={{
-        maxWidth: 760,
-        margin: "3rem auto",
-        padding: "0 1.25rem",
-        fontFamily: "system-ui, sans-serif",
-      }}
+    <AppShell
+      crumbs={[
+        { label: "Products", href: `/products?businessId=${product.businessId}` },
+        { label: product.name },
+      ]}
     >
-      <Link
-        href={`/products?businessId=${product.businessId}`}
-        style={{ fontSize: "0.85rem", color: "#666", textDecoration: "none" }}
-      >
-        ← Products
-      </Link>
-      <h1 style={{ fontSize: "1.75rem", margin: "1rem 0 2rem" }}>
-        Edit {product.name}
-      </h1>
-      <ProductForm
-        businesses={businessOptions}
-        initialBusinessId={product.businessId}
-        editingProductId={product.id}
-        initial={initial}
-        canSeePurchasePrice={canSeePurchasePrice}
-      />
-    </main>
+      <div className="mx-auto max-w-3xl">
+        <h1 className="mb-6 text-2xl font-bold tracking-tight">
+          Edit {product.name}
+        </h1>
+        <ProductForm
+          businesses={businessOptions}
+          initialBusinessId={product.businessId}
+          editingProductId={product.id}
+          initial={initial}
+          canSeePurchasePrice={canSeePurchasePrice}
+        />
+      </div>
+    </AppShell>
   );
 }

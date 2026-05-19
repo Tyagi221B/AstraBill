@@ -1,9 +1,14 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import { AppShell } from "@/components/app/AppShell";
+import { Badge } from "@/components/ui/badge";
+import { buttonClasses } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/card";
 import { listBusinessesForUser } from "@/lib/services/businesses";
 import { listInvoicesForUser } from "@/lib/services/invoices";
 import { requireUser } from "@/lib/session";
+import { cn } from "@/lib/utils";
 import type { Invoice } from "@/lib/db/schema";
 
 export const metadata: Metadata = {
@@ -19,13 +24,16 @@ const TYPE_LABEL: Record<Invoice["type"], string> = {
   delivery_challan: "Delivery Challan",
 };
 
-const STATUS_COLOUR: Record<Invoice["status"], string> = {
-  draft: "#888",
-  sent: "#2563eb",
-  seen: "#0891b2",
-  partially_paid: "#ca8a04",
-  paid: "#16a34a",
-  overdue: "#dc2626",
+const STATUS_TONE: Record<
+  Invoice["status"],
+  "neutral" | "info" | "success" | "warning" | "destructive"
+> = {
+  draft: "neutral",
+  sent: "info",
+  seen: "info",
+  partially_paid: "warning",
+  paid: "success",
+  overdue: "destructive",
 };
 
 const STATUSES: { value: Invoice["status"] | "all"; label: string }[] = [
@@ -36,23 +44,14 @@ const STATUSES: { value: Invoice["status"] | "all"; label: string }[] = [
   { value: "overdue", label: "Overdue" },
 ];
 
-const card: React.CSSProperties = {
-  padding: "1rem 1.25rem",
-  border: "1px solid #e5e5e5",
-  borderRadius: 12,
-  background: "#fff",
-};
-
-const filterBtn = (active: boolean): React.CSSProperties => ({
-  padding: "0.4rem 0.85rem",
-  fontSize: "0.85rem",
-  borderRadius: 6,
-  border: `1px solid ${active ? "#111" : "#ddd"}`,
-  background: active ? "#111" : "#fff",
-  color: active ? "#fff" : "#444",
-  textDecoration: "none",
-  fontWeight: active ? 500 : 400,
-});
+function filterPill(active: boolean) {
+  return cn(
+    "rounded-md px-3 py-1.5 text-sm transition-colors",
+    active
+      ? "bg-primary text-primary-foreground"
+      : "border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
+  );
+}
 
 export default async function InvoicesListPage({
   searchParams,
@@ -95,78 +94,34 @@ export default async function InvoicesListPage({
   };
 
   const filterBusiness = businessId ? businessById.get(businessId) : null;
+  const newHref = filterBusiness
+    ? `/invoices/new?businessId=${filterBusiness.id}`
+    : "/invoices/new";
 
   return (
-    <main
-      style={{
-        maxWidth: 980,
-        margin: "3rem auto",
-        padding: "0 1.25rem",
-        fontFamily: "system-ui, sans-serif",
-      }}
-    >
-      <Link
-        href="/dashboard"
-        style={{ fontSize: "0.85rem", color: "#666", textDecoration: "none" }}
-      >
-        ← Dashboard
-      </Link>
-
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-          margin: "1rem 0 1.5rem",
-        }}
-      >
+    <AppShell crumbs={[{ label: "Invoices" }]}>
+      <header className="mb-6 flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 style={{ fontSize: "1.75rem", margin: 0 }}>
+          <h1 className="text-2xl font-bold tracking-tight">
             {filterBusiness ? `${filterBusiness.name} — Invoices` : "Invoices"}
           </h1>
-          <p style={{ color: "#666", margin: "0.15rem 0 0", fontSize: "0.9rem" }}>
+          <p className="mt-1 text-sm text-muted-foreground">
             {invoices.length} {invoices.length === 1 ? "invoice" : "invoices"}
             {activeStatus ? ` · ${activeStatus.replace("_", " ")}` : ""}
           </p>
         </div>
-        <Link
-          href={
-            filterBusiness
-              ? `/invoices/new?businessId=${filterBusiness.id}`
-              : "/invoices/new"
-          }
-          style={{
-            padding: "0.6rem 1.1rem",
-            background: "#111",
-            color: "#fff",
-            borderRadius: 8,
-            textDecoration: "none",
-            fontWeight: 500,
-            fontSize: "0.9rem",
-          }}
-        >
+        <Link href={newHref} className={buttonClasses("primary", "sm")}>
           + New invoice
         </Link>
       </header>
 
-      {/* Filters */}
-      <div
-        style={{
-          display: "flex",
-          gap: "0.5rem",
-          flexWrap: "wrap",
-          marginBottom: "1.25rem",
-          alignItems: "center",
-        }}
-      >
-        <span style={{ fontSize: "0.78rem", color: "#888", marginRight: "0.25rem" }}>
-          Status
-        </span>
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <span className="mr-1 text-xs text-muted-foreground">Status</span>
         {STATUSES.map((s) => (
           <Link
             key={s.value}
             href={`/invoices${withParam("status", s.value)}`}
-            style={filterBtn(
+            className={filterPill(
               s.value === "all" ? !status : status === s.value,
             )}
           >
@@ -175,18 +130,12 @@ export default async function InvoicesListPage({
         ))}
         {memberships.length > 1 && (
           <>
-            <span
-              style={{
-                fontSize: "0.78rem",
-                color: "#888",
-                margin: "0 0.25rem 0 0.75rem",
-              }}
-            >
+            <span className="ml-3 mr-1 text-xs text-muted-foreground">
               Business
             </span>
             <Link
               href={`/invoices${queryWithout("businessId")}`}
-              style={filterBtn(!businessId)}
+              className={filterPill(!businessId)}
             >
               All
             </Link>
@@ -194,7 +143,7 @@ export default async function InvoicesListPage({
               <Link
                 key={m.business.id}
                 href={`/invoices${withParam("businessId", m.business.id)}`}
-                style={filterBtn(businessId === m.business.id)}
+                className={filterPill(businessId === m.business.id)}
               >
                 {m.business.name}
               </Link>
@@ -204,122 +153,80 @@ export default async function InvoicesListPage({
       </div>
 
       {invoices.length === 0 ? (
-        <section style={{ ...card, textAlign: "center", padding: "2.5rem 1.25rem" }}>
-          <p style={{ color: "#666", margin: 0 }}>
-            No invoices{activeStatus ? ` with status ${activeStatus}` : ""} yet.
-          </p>
-          <Link
-            href={
-              filterBusiness
-                ? `/invoices/new?businessId=${filterBusiness.id}`
-                : "/invoices/new"
-            }
-            style={{
-              display: "inline-block",
-              marginTop: "1rem",
-              padding: "0.6rem 1.1rem",
-              background: "#111",
-              color: "#fff",
-              borderRadius: 8,
-              textDecoration: "none",
-              fontSize: "0.9rem",
-            }}
-          >
-            Create your first invoice
-          </Link>
-        </section>
+        <Card>
+          <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
+            <p className="text-sm text-muted-foreground">
+              No invoices{activeStatus ? ` with status ${activeStatus}` : ""} yet.
+            </p>
+            <Link href={newHref} className={buttonClasses("primary", "sm")}>
+              Create your first invoice
+            </Link>
+          </CardContent>
+        </Card>
       ) : (
-        <section style={card}>
-          <div style={{ overflowX: "auto" }}>
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: "0.92rem",
-              }}
-            >
-              <thead>
-                <tr style={{ textAlign: "left", color: "#888" }}>
-                  <th style={{ padding: "0.5rem", width: "12%" }}>Number</th>
-                  <th style={{ padding: "0.5rem", width: "16%" }}>Type</th>
-                  <th style={{ padding: "0.5rem", width: "20%" }}>Business</th>
-                  <th style={{ padding: "0.5rem", width: "13%" }}>Issued</th>
-                  <th style={{ padding: "0.5rem", width: "14%" }}>Status</th>
-                  <th style={{ padding: "0.5rem", textAlign: "right" }}>
-                    Total
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoices.map((inv) => {
-                  const biz = businessById.get(inv.businessId);
-                  return (
-                    <tr
-                      key={inv.id}
-                      style={{
-                        borderTop: "1px solid #f0f0f0",
-                      }}
-                    >
-                      <td style={{ padding: "0.65rem 0.5rem" }}>
-                        <Link
-                          href={`/invoices/${inv.id}`}
-                          style={{
-                            color: "#111",
-                            textDecoration: "none",
-                            fontWeight: 500,
-                          }}
-                        >
-                          {inv.number ?? (
-                            <span
-                              style={{ color: "#888", fontStyle: "italic" }}
-                              title="Drafts are unnumbered. The number is assigned when you finalise."
-                            >
-                              Draft — number assigned on finalise
-                            </span>
-                          )}
-                        </Link>
-                      </td>
-                      <td style={{ padding: "0.65rem 0.5rem", color: "#444" }}>
-                        {TYPE_LABEL[inv.type]}
-                      </td>
-                      <td style={{ padding: "0.65rem 0.5rem", color: "#444" }}>
-                        {biz?.name ?? "—"}
-                      </td>
-                      <td style={{ padding: "0.65rem 0.5rem", color: "#666" }}>
-                        {inv.issueDate}
-                      </td>
-                      <td style={{ padding: "0.65rem 0.5rem" }}>
-                        <span
-                          style={{
-                            padding: "0.2rem 0.55rem",
-                            background: STATUS_COLOUR[inv.status],
-                            color: "#fff",
-                            borderRadius: 999,
-                            fontSize: "0.7rem",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.04em",
-                          }}
-                        >
-                          {inv.status.replace("_", " ")}
-                        </span>
-                      </td>
-                      <td
-                        style={{
-                          padding: "0.65rem 0.5rem",
-                          textAlign: "right",
-                          fontWeight: 500,
-                        }}
+        <Card>
+          <CardContent className="px-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-muted-foreground">
+                    <th className="px-4 py-3 font-medium">Number</th>
+                    <th className="px-4 py-3 font-medium">Type</th>
+                    <th className="px-4 py-3 font-medium">Business</th>
+                    <th className="px-4 py-3 font-medium">Issued</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 text-right font-medium">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((inv) => {
+                    const biz = businessById.get(inv.businessId);
+                    return (
+                      <tr
+                        key={inv.id}
+                        className="border-t border-border text-foreground"
                       >
-                        ₹ {inv.total}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                        <td className="px-4 py-3">
+                          <Link
+                            href={`/invoices/${inv.id}`}
+                            className="font-medium hover:underline"
+                          >
+                            {inv.number ?? (
+                              <span
+                                className="italic text-muted-foreground"
+                                title="Drafts are unnumbered. The number is assigned when you finalise."
+                              >
+                                Draft — number assigned on finalise
+                              </span>
+                            )}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {TYPE_LABEL[inv.type]}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {biz?.name ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground tabular-nums">
+                          {inv.issueDate}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge tone={STATUS_TONE[inv.status]}>
+                            {inv.status.replace("_", " ")}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium tabular-nums">
+                          ₹ {inv.total}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
       )}
-    </main>
+    </AppShell>
   );
 }
