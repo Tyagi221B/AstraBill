@@ -59,5 +59,7 @@ export const config = {
     "/customers/:path*",
     "/products",
     "/products/:path*",
+    "/settings",
+    "/settings/:path*",
   ],
 };

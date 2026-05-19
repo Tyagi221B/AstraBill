@@ -114,6 +114,12 @@ export default async function DashboardPage() {
                       >
                         Products
                       </Link>
+                      <Link
+                        href={`/settings/branding?businessId=${business.id}`}
+                        className={buttonClasses("outline", "sm")}
+                      >
+                        Branding
+                      </Link>
                     </div>
                   </CardContent>
                 </Card>

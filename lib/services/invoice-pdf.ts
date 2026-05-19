@@ -14,15 +14,17 @@ import { AppError, NotFoundError } from "../errors";
 import { getBusinessForUser } from "../repositories/businesses";
 import { amountInWords } from "../pdf/amount-in-words";
 import { buildHsnSummary } from "../pdf/hsn-summary";
+import { fixtures } from "../pdf/fixtures";
 import type {
   BrandFont,
+  BrandingPayload,
   InvoicePayload,
   RenderRequest,
   TemplateId,
 } from "../pdf/contract";
 import type { Business, Customer } from "../db/schema";
 import { getCustomer } from "./customers";
-import { getInvoice } from "./invoices";
+import { getInvoice, listInvoicesForUser } from "./invoices";
 
 type CreatedInvoiceRow = NonNullable<Awaited<ReturnType<typeof getInvoice>>>;
 
@@ -237,6 +239,18 @@ export async function renderInvoicePdf(
     ? await getCustomer(invoice.customerId, actorUserId)
     : null;
 
+  const payload = buildRenderRequest(invoice, business, customer);
+  const bytes = await postRender(payload);
+  const safeNumber = (invoice.number ?? "draft").replace(/[^\w-]+/g, "-");
+  return { bytes, filename: `${safeNumber}.pdf` };
+}
+
+/**
+ * POST a RenderRequest to the pdf-service and return the PDF bytes. The one
+ * place that talks HTTP to the renderer — shared by the invoice download and
+ * the branding preview.
+ */
+async function postRender(payload: RenderRequest): Promise<Buffer> {
   const serviceUrl = process.env.PDF_SERVICE_URL;
   if (!serviceUrl) {
     throw new AppError(
@@ -244,8 +258,6 @@ export async function renderInvoicePdf(
       { status: 503, code: "SERVICE_UNAVAILABLE" },
     );
   }
-
-  const payload = buildRenderRequest(invoice, business, customer);
 
   const headers: Record<string, string> = {
     "content-type": "application/json",
@@ -274,8 +286,63 @@ export async function renderInvoicePdf(
       code: "PDF_RENDER_FAILED",
     });
   }
+  return Buffer.from(await res.arrayBuffer());
+}
 
-  const bytes = Buffer.from(await res.arrayBuffer());
-  const safeNumber = (invoice.number ?? "draft").replace(/[^\w-]+/g, "-");
-  return { bytes, filename: `${safeNumber}.pdf` };
+/** The visual branding fields a preview lets the user fiddle with. */
+export interface PreviewBranding {
+  logoUrl: string | null;
+  color: string;
+  font: BrandFont;
+  template: TemplateId;
+  columns: BrandingPayload["columns"];
+}
+
+/**
+ * Render a branding preview PDF — the right-pane iframe on /settings/branding.
+ *
+ * Uses the business's most-recent FINALISED invoice so the owner previews
+ * their own real data branded; falls back to a sample fixture when the
+ * business has issued nothing yet. The branding is the *unsaved* settings the
+ * user is editing — except `showFooterMark`, which is derived from the plan
+ * here (never trust a client param: a free user could otherwise fake removal).
+ */
+export async function renderBrandingPreviewPdf(
+  businessId: string,
+  actorUserId: string,
+  override: PreviewBranding,
+): Promise<Buffer> {
+  const business = await getBusinessForUser(actorUserId, businessId);
+  if (!business) throw new NotFoundError("Business not found");
+
+  const recent = await listInvoicesForUser({
+    userId: actorUserId,
+    businessId,
+    limit: 30,
+  });
+  const finalised = recent.find((i) => i.number !== null);
+
+  let invoicePayload: InvoicePayload;
+  if (finalised) {
+    const full = await getInvoice(finalised.id, actorUserId);
+    const customer = full?.customerId
+      ? await getCustomer(full.customerId, actorUserId)
+      : null;
+    invoicePayload = full
+      ? buildRenderRequest(full, business, customer).invoice
+      : fixtures.complex.invoice;
+  } else {
+    invoicePayload = fixtures.complex.invoice;
+  }
+
+  const branding: BrandingPayload = {
+    logoUrl: override.logoUrl,
+    color: override.color,
+    font: override.font,
+    template: override.template,
+    showFooterMark: business.plan === "free",
+    columns: override.columns,
+  };
+
+  return postRender({ invoice: invoicePayload, branding });
 }
