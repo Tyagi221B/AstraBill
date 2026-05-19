@@ -15,8 +15,10 @@
  *      lib/gst.ts on the Next side; helper functions compute the derived
  *      pieces just before the call.
  *
- * Shared by the Next.js app (this file) and the pdf-service deploy (which
- * imports the same file at build time — see pdf-service/tsconfig.json).
+ * Canonical copy (Next.js side). The pdf-service keeps a deliberate mirror
+ * at pdf-service/src/contract.ts — it owns its own copy so it builds and
+ * deploys independently. Edit BOTH when the contract changes; they always
+ * change together (producer + consumer of the same payload).
  */
 
 export type TemplateId = "modern" | "classic";

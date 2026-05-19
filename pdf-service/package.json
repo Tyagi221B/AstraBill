@@ -1,0 +1,27 @@
+{
+  "name": "astrabill-pdf-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AstraBill invoice PDF renderer — Express + Puppeteer + React SSR. Deploys to Digital Ocean, separate from the Next.js app.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "puppeteer": "^24.10.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.5",
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
