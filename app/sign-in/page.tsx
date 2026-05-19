@@ -1,17 +1,36 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Container } from "@/components/ui/Container";
 import { Logo } from "@/components/ui/Logo";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { getSessionUser } from "@/lib/session";
 import { SignInForm } from "./SignInForm";
 
 export const metadata: Metadata = {
   title: "Sign in · AstraBill",
 };
 
-export default function SignInPage() {
+// Restrict the callbackUrl to same-origin paths so a crafted `?callbackUrl=`
+// can't bounce an authed user to an attacker's domain.
+function safeCallback(raw: string | undefined): string {
+  if (!raw) return "/dashboard";
+  if (raw.startsWith("/") && !raw.startsWith("//")) return raw;
+  return "/dashboard";
+}
+
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string }>;
+}) {
+  // Already signed in? Skip the form entirely.
+  const user = await getSessionUser();
+  const { callbackUrl } = await searchParams;
+  if (user) redirect(safeCallback(callbackUrl));
+
   return (
     <div className="flex min-h-dvh flex-col bg-background text-foreground">
       <header className="border-b border-border">

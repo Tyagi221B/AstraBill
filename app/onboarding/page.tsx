@@ -13,10 +13,10 @@ export const metadata: Metadata = {
 
 export default async function OnboardingPage() {
   // If they're not signed in, send them to sign-in. If they already have a
-  // business, onboarding is done — bounce home.
+  // business, onboarding is done — bounce to the dashboard.
   const user = await requireUser();
   const businesses = await listBusinessesForUser(user.id);
-  if (businesses.length > 0) redirect("/");
+  if (businesses.length > 0) redirect("/dashboard");
 
   return (
     <AppShell crumbs={[{ label: "Set up your business" }]}>
