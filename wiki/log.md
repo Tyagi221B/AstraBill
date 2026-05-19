@@ -482,3 +482,27 @@ the build, not pre-decided in the SSOT.
 Open question for the user: a couple of the 2C scope choices need
 direction before migration 0003 opens — listed in the new decision
 page's "Open questions" section.
+
+## [2026-05-19] build | Phase 2C Stages 0–5 shipped — invoices render as branded PDFs
+
+The Invoice Design System build. Eight planned stages; 0–5 done and
+tested end-to-end (an invoice downloads as a real branded PDF).
+
+- **Stage 0** `c70b908` — render contract + 4 fixtures.
+- **Stage 1** `5b0d23f` — `pdf-service/`: Express + Puppeteer + React SSR.
+- **Stage 2** `02c388c` — premium Modern template, multi-page handled
+  (repeating header, no split blocks, per-page footer).
+- **Stage 3** `f78fd4b` — migration 0003 (branding columns) + branding API.
+- **Stage 4** `f8990ce` — Cloudinary signed logo upload (secure backend).
+- **Stage 5** `bda31cd` — Next.js → pdf-service wiring, Download PDF button.
+- Polish `b9cfdee`, `59fb4ce` — qty/GST zero-trim, line "Amount" is the
+  pre-GST taxable value (reconciles with subtotal).
+
+SSOT: thermal_80 cut from V1 → 2C.5 (reconciled across DECISIONS.md,
+phase-2-plan.md, overview.md). Scale-to-fit deferred (noted in the
+decision page's "Open during the build").
+
+Remaining (next chat): wire the 3 newly-installed fonts (Poppins /
+Noto Serif / Noto Sans) into `fonts.ts` + the templates; build the
+Classic template; then Stage 6 — the `/settings/branding` UI as the
+capstone. Full state in decision/invoice-design-system.md "Status".

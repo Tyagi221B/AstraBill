@@ -237,20 +237,47 @@ colour reads as a brochure, not an invoice.
 
 ## Status
 
-In build (2026-05-19). Shipped:
+In build (2026-05-19). **Stages 0–5 shipped + tested end-to-end** — an
+invoice downloads as a real branded PDF from its detail page.
 
 - **Stage 0** — render contract (`lib/pdf/contract.ts` + a mirror in
-  `pdf-service/`) and four typed fixtures (small / medium / complex /
-  long). Commit `c70b908`.
-- **Stage 1** — `pdf-service/`: Express + Puppeteer + React SSR
-  microservice, `POST /render`. Commit `5b0d23f`.
+  `pdf-service/src/contract.ts`) + four typed fixtures. `c70b908`.
+- **Stage 1** — `pdf-service/`: Express + Puppeteer + React SSR,
+  `POST /render`. `5b0d23f`.
 - **Stage 2** — premium Modern template: embedded Inter, real
-  typography, multi-page done properly (repeating table header,
-  no split rows/blocks, per-page Puppeteer footer), tightened so a
-  typical invoice is one page. Commit `02c388c`.
+  typography, proper multi-page (repeating table header, no split
+  rows/blocks, per-page Puppeteer footer). `02c388c`.
+- **Stage 3** — migration 0003 (`brand_color`, `brand_font`,
+  `invoice_template_id`, `invoice_settings` on `businesses`) +
+  `PATCH /api/businesses/[id]` branding API. `f78fd4b`.
+- **Stage 4** — Cloudinary signed logo upload, the secure backend:
+  `lib/cloudinary.ts`, `POST /api/uploads/signature` (owner-gated),
+  `isOurCloudinaryUrl` SSRF guard. `f8990ce`.
+- **Stage 5** — `lib/services/invoice-pdf.ts` bridges DB → contract
+  (HSN summary, amount-in-words, taxClass derived here);
+  `GET /api/invoices/[id]/pdf` streams the PDF; "Download PDF"
+  button on the invoice page; shared-secret guards `/render`.
+  `bda31cd`.
+- Polish from real renders: trailing-zero trim on qty/GST, tighter
+  top margin (`b9cfdee`); the line "Amount" column is the pre-GST
+  taxable value so it reconciles with the subtotal (`59fb4ce`).
 
-Next: Stage 3 — drizzle migration 0003 (`brand_color`, `brand_font`,
-`invoice_template_id`, `invoice_settings` on `businesses`) + the
-branding API. Then Stage 4 (Cloudinary logo upload), Stage 5 (wire
-Next.js → pdf-service), Stage 6 (`/settings/branding` UI), Stage 7
-(Classic template).
+**Remaining — pick up here in the next chat:**
+
+1. **Fonts** — Poppins / Noto Serif / Noto Sans packages are
+   installed in `pdf-service/` (commit after `59fb4ce`); not yet
+   wired. `pdf-service/src/fonts.ts` needs a `fontFaceCss(font)` per
+   family, and the templates' `font-family` must follow
+   `branding.font` (currently hard-Inter). Inter is already wired.
+2. **Classic template** (was Stage 7) — second template component in
+   `pdf-service/src/templates/`; registry currently aliases
+   `classic` → Modern. Serif, traditional; Om Glass real invoices
+   are the reference.
+3. **Stage 6 — `/settings/branding`** (the capstone, build last):
+   template picker (Modern/Classic), brand-colour picker, font
+   picker, logo-upload widget (uses the Stage 4 signature endpoint
+   → Cloudinary → PATCH), live preview. Reordered *after* fonts +
+   Classic so every control it exposes is real.
+
+Local run: pdf-service `cd pdf-service && npm run dev` (:4000);
+`.env.local` has `PDF_SERVICE_URL`. Cloudinary creds are set.
