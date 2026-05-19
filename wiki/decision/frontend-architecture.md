@@ -41,8 +41,9 @@ Header/Footer; the app pages sit outside it. Route groups are URL-invisible —
 
 The root `app/layout.tsx` is reduced to what is genuinely global: `<html>` /
 `<body>`, fonts, the theme provider, and PostHog identify. `/` is the
-marketing landing; the signed-in dashboard moved to `/dashboard` (a page can
-only own one route, and the landing must be `/` for SEO).
+marketing landing. The signed-in entry point is `/dashboard`; Phase 2D
+made that a smart redirect into the active business's branded dashboard
+(see [[decision/white-label-app-shell]]).
 
 Initially the app pages (`invoices`, `customers`, `products`, `onboarding`)
 were left in place on inline styles. F3 finished the migration: every authed
@@ -90,13 +91,25 @@ etc. land alongside them with no manual cleanup. The `Badge` is
 `success` / `warning` / `destructive` / `primary` / `outline`) that the
 invoice status pills consume directly.
 
-## AppShell
+## AppShell — and the 2D split
 
-`components/app/AppShell.tsx` is the chrome every authed page sits inside —
-sticky header (Logo, breadcrumbs, ThemeToggle, SignOut), `Container`-bounded
-body. Server component; pages still own their `requireUser()` gate. Each page
-passes `crumbs={[{label, href?}, …]}` instead of inlining a back-link. The
-dashboard's prior hand-rolled header is gone.
+`components/app/AppShell.tsx` was the chrome every authed page sat inside
+after F3 — sticky header (Logo, breadcrumbs, ThemeToggle, SignOut),
+`Container`-bounded body. Server component; pages still owned their
+`requireUser()` gate. Each page passed `crumbs={[{label, href?}, …]}`
+instead of inlining a back-link.
+
+Phase 2D split this in two:
+
+- **`AppShell`** stays for legacy authed pages that aren't business-scoped
+  (and as a transitional chrome for the 2A-era pages still on
+  `/invoices`, `/customers`, `/products`, `/settings/branding` until
+  Step 2 of 2D migrates them).
+- **`BrandedAppShell`** is the new chrome for every page under
+  `/b/[businessId]/...` — sidebar + business identity at the top + the
+  data area on the right. Rationale (path-based routing, layout-owned
+  membership check, subtle branding strategy, "Powered by AstraBill"
+  placement) lives in [[decision/white-label-app-shell]].
 
 ## SEO
 

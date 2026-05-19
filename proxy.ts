@@ -61,5 +61,9 @@ export const config = {
     "/products/:path*",
     "/settings",
     "/settings/:path*",
+    // Phase 2D — business-scoped routes live under /b/[businessId]/*.
+    // The route's layout still verifies membership server-side; this matcher
+    // only handles the unauthenticated → /sign-in redirect.
+    "/b/:path*",
   ],
 };

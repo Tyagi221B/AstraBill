@@ -127,6 +127,22 @@ Competitor pressure: [[competitor/mybillbook]].
 | Logo upload | Cloudinary signed direct-upload from the browser. New endpoint `POST /api/uploads/signature` returns timestamp + signature + folder restriction `astrabill/{businessId}/logos`. Browser uploads, then PATCHes `/api/businesses/{id}` with `logo_url`. Server validates URL host against Cloudinary whitelist | proxying uploads through Next.js (memory + bandwidth cost); accepting arbitrary URLs on the PATCH | [[decision/invoice-design-system]] |
 | Branding settings UI | New route `/settings/branding` under `AppShell`, tabs: Template · Colors · Font · Columns. Right pane is a live-preview iframe at `/i/preview?...` rendering the user's most-recent finalised invoice with current branding | a drag-and-drop builder like myBillBook's column-toggle canvas (a few well-crafted defaults beat one generic template + a builder) | [[decision/invoice-design-system]] |
 
+## Product — App shell & navigation  (Phase 2D)
+
+Phase 2D makes the app feel like the owner's billing dashboard, not
+AstraBill's — the parallel "make it theirs" move to 2C, on the chrome
+side. Rationale + LLD: [[decision/white-label-app-shell]].
+
+| Area | Decision | Never | Rationale |
+|------|----------|-------|-----------|
+| Business-scoped routing | Every business-scoped page lives under `/b/[businessId]/...`. The active business is the URL itself — bookmarkable, explicit, two tabs = two businesses works | a session-stored "active business"; `?businessId=` query params in new pages (legacy 2A pages collapse to `/b/[id]/...` during Step 2 of 2D) | [[decision/white-label-app-shell]] |
+| Membership resolution | Resolved exactly ONCE per request in `app/b/[businessId]/layout.tsx`. Nested pages trust the layout and never re-check; repository-level `business_id` scoping stays as defence in depth | duplicating the membership check in every page | [[decision/white-label-app-shell]] |
+| Non-member response | 404 (Next's `notFound()`). Same response for "doesn't exist" and "exists but not yours" — no existence leak. Mirrors the repository pattern in [[decision/database-and-rbac]] | a 403 / "Forbidden" surface — it would leak that the business id is valid | [[decision/white-label-app-shell]] |
+| `/dashboard` behaviour | Smart redirect — no business → `/onboarding`; ≥1 business → `/b/[mostRecent]/dashboard`. "Most recent" = most-recently-joined membership in V1; tracking `users.last_business_id` (most-recently-used) is the follow-up | a business-picker UI at `/dashboard` (the picker now lives in the sidebar BusinessSwitcher) | [[decision/white-label-app-shell]] |
+| Branded chrome strategy | **Subtle**. Brand colour shows on (1) a 2px left-edge accent on the active nav item, (2) the business-avatar fallback background. Everything else uses the neutral `--sidebar-*` token palette | painting the sidebar background in `business.brandColor` (gaudy at saturated user-picked colours; contrast budget breaks); reusing AstraBill blue as the active-item indicator (the *business* should be the brand) | [[decision/white-label-app-shell]] |
+| "Powered by AstraBill" mark | Centre-bottom of the sidebar wordmark at 10px / 70% opacity. Visible to the owner, invisible across a counter. Carried on **both** free and paid plans — only the *customer-facing* PDF footer mark is plan-gated | banner-sized; in the page header; removed on paid plans (we never sold removal of the in-app mark) | [[decision/white-label-app-shell]] |
+| URL helpers | `lib/routes.ts` is the SSOT for URL structure. The `routes.b(businessId)` factory returns the family of business-scoped URLs in one go (sidebar emits five — pulling the factory once beats threading the id five times) | string-templating paths in JSX (`/b/${id}/invoices`); duplicating URL shape across files | [[decision/white-label-app-shell]] |
+
 ## Product — Pricing
 
 | Plan | Price | Key limits | Rationale |

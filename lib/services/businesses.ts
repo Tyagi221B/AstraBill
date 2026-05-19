@@ -133,3 +133,18 @@ export async function updateBusinessBranding(
 }
 
 export { listBusinessesForUser };
+
+/**
+ * The user's "active by default" business — the most recently joined one. Used
+ * by the smart `/dashboard` redirect and by any auto-enter flow. Returns null
+ * when the user has no business yet (onboarding hasn't completed).
+ *
+ * V1 heuristic = most-recently-joined membership; the upgrade path (track
+ * `lastBusinessId` on `users` for most-recently-used) is a follow-up.
+ */
+export async function getMostRecentBusinessForUser(
+  userId: string,
+) {
+  const list = await listBusinessesForUser(userId);
+  return list[0] ?? null;
+}

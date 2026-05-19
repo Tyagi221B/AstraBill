@@ -548,3 +548,47 @@ Reworked the renderer to be dynamic both ways. `fd6d66d`:
 Replaces the originally-deferred one-directional scale-to-fit; the
 shipped form handles UNDER-fill too. Updated
 decision/invoice-design-system.md.
+
+## [2026-05-19] build | Phase 2D Step 1 — white-label app shell foundation
+
+User pushback: "we are randomly building stuff … the app should feel
+like the owner's billing dashboard, not AstraBill's." The 2C work
+made the *PDF* owner-branded; the *app shell* still said AstraBill,
+opened to a business-picker card grid, and threaded `?businessId=` on
+every URL. That mismatch is the gap 2D closes — parallel to 2C, but
+on the chrome side.
+
+Step 1 ships the foundation:
+
+- `app/b/[businessId]/layout.tsx` — the ONE place a business is
+  resolved + membership verified per request. 404 for non-members (no
+  existence leak); the repository-level scoping stays as defence in
+  depth.
+- `components/app/BrandedAppShell.tsx` + `Sidebar.tsx` — sidebar with
+  BusinessSwitcher (logo + name + dropdown), nav (Dashboard /
+  Invoices / Customers / Products / Settings) with active state, a
+  user menu + sign-out, and "Powered by AstraBill" at the foot.
+  Branding is *subtle*: brand-colour shows on (1) the 2px left-edge
+  accent of the active nav item and (2) the avatar fallback bg.
+  Whole-sidebar-painted-brand-colour considered + rejected (gaudy at
+  saturated user colours; contrast budget breaks).
+- `lib/routes.ts` — SSOT for URL structure. `routes.b(id)` factory
+  returns the family of business-scoped paths; pages never
+  template-string a path.
+- `app/dashboard/page.tsx` → smart redirect (no business → onboarding;
+  has business → `/b/[mostRecent]/dashboard`).
+- `app/b/[businessId]/dashboard/page.tsx` — placeholder (welcome +
+  three "Coming soon" stat cards + quick-action buttons). Real KPIs
+  in Step 3.
+- `lib/services/businesses.ts` — new `getMostRecentBusinessForUser`.
+- `proxy.ts` — added `/b/:path*` to the auth matcher.
+
+Sidebar nav for non-dashboard sections still points to the OLD paths
+(`/invoices?businessId=X` …) — a deliberate transitional gap. Step 2
+of 2D migrates `/invoices`, `/customers`, `/products`,
+`/settings/branding` under `/b/[businessId]/...`. Step 3 = real
+dashboard KPIs. Step 4 = mobile (hamburger / drawer).
+
+Decision page: `decision/white-label-app-shell.md`. Binding facts
+added to DECISIONS.md under a new "Product — App shell & navigation
+(Phase 2D)" section.

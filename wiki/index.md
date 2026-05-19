@@ -20,9 +20,10 @@
 | [decision/auth-strategy.md](decision/auth-strategy.md) | decision | NextAuth v5 + JWT sessions. Two equal entry doors: Google OAuth + WhatsApp OTP. Never Supabase Auth. |
 | [decision/code-architecture.md](decision/code-architecture.md) | decision | LLD: thin routes → service → repo → DB. Interfaces for externals. Typed errors. |
 | [decision/v1-scope.md](decision/v1-scope.md) | decision | V1: GST invoice + PDF + WhatsApp + Udhaar + Inventory. English only. No shortcuts. |
-| [decision/phase-2-plan.md](decision/phase-2-plan.md) | decision | 2A (customers, products, invoice anatomy, FY numbering, stock) shipped; page is now the live 2B WhatsApp hero-loop blueprint. |
+| [decision/phase-2-plan.md](decision/phase-2-plan.md) | decision | 2A + 2C shipped; 2D (white-label shell) Step 1 shipped 2026-05-19; 2B (WhatsApp hero loop) next once Meta + Razorpay verifications clear. |
 | [decision/frontend-architecture.md](decision/frontend-architecture.md) | decision | Tailwind v4 + CSS-variable theming (light/dark via next-themes); marketing site as a route group; shadcn adopted in F3. |
 | [decision/invoice-design-system.md](decision/invoice-design-system.md) | decision | Phase 2C: template engine + brand customization (logo, color, font, columns). Lands *before* 2B — no external blockers, and 2B's hero artifact is the PDF this work makes worth sending. |
+| [decision/white-label-app-shell.md](decision/white-label-app-shell.md) | decision | Phase 2D: path-based `/b/[businessId]/...` routing, branded sidebar, smart `/dashboard` redirect. Makes the app feel like the owner's billing dashboard, the parallel of 2C on the chrome side. |
 | **Competitors** | | |
 | [competitor/tally.md](competitor/tally.md) | competitor | The 30-year incumbent. Desktop-only, 70-90% MSME share, steep learning curve, ₹22,500+ |
 | [competitor/vyapar.md](competitor/vyapar.md) | competitor | Mobile challenger, 1Cr users, broken WhatsApp, serious RBAC privacy hole |

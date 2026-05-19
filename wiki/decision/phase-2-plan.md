@@ -51,6 +51,30 @@ Thermal 80mm deferred to 2C.5). LLD lives in
 KYC, both multi-week). 2C is unblocked codebase + Cloudinary work.
 2B's hero artifact is the PDF; 2C makes that PDF worth sending.
 
+## Phase 2D — White-label App Shell  (inserted before 2B)
+
+2C made the *PDF* feel like the owner's; the *app shell* still felt
+like AstraBill's — business-picker `/dashboard`, `?businessId=` URLs,
+generic header. Mid-2B work surfaced this as the actual blocker: every
+2B feature is a button/panel that wants a stable URL shape and a
+branded chrome to live in. Detailed LLD:
+[[decision/white-label-app-shell]].
+
+Four steps. Step 1 shipped 2026-05-19.
+
+1. **Foundation** *(shipped)* — `/b/[businessId]/` layout doing the
+   one membership check, `BrandedAppShell` + `Sidebar` with the
+   BusinessSwitcher, smart `/dashboard` redirect, dashboard
+   placeholder, `lib/routes.ts` SSOT.
+2. **Page migration** — `/invoices`, `/customers`, `/products`,
+   `/settings/branding` move under `/b/[businessId]/...`. Until then
+   the sidebar links to the old paths and those pages render without
+   the new shell — a deliberate transitional gap.
+3. **Real dashboard KPIs** — outstanding ₹, paid this month, recent
+   invoices, top customers, low stock — replacing Step 1's placeholder
+   cards.
+4. **Mobile shell** — hamburger / drawer; current shell is `md:` and up.
+
 ## Phase 2B — WhatsApp Send + UPI  (the hero loop)
 
 Three parts. Detailed LLD lands when each is started.
@@ -81,12 +105,16 @@ generated → WhatsApp delivered with PDF + UPI link → customer pays → webho
    `astrabill_invoice_v1`. Submit Razorpay KYC alongside. Both take
    weeks — start the clock so they're not the bottleneck.
 2. **Phase 2A** — done.
-3. **Phase 2C** — build *now*, while Meta + Razorpay verifications
-   pend. ~10 working days for the template engine + 3 templates +
-   branding model + Cloudinary logo upload + `/settings/branding` UI.
-4. **Phase 2B** — build once Meta + Razorpay are verified. The PDF
-   the loop sends is the one 2C made worth sending.
-5. **Festive/themed templates + column toggles (2C.5)** — interleaved
+3. **Phase 2C** *(shipped)* — template engine + 2 templates + branding
+   model + Cloudinary logo upload + `/settings/branding` UI.
+4. **Phase 2D** — white-label app shell. Step 1 (foundation) shipped
+   2026-05-19; Steps 2–4 are the page migrations, real KPIs, and
+   mobile. 2D was inserted between 2C and 2B because every 2B feature
+   wants 2D's URL shape and chrome to live in.
+5. **Phase 2B** — build once Meta + Razorpay are verified AND 2D Step 2
+   has migrated the invoice page (where the Send-on-WhatsApp button
+   lives). The PDF the loop sends is the one 2C made worth sending.
+6. **Festive/themed templates + column toggles (2C.5)** — interleaved
    with 2B once the core 2C lands.
 
 ## Related Pages
@@ -95,6 +123,7 @@ generated → WhatsApp delivered with PDF + UPI link → customer pays → webho
 - [[competitor/mybillbook]] — the competitor whose template-system pressure
   forced 2C into existence
 - [[decision/invoice-design-system]] — 2C LLD
+- [[decision/white-label-app-shell]] — 2D LLD (the app-shell parallel to 2C)
 - [[decision/v1-scope]] — the four V1 features
 - [[decision/database-and-rbac]] — the flat-select rule for numeric tables
 - [[decision/pdf-generation]] — the PDF microservice 2C extends
