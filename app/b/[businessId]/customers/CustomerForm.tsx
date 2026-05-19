@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { INDIAN_STATES } from "@/lib/constants/indian-states";
+import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 type BusinessOption = { id: string; name: string; stateCode: string | null };
@@ -103,7 +104,7 @@ export function CustomerForm({
         setError(json.error.message);
         return;
       }
-      window.location.assign(`/customers?businessId=${businessId}`);
+      window.location.assign(routes.b(businessId).customers);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -128,7 +129,7 @@ export function CustomerForm({
                 id="biz"
                 value={businessId}
                 onChange={(e) => setBusinessId(e.target.value)}
-                disabled={isEdit}
+                disabled={isEdit || businesses.length === 1}
                 className={SELECT_CLASS}
               >
                 {businesses.map((b) => (

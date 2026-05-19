@@ -1,11 +1,12 @@
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 
-import { AppShell } from "@/components/app/AppShell";
-import { listBusinessesForUser } from "@/lib/services/businesses";
+import { PageHeader } from "@/components/app/PageHeader";
+import { getBusinessForUser } from "@/lib/repositories/businesses";
 import { listCustomersForUser } from "@/lib/services/customers";
 import { getInvoice } from "@/lib/services/invoices";
 import { listProductsForUser } from "@/lib/services/products";
+import { routes } from "@/lib/routes";
 import { requireUser } from "@/lib/session";
 import { InvoiceForm, type InvoiceFormInitial } from "../../new/InvoiceForm";
 
@@ -49,34 +50,38 @@ function asFormUnit(u: string): FormUnit {
 export default async function EditInvoicePage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ businessId: string; id: string }>;
 }) {
   const user = await requireUser();
-  const { id } = await params;
+  const { businessId, id } = await params;
+  const b = routes.b(businessId);
 
   const invoice = await getInvoice(id, user.id);
-  if (!invoice) notFound();
+  if (!invoice || invoice.businessId !== businessId) notFound();
 
   // Drafts only — finalised invoices are immutable. Bounce to detail page.
-  if (invoice.status !== "draft") redirect(`/invoices/${id}`);
+  if (invoice.status !== "draft") redirect(b.invoice(id));
 
   // Credit/debit notes use a different flow we haven't built UI for yet.
   if (!(FORM_TYPES as readonly string[]).includes(invoice.type)) {
-    redirect(`/invoices/${id}`);
+    redirect(b.invoice(id));
   }
 
-  const [memberships, customers, products] = await Promise.all([
-    listBusinessesForUser(user.id),
-    listCustomersForUser({ userId: user.id, limit: 500 }),
-    listProductsForUser({ userId: user.id, limit: 500 }),
+  const [business, customers, products] = await Promise.all([
+    getBusinessForUser(user.id, businessId),
+    listCustomersForUser({ userId: user.id, businessId, limit: 500 }),
+    listProductsForUser({ userId: user.id, businessId, limit: 500 }),
   ]);
+  if (!business) notFound();
 
-  const businessOptions = memberships.map((m) => ({
-    id: m.business.id,
-    name: m.business.name,
-    stateCode: m.business.stateCode,
-    gstin: m.business.gstin,
-  }));
+  const businessOptions = [
+    {
+      id: business.id,
+      name: business.name,
+      stateCode: business.stateCode,
+      gstin: business.gstin,
+    },
+  ];
   const customerOptions = customers.map((c) => ({
     id: c.id,
     businessId: c.businessId,
@@ -135,22 +140,11 @@ export default async function EditInvoicePage({
   };
 
   return (
-    <AppShell
-      crumbs={[
-        { label: "Invoices", href: "/invoices" },
-        { label: invoice.number ?? "Draft", href: `/invoices/${id}` },
-        { label: "Edit" },
-      ]}
-    >
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">
-          Edit {invoice.number ?? "draft — number assigned on finalise"}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Drafts are fully editable. Once you finalise (mark as sent) the invoice
-          becomes immutable — corrections then go through a credit note.
-        </p>
-      </div>
+    <>
+      <PageHeader
+        title={`Edit ${invoice.number ?? "draft — number assigned on finalise"}`}
+        description="Drafts are fully editable. Once you finalise (mark as sent) the invoice becomes immutable — corrections then go through a credit note."
+      />
       <InvoiceForm
         businesses={businessOptions}
         customers={customerOptions}
@@ -159,6 +153,6 @@ export default async function EditInvoicePage({
         editingInvoiceId={id}
         initial={initial}
       />
-    </AppShell>
+    </>
   );
 }

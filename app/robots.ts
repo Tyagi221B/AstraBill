@@ -11,9 +11,8 @@ export default function robots(): MetadataRoute.Robots {
       disallow: [
         "/api/",
         "/dashboard",
-        "/invoices",
-        "/customers",
-        "/products",
+        // Every business-scoped app page (Phase 2D).
+        "/b/",
         "/onboarding",
         "/sign-in",
       ],

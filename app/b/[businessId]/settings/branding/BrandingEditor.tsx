@@ -101,9 +101,6 @@ const COLOR_PRESETS = [
   "#0f172a",
 ];
 
-const SELECT_CLASS =
-  "h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50";
-
 // ---- types -------------------------------------------------------------
 
 export interface BrandingInitial {
@@ -146,13 +143,11 @@ const TABS: Array<{ id: Tab; label: string }> = [
 
 export function BrandingEditor({
   businessId,
-  businesses,
   canEdit,
   isFreePlan,
   initial,
 }: {
   businessId: string;
-  businesses: Array<{ id: string; name: string }>;
   canEdit: boolean;
   isFreePlan: boolean;
   initial: BrandingInitial;
@@ -295,28 +290,6 @@ export function BrandingEditor({
 
   return (
     <div className="flex flex-col gap-6">
-      {businesses.length > 1 && (
-        <div className="flex max-w-sm flex-col gap-2">
-          <Label htmlFor="biz-switch">Business</Label>
-          <select
-            id="biz-switch"
-            className={SELECT_CLASS}
-            value={businessId}
-            onChange={(e) =>
-              window.location.assign(
-                `/settings/branding?businessId=${e.target.value}`,
-              )
-            }
-          >
-            {businesses.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
       {locked && (
         <div
           role="status"

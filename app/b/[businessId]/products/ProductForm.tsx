@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { routes } from "@/lib/routes";
 
 type BusinessOption = { id: string; name: string };
 
@@ -115,7 +116,7 @@ export function ProductForm({
         setError(json.error.message);
         return;
       }
-      window.location.assign(`/products?businessId=${businessId}`);
+      window.location.assign(routes.b(businessId).products);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -140,7 +141,7 @@ export function ProductForm({
                 id="biz"
                 value={businessId}
                 onChange={(e) => setBusinessId(e.target.value)}
-                disabled={isEdit}
+                disabled={isEdit || businesses.length === 1}
                 className={SELECT_CLASS}
               >
                 {businesses.map((b) => (

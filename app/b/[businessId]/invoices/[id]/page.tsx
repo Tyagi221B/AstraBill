@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
-import { AppShell } from "@/components/app/AppShell";
+import { PageHeader } from "@/components/app/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,55 +37,57 @@ const STATUS_TONE: Record<
 export default async function InvoicePage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ businessId: string; id: string }>;
 }) {
   const user = await requireUser();
-  const { id } = await params;
+  const { businessId, id } = await params;
   const invoice = await getInvoice(id, user.id);
-  if (!invoice) notFound();
+  // 404 for not-found / not-visible — and also when the invoice belongs to a
+  // different business than the URL claims (a crafted /b/X/invoices/Y where
+  // Y is in business Z). The membership of X is already verified by the
+  // layout; this guard keeps the URL honest.
+  if (!invoice || invoice.businessId !== businessId) notFound();
 
   const taxClass =
     Number(invoice.igstAmount) > 0 ? "interstate" : "intrastate";
 
   return (
-    <AppShell
-      crumbs={[
-        { label: "Invoices", href: "/invoices" },
-        { label: invoice.number ?? "Draft" },
-      ]}
-    >
-      <header className="mb-8 flex flex-wrap items-baseline justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            {invoice.number ?? (
-              <span className="text-muted-foreground">
-                Draft
-                <span className="ml-2 text-sm font-normal text-muted-foreground/70">
-                  — number assigned on finalise
-                </span>
+    <>
+      <PageHeader
+        title={
+          invoice.number ?? (
+            <span className="text-muted-foreground">
+              Draft
+              <span className="ml-2 text-sm font-normal text-muted-foreground/70">
+                — number assigned on finalise
               </span>
-            )}
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {TYPE_LABEL[invoice.type] ?? invoice.type} · Issued {invoice.issueDate}
-            {invoice.dueDate && ` · Due ${invoice.dueDate}`}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <a
-            href={`/api/invoices/${invoice.id}/pdf`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={buttonClasses("outline", "sm")}
-          >
-            Download PDF
-          </a>
-          <InvoiceActions invoiceId={invoice.id} status={invoice.status} />
-          <Badge tone={STATUS_TONE[invoice.status] ?? "neutral"}>
-            {invoice.status.replace("_", " ")}
-          </Badge>
-        </div>
-      </header>
+            </span>
+          )
+        }
+        description={`${TYPE_LABEL[invoice.type] ?? invoice.type} · Issued ${
+          invoice.issueDate
+        }${invoice.dueDate ? ` · Due ${invoice.dueDate}` : ""}`}
+        action={
+          <>
+            <a
+              href={`/api/invoices/${invoice.id}/pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={buttonClasses("outline", "sm")}
+            >
+              Download PDF
+            </a>
+            <InvoiceActions
+              businessId={businessId}
+              invoiceId={invoice.id}
+              status={invoice.status}
+            />
+            <Badge tone={STATUS_TONE[invoice.status] ?? "neutral"}>
+              {invoice.status.replace("_", " ")}
+            </Badge>
+          </>
+        }
+      />
 
       <Card className="mb-5">
         <CardContent className="pt-6">
@@ -203,6 +205,6 @@ export default async function InvoicePage({
           </CardContent>
         </Card>
       )}
-    </AppShell>
+    </>
   );
 }

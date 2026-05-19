@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
-import { AppShell } from "@/components/app/AppShell";
-import { listBusinessesForUser } from "@/lib/services/businesses";
+import { PageHeader } from "@/components/app/PageHeader";
+import { getBusinessForUser } from "@/lib/repositories/businesses";
 import { getProduct } from "@/lib/services/products";
 import { getMembership, roleHas } from "@/lib/rbac";
 import { requireUser } from "@/lib/session";
@@ -15,21 +15,18 @@ export const metadata: Metadata = {
 export default async function EditProductPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ businessId: string; id: string }>;
 }) {
   const user = await requireUser();
-  const { id } = await params;
+  const { businessId, id } = await params;
 
   const product = await getProduct(id, user.id);
-  if (!product) notFound();
+  if (!product || product.businessId !== businessId) notFound();
 
-  const memberships = await listBusinessesForUser(user.id);
-  const businessOptions = memberships.map((m) => ({
-    id: m.business.id,
-    name: m.business.name,
-  }));
+  const business = await getBusinessForUser(user.id, businessId);
+  if (!business) notFound();
 
-  const membership = await getMembership(user.id, product.businessId);
+  const membership = await getMembership(user.id, businessId);
   const canSeePurchasePrice =
     membership !== undefined && roleHas(membership.role, "report:view_profit");
 
@@ -47,24 +44,15 @@ export default async function EditProductPage({
   };
 
   return (
-    <AppShell
-      crumbs={[
-        { label: "Products", href: `/products?businessId=${product.businessId}` },
-        { label: product.name },
-      ]}
-    >
-      <div className="mx-auto max-w-3xl">
-        <h1 className="mb-6 text-2xl font-bold tracking-tight">
-          Edit {product.name}
-        </h1>
-        <ProductForm
-          businesses={businessOptions}
-          initialBusinessId={product.businessId}
-          editingProductId={product.id}
-          initial={initial}
-          canSeePurchasePrice={canSeePurchasePrice}
-        />
-      </div>
-    </AppShell>
+    <div className="mx-auto max-w-3xl">
+      <PageHeader title={`Edit ${product.name}`} />
+      <ProductForm
+        businesses={[{ id: business.id, name: business.name }]}
+        initialBusinessId={product.businessId}
+        editingProductId={product.id}
+        initial={initial}
+        canSeePurchasePrice={canSeePurchasePrice}
+      />
+    </div>
   );
 }

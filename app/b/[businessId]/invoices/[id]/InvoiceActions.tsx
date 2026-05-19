@@ -10,17 +10,21 @@ import { useState } from "react";
 import posthog from "posthog-js";
 
 import { Button, buttonClasses } from "@/components/ui/Button";
+import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 export function InvoiceActions({
+  businessId,
   invoiceId,
   status,
 }: {
+  businessId: string;
   invoiceId: string;
   status: string;
 }) {
   const [busy, setBusy] = useState<null | "finalize" | "delete">(null);
   const [error, setError] = useState<string | null>(null);
+  const b = routes.b(businessId);
 
   // Only drafts have actions in V1.
   if (status !== "draft") return null;
@@ -64,7 +68,7 @@ export function InvoiceActions({
         | { ok: true }
         | { ok: false; error: { message: string } };
       if (!json.ok) throw new Error(json.error.message);
-      window.location.assign("/invoices");
+      window.location.assign(b.invoices);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setBusy(null);
@@ -79,7 +83,7 @@ export function InvoiceActions({
         </span>
       )}
       <Link
-        href={`/invoices/${invoiceId}/edit`}
+        href={b.editInvoice(invoiceId)}
         className={buttonClasses("outline", "sm")}
       >
         Edit

@@ -27,6 +27,7 @@ import {
   computeLineItem,
   type ExtraChargeInput,
 } from "@/lib/gst";
+import { routes } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 type BusinessOption = {
@@ -368,7 +369,7 @@ export function InvoiceForm({
         return;
       }
       const id = isEdit ? editingInvoiceId! : json.data.id;
-      window.location.assign(`/invoices/${id}`);
+      window.location.assign(routes.b(businessId).invoice(id));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -414,7 +415,7 @@ export function InvoiceForm({
                   setBusinessId(e.target.value);
                   setCustomerId(""); // customer list changes with business
                 }}
-                disabled={isEdit}
+                disabled={isEdit || businesses.length === 1}
                 className={SELECT_CLASS}
               >
                 {businesses.map((b) => (
@@ -958,7 +959,10 @@ export function InvoiceForm({
             ) : null}
           </div>
         )}
-        <a href="/dashboard" className={buttonClasses("outline", "md")}>
+        <a
+          href={routes.b(businessId).invoices}
+          className={buttonClasses("outline", "md")}
+        >
           Cancel
         </a>
         <Button

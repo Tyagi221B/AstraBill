@@ -51,26 +51,12 @@ export function Sidebar({ business, businesses, user }: SidebarProps) {
   const pathname = usePathname();
   const b = routes.b(business.id);
 
-  // Step 1 of Phase 2D ships only the new dashboard under /b/[id]/...; the
-  // four other sections still live at their old top-level paths and read
-  // `?businessId` from the query string. Step 2 migrates them under
-  // /b/[id]/... and the `path` collapses to `b.invoices` etc. Until then,
-  // those sections render *without* this sidebar — a deliberate transitional
-  // gap (the visible inconsistency is the cue to finish Step 2). `path` is
-  // what active-state compares against (pathname has no query string);
-  // `qs` is appended only when building the link href.
-  const legacyQs = `?businessId=${business.id}`;
   const navItems = [
-    { label: "Dashboard", path: b.dashboard, qs: "", icon: LayoutDashboard },
-    { label: "Invoices", path: "/invoices", qs: legacyQs, icon: ReceiptText },
-    { label: "Customers", path: "/customers", qs: legacyQs, icon: Users },
-    { label: "Products", path: "/products", qs: legacyQs, icon: Package },
-    {
-      label: "Settings",
-      path: "/settings/branding",
-      qs: legacyQs,
-      icon: Settings,
-    },
+    { label: "Dashboard", path: b.dashboard, icon: LayoutDashboard },
+    { label: "Invoices", path: b.invoices, icon: ReceiptText },
+    { label: "Customers", path: b.customers, icon: Users },
+    { label: "Products", path: b.products, icon: Package },
+    { label: "Settings", path: b.settings.branding, icon: Settings },
   ] as const;
 
   return (
@@ -92,7 +78,7 @@ export function Sidebar({ business, businesses, user }: SidebarProps) {
           return (
             <Link
               key={item.path}
-              href={`${item.path}${item.qs}`}
+              href={item.path}
               className={cn(
                 "group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
                 isActive

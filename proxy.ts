@@ -53,17 +53,10 @@ export const config = {
     "/dashboard/:path*",
     "/onboarding",
     "/onboarding/:path*",
-    "/invoices",
-    "/invoices/:path*",
-    "/customers",
-    "/customers/:path*",
-    "/products",
-    "/products/:path*",
-    "/settings",
-    "/settings/:path*",
-    // Phase 2D — business-scoped routes live under /b/[businessId]/*.
-    // The route's layout still verifies membership server-side; this matcher
-    // only handles the unauthenticated → /sign-in redirect.
+    // Phase 2D — every business-scoped page lives under /b/[businessId]/*
+    // (invoices, customers, products, settings all migrated here). The
+    // route's layout verifies membership server-side; this matcher only
+    // handles the unauthenticated → /sign-in redirect.
     "/b/:path*",
   ],
 };

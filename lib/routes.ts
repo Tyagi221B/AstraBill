@@ -35,10 +35,14 @@ export const routes = {
         `${base}/invoices/${invoiceId}/edit`,
       customers: `${base}/customers`,
       newCustomer: `${base}/customers/new`,
-      customer: (customerId: string) => `${base}/customers/${customerId}`,
+      // No customer detail page yet — the only per-customer page is edit.
+      editCustomer: (customerId: string) =>
+        `${base}/customers/${customerId}/edit`,
       products: `${base}/products`,
       newProduct: `${base}/products/new`,
-      product: (productId: string) => `${base}/products/${productId}`,
+      // No product detail page yet — the only per-product page is edit.
+      editProduct: (productId: string) =>
+        `${base}/products/${productId}/edit`,
       settings: {
         branding: `${base}/settings/branding`,
       },
