@@ -13,8 +13,9 @@ import "server-only";
 
 import { db } from "../db";
 import { writeAuditEntry } from "../audit";
+import { isOurCloudinaryUrl } from "../cloudinary";
 import type { Business, BusinessMember } from "../db/schema";
-import { ForbiddenError, NotFoundError } from "../errors";
+import { ForbiddenError, NotFoundError, ValidationError } from "../errors";
 import { roleHas } from "../rbac";
 import type {
   CreateBusinessInput,
@@ -100,6 +101,17 @@ export async function updateBusinessBranding(
     if (!roleHas(found.role, "settings:edit")) {
       throw new ForbiddenError(
         `Your role (${found.role}) cannot edit business settings`,
+      );
+    }
+
+    // A non-null logo URL must point at our own Cloudinary cloud — otherwise
+    // a crafted PATCH could aim the invoice renderer at an arbitrary host.
+    if (
+      typeof input.logoUrl === "string" &&
+      !isOurCloudinaryUrl(input.logoUrl)
+    ) {
+      throw new ValidationError(
+        "Logo URL must be an uploaded image on AstraBill's media host",
       );
     }
 

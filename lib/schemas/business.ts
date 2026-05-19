@@ -67,8 +67,11 @@ const invoiceColumns = z.object({
 
 /**
  * Branding patch — every field optional, but at least one must be present.
- * `logoUrl` is deliberately NOT here: it lands in Stage 4 with the Cloudinary
- * host whitelist, so the endpoint never accepts an arbitrary image URL.
+ *
+ * `logoUrl` accepts a URL or null (null = remove the logo). Zod only checks
+ * it is a syntactically valid URL; the service additionally asserts it is on
+ * *our* Cloudinary cloud (`isOurCloudinaryUrl`) before storing — env-aware
+ * checks belong in the service, not the schema.
  */
 export const updateBrandingSchema = z
   .object({
@@ -76,6 +79,7 @@ export const updateBrandingSchema = z
     brandFont: z.enum(["inter", "poppins", "noto_serif", "noto_sans"]),
     invoiceTemplateId: z.enum(["modern", "classic"]),
     invoiceSettings: z.object({ columns: invoiceColumns }),
+    logoUrl: z.string().url().max(500).nullable(),
   })
   .partial()
   .refine((o) => Object.keys(o).length > 0, {
