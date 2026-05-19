@@ -120,9 +120,11 @@ export interface LineItemOnInvoice {
   discountAmount: string;
   gstRate: string;
   /**
-   * Taxable line value — qty × rate − discount, PRE-GST. The line-items
-   * "Amount" column shows this, and the sum of these is the invoice
-   * subtotal; GST is added below the table, not per line.
+   * GST-INCLUSIVE line total — qty × rate − discount + per-line GST. This
+   * is what the "Amount" column shows: the final amount the customer pays
+   * for this line. Matches competitor convention; the pre-GST breakdown
+   * lives in the summary box (`totals.taxableAmount` + the per-tax rows),
+   * so reconciliation happens there, not by summing the Amount column.
    */
   amount: string;
 }

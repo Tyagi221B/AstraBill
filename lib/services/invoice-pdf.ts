@@ -152,9 +152,11 @@ function buildRenderRequest(
       unitPrice: l.unitPrice,
       discountAmount: l.discountAmount,
       gstRate: l.gstRate,
-      // The "Amount" column is the pre-GST taxable value, so the column
-      // sums to the subtotal — NOT l.amount, which is GST-inclusive.
-      amount: l.taxableAmount,
+      // GST-INCLUSIVE per line — the customer reads "this line costs X
+      // total." Matches competitor convention (myBillBook, Vyapar, SK
+      // Trading clones). The summary box carries the pre-GST breakdown,
+      // so reconciliation moves there, not into the line.
+      amount: l.amount,
     })),
 
     extraCharges: invoice.extraCharges.map((c) => ({
