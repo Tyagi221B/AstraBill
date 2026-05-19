@@ -51,9 +51,6 @@ export function SignInForm() {
           <WhatsAppIcon className="size-5" />
           Continue with phone
         </Button>
-        <p className="-mt-1 text-center text-xs text-muted-foreground">
-          We send a 6-digit code on WhatsApp. No SMS, no spam.
-        </p>
       </div>
     );
   }
