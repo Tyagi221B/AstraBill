@@ -197,9 +197,6 @@ the PDF microservice does, so what they see is what they print.
 
 The non-binding choices that resolve in design review, not SSOT:
 
-- **Brand-color application breadth.** Default plan: table header
-  strip + accent line only. Totals box and H1 stay token-neutral.
-  Revisit after the first Modern template renders.
 - **Festive template set for 2C.5.** Probably Ganesha + Lakshmi +
   one secular-festive (floral border). Final list lands when 2C.5
   starts.
@@ -207,6 +204,26 @@ The non-binding choices that resolve in design review, not SSOT:
   default, but hardware/retail vs pharma have different defaults.
   Could ship a per-vertical preset picker during onboarding — V1.1
   question, not a 2C blocker.
+- **Scale-to-fit (deferred — revisit if real invoices hit it).**
+  Stage 2 tightened the Modern template's rhythm so a typical
+  invoice (3-12 line items + every section) lands on one page, and
+  a genuinely long one paginates cleanly. A narrow window remains:
+  an invoice at ~13-16 items can land at ~1.05 pages and push a
+  little content over. It never looks like a fragment (page 2 still
+  carries the whole summary / HSN / bank / terms), so it is not a
+  blocker. The bulletproof fix is scale-to-fit — measure rendered
+  content height in `render.ts`; if it overflows one page by
+  ≤~15%, re-render with a Puppeteer `scale` so it snaps onto one
+  page. Costs a measure-then-rerender pass only when triggered.
+  Deferred at the user's call (2026-05-19) — add it if production
+  invoices actually land in that window.
+
+## Brand-colour application — resolved in build (Stage 2)
+
+The Modern template uses the brand colour on: the 3px top accent
+bar, the line-items table header band, and the grand-total box.
+The H1, body, and section labels stay token-neutral. Too much
+colour reads as a brochure, not an invoice.
 
 ## Related Pages
 
@@ -219,7 +236,20 @@ The non-binding choices that resolve in design review, not SSOT:
 
 ## Status
 
-Scope locked, four binding choices resolved on 2026-05-19 (see
-DECISIONS.md "Product — Invoice design & branding"). Next step:
-open drizzle migration 0003 for the new `businesses` columns and
-stand up the template registry inside the PDF microservice.
+In build (2026-05-19). Shipped:
+
+- **Stage 0** — render contract (`lib/pdf/contract.ts` + a mirror in
+  `pdf-service/`) and four typed fixtures (small / medium / complex /
+  long). Commit `c70b908`.
+- **Stage 1** — `pdf-service/`: Express + Puppeteer + React SSR
+  microservice, `POST /render`. Commit `5b0d23f`.
+- **Stage 2** — premium Modern template: embedded Inter, real
+  typography, multi-page done properly (repeating table header,
+  no split rows/blocks, per-page Puppeteer footer), tightened so a
+  typical invoice is one page. Commit `02c388c`.
+
+Next: Stage 3 — drizzle migration 0003 (`brand_color`, `brand_font`,
+`invoice_template_id`, `invoice_settings` on `businesses`) + the
+branding API. Then Stage 4 (Cloudinary logo upload), Stage 5 (wire
+Next.js → pdf-service), Stage 6 (`/settings/branding` UI), Stage 7
+(Classic template).
