@@ -36,6 +36,11 @@ export function Modern({ invoice, branding }: RenderRequest) {
   const bank = invoice.business.bank;
   const tr = invoice.transport;
   const hasTransport = Boolean(tr.mode || tr.vehicleNumber || tr.ewayBillNumber);
+  // Show the pre-GST math breakdown (Subtotal → Discount → Charges) only
+  // when something modifies the taxable base; otherwise Subtotal equals
+  // Taxable Amount and the row is just noise. Industry convention.
+  const showBreakdown =
+    Number(t.discountAmount) > 0 || Number(t.extraChargesTaxable) > 0;
 
   // --brand drives the colour accents; --font follows the global font picker
   // (DECISIONS — branding font set; the picker is per-business).
@@ -208,10 +213,12 @@ export function Modern({ invoice, branding }: RenderRequest) {
               <div className="words">{t.totalInWords}</div>
             </div>
             <div className="totals">
-              <div className="t-row">
-                <span className="k">Subtotal</span>
-                <span className="v">{formatInr(t.subtotal)}</span>
-              </div>
+              {showBreakdown && (
+                <div className="t-row">
+                  <span className="k">Subtotal</span>
+                  <span className="v">{formatInr(t.subtotal)}</span>
+                </div>
+              )}
               {Number(t.discountAmount) > 0 && (
                 <div className="t-row">
                   <span className="k">Discount</span>
@@ -225,25 +232,33 @@ export function Modern({ invoice, branding }: RenderRequest) {
                 </div>
               )}
               <div className="t-row">
-                <span className="k">Taxable value</span>
+                <span className="k">Taxable Amount</span>
                 <span className="v">{formatInr(t.taxableAmount)}</span>
               </div>
-              {intrastate ? (
-                <>
-                  <div className="t-row">
-                    <span className="k">CGST</span>
-                    <span className="v">{formatInr(t.cgstAmount)}</span>
-                  </div>
-                  <div className="t-row">
-                    <span className="k">SGST</span>
-                    <span className="v">{formatInr(t.sgstAmount)}</span>
-                  </div>
-                </>
-              ) : (
-                <div className="t-row">
-                  <span className="k">IGST</span>
-                  <span className="v">{formatInr(t.igstAmount)}</span>
-                </div>
+              {t.taxBreakdown.flatMap((b) =>
+                intrastate
+                  ? [
+                      <div className="t-row" key={`cgst-${b.rate}`}>
+                        <span className="k">
+                          CGST @{trimNumber(b.cgstRate)}%
+                        </span>
+                        <span className="v">{formatInr(b.cgstAmount)}</span>
+                      </div>,
+                      <div className="t-row" key={`sgst-${b.rate}`}>
+                        <span className="k">
+                          SGST @{trimNumber(b.sgstRate)}%
+                        </span>
+                        <span className="v">{formatInr(b.sgstAmount)}</span>
+                      </div>,
+                    ]
+                  : [
+                      <div className="t-row" key={`igst-${b.rate}`}>
+                        <span className="k">
+                          IGST @{trimNumber(b.igstRate)}%
+                        </span>
+                        <span className="v">{formatInr(b.igstAmount)}</span>
+                      </div>,
+                    ],
               )}
               {Number(t.extraChargesNonTaxable) > 0 && (
                 <div className="t-row">

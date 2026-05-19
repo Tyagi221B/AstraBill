@@ -135,6 +135,27 @@ export interface ExtraChargeOnInvoice {
 
 // ---- Totals (derived; precomputed by Next.js) --------------------------
 
+/**
+ * One row of the per-rate tax aggregation. The summary box renders these as
+ * separate `CGST @9% · ₹X / SGST @9% · ₹X` rows (intrastate) or
+ * `IGST @18% · ₹X` rows (interstate), one per distinct GST rate on the
+ * invoice. This is industry standard — every competitor SME invoice
+ * (myBillBook, Vyapar, mybillbook) splits the tax summary by rate.
+ */
+export interface TaxRateBreakdown {
+  /** The customer-facing total GST rate, e.g. "18" for 18% (= CGST+SGST or = IGST). */
+  rate: string;
+  /** CGST half-rate as a percentage string, "" for interstate. */
+  cgstRate: string;
+  cgstAmount: string;
+  /** SGST half-rate as a percentage string, "" for interstate. */
+  sgstRate: string;
+  sgstAmount: string;
+  /** Full IGST rate (= `rate`) for interstate, "" for intrastate. */
+  igstRate: string;
+  igstAmount: string;
+}
+
 export interface TotalsOnInvoice {
   subtotal: string;
   discountAmount: string;
@@ -143,9 +164,17 @@ export interface TotalsOnInvoice {
   /** Sum of non-taxable extras (informal freight, loading), added post-tax. */
   extraChargesNonTaxable: string;
   taxableAmount: string;
+  /** Aggregate CGST across every rate. Kept for compatibility / single-line callers. */
   cgstAmount: string;
   sgstAmount: string;
   igstAmount: string;
+  /**
+   * Per-rate breakdown — one entry per distinct GST rate on this invoice,
+   * sorted ascending. The templates render this as separate rate rows in
+   * the summary; the aggregate cgst/sgst/igstAmount above stays for
+   * backward compatibility and quick sums.
+   */
+  taxBreakdown: TaxRateBreakdown[];
   /** Sign-bearing; preserve the "-" prefix on negative round-offs. */
   roundOff: string;
   total: string;

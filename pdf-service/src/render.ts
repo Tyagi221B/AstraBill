@@ -116,19 +116,40 @@ export async function renderInvoicePdf(
 
     // The `.doc` is the whole content column — its bounding-rect height in
     // CSS px is exactly what would print between the page margins.
-    const measuredHeight = await page.evaluate(() => {
-      const doc = document.querySelector(".doc");
-      return doc ? (doc as HTMLElement).getBoundingClientRect().height : 0;
-    });
+    const measureDocHeight = () =>
+      page.evaluate(() => {
+        const doc = document.querySelector(".doc");
+        return doc ? (doc as HTMLElement).getBoundingClientRect().height : 0;
+      });
+    const setRoot = (px: number) =>
+      page.evaluate((v) => {
+        document.documentElement.style.fontSize = `${v}px`;
+      }, px);
 
-    const fitBase = computeFitBase(measuredHeight);
-    if (Math.abs(fitBase - DEFAULT_BASE) > EPSILON) {
+    const h1 = await measureDocHeight();
+    let base = computeFitBase(h1);
+    if (Math.abs(base - DEFAULT_BASE) > EPSILON) {
       // Inline style on <html> beats the stylesheet's `html { font-size }`
       // by specificity. Reflowing this way (no re-setContent) keeps the
       // logo image, fonts, and DOM intact — pure layout pass, ~5ms.
-      await page.evaluate((px) => {
-        document.documentElement.style.fontSize = `${px}px`;
-      }, fitBase);
+      await setRoot(base);
+
+      // Reflow isn't perfectly linear in root font-size — wrap points shift,
+      // padding-in-em grows, break-inside rules push blocks whole to the
+      // next page. Verify the new height and correct once if we overshot
+      // (mostly the upscale case: a short invoice that reflowed taller than
+      // the linear estimate predicted).
+      const h2 = await measureDocHeight();
+      if (h2 > A4_USABLE_PX) {
+        const corrected = Math.max(
+          MIN_BASE,
+          (base * A4_USABLE_PX * TARGET_FILL) / h2,
+        );
+        if (Math.abs(corrected - base) > EPSILON) {
+          base = corrected;
+          await setRoot(base);
+        }
+      }
     }
 
     const pdf = await page.pdf({

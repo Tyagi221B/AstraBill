@@ -18,8 +18,10 @@ import { fixtures } from "../pdf/fixtures";
 import type {
   BrandFont,
   BrandingPayload,
+  HsnSummaryRow,
   InvoicePayload,
   RenderRequest,
+  TaxRateBreakdown,
   TemplateId,
 } from "../pdf/contract";
 import type { Business, Customer } from "../db/schema";
@@ -54,6 +56,59 @@ function addressBlock(parts: Array<string | null>): string | null {
   return lines.length ? lines.join("\n") : null;
 }
 
+/**
+ * Group the HSN summary by total GST rate into one TaxRateBreakdown entry per
+ * rate, sorted ascending. The summary box renders these as separate rate rows
+ * — industry convention; an invoice with both 5% and 18% goods shows BOTH
+ * rows (`IGST @5%`, `IGST @18%`), not one aggregate "IGST".
+ */
+function buildTaxBreakdown(
+  hsnSummary: HsnSummaryRow[],
+): TaxRateBreakdown[] {
+  interface Acc {
+    cgstRate: string;
+    sgstRate: string;
+    igstRate: string;
+    cgst: Decimal;
+    sgst: Decimal;
+    igst: Decimal;
+  }
+  const byRate = new Map<string, Acc>();
+  for (const row of hsnSummary) {
+    // Interstate rows carry igstRate; intrastate rows carry cgstRate+sgstRate.
+    // The customer-facing total rate is the IGST rate or the sum of CGST+SGST.
+    const fullRate = row.igstRate
+      ? row.igstRate
+      : row.cgstRate && row.sgstRate
+        ? new Decimal(row.cgstRate).plus(row.sgstRate).toString()
+        : "";
+    if (!fullRate) continue;
+    const entry = byRate.get(fullRate) ?? {
+      cgstRate: row.cgstRate,
+      sgstRate: row.sgstRate,
+      igstRate: row.igstRate,
+      cgst: new Decimal(0),
+      sgst: new Decimal(0),
+      igst: new Decimal(0),
+    };
+    entry.cgst = entry.cgst.plus(row.cgstAmount || "0");
+    entry.sgst = entry.sgst.plus(row.sgstAmount || "0");
+    entry.igst = entry.igst.plus(row.igstAmount || "0");
+    byRate.set(fullRate, entry);
+  }
+  return Array.from(byRate.entries())
+    .map(([rate, v]) => ({
+      rate,
+      cgstRate: v.cgstRate,
+      cgstAmount: v.cgst.toFixed(2),
+      sgstRate: v.sgstRate,
+      sgstAmount: v.sgst.toFixed(2),
+      igstRate: v.igstRate,
+      igstAmount: v.igst.toFixed(2),
+    }))
+    .sort((a, b) => Number(a.rate) - Number(b.rate));
+}
+
 function buildRenderRequest(
   invoice: CreatedInvoiceRow,
   business: Business,
@@ -77,6 +132,20 @@ function buildRenderRequest(
   const lineItems = invoice.lineItems
     .slice()
     .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  // Built once, used twice — for the contract field and for the per-rate
+  // tax breakdown the summary renders.
+  const hsnSummary = buildHsnSummary(
+    lineItems.map((l) => ({
+      hsnCode: l.hsnCode,
+      gstRate: l.gstRate,
+      taxableAmount: l.taxableAmount,
+      cgstAmount: l.cgstAmount,
+      sgstAmount: l.sgstAmount,
+      igstAmount: l.igstAmount,
+    })),
+    taxClass,
+  );
 
   const bank =
     business.bankName ||
@@ -166,17 +235,7 @@ function buildRenderRequest(
       gstRate: c.gstRate ?? null,
     })),
 
-    hsnSummary: buildHsnSummary(
-      lineItems.map((l) => ({
-        hsnCode: l.hsnCode,
-        gstRate: l.gstRate,
-        taxableAmount: l.taxableAmount,
-        cgstAmount: l.cgstAmount,
-        sgstAmount: l.sgstAmount,
-        igstAmount: l.igstAmount,
-      })),
-      taxClass,
-    ),
+    hsnSummary: hsnSummary,
 
     totals: {
       subtotal: invoice.subtotal,
@@ -187,6 +246,7 @@ function buildRenderRequest(
       cgstAmount: invoice.cgstAmount,
       sgstAmount: invoice.sgstAmount,
       igstAmount: invoice.igstAmount,
+      taxBreakdown: buildTaxBreakdown(hsnSummary),
       roundOff: invoice.roundOff,
       total: invoice.total,
       totalInWords: amountInWords(invoice.total),
