@@ -18,7 +18,9 @@ import * as schema from "./schema";
 function makeDb(client: postgres.Sql) {
   return drizzle(client, {
     schema: { ...schema, ...relations },
-    logger: process.env.NODE_ENV !== "production",
+    // Opt-in SQL logging. Silent by default — the dev terminal stays usable.
+    // Flip on with `DEBUG_SQL=1 npm run dev` when actually debugging a query.
+    logger: process.env.DEBUG_SQL === "1",
   });
 }
 type DrizzleClient = ReturnType<typeof makeDb>;

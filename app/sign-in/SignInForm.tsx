@@ -7,6 +7,7 @@ import { useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import posthog from "posthog-js";
 
+import { GoogleIcon, WhatsAppIcon } from "@/components/ui/BrandIcons";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,11 +28,12 @@ export function SignInForm() {
       <div className="flex flex-col gap-3">
         <Button
           type="button"
-          variant="primary"
+          variant="outline"
           size="lg"
           onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-          className="w-full"
+          className="w-full gap-3"
         >
+          <GoogleIcon className="size-5" />
           Continue with Google
         </Button>
         <div className="flex items-center gap-3 py-1 text-xs text-muted-foreground">
@@ -44,8 +46,9 @@ export function SignInForm() {
           variant="outline"
           size="lg"
           onClick={() => setMode("phone")}
-          className="w-full"
+          className="w-full gap-3"
         >
+          <WhatsAppIcon className="size-5" />
           Continue with WhatsApp
         </Button>
       </div>
