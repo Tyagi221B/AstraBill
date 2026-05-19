@@ -60,7 +60,7 @@ generic header. Mid-2B work surfaced this as the actual blocker: every
 branded chrome to live in. Detailed LLD:
 [[decision/white-label-app-shell]].
 
-Four steps. Steps 1–3 shipped 2026-05-19; only the mobile shell remains.
+Four steps, all shipped 2026-05-19. **Phase 2D is complete.**
 
 1. **Foundation** *(shipped)* — `/b/[businessId]/` layout doing the
    one membership check, `BrandedAppShell` + `Sidebar` with the
@@ -72,7 +72,9 @@ Four steps. Steps 1–3 shipped 2026-05-19; only the mobile shell remains.
 3. **Real dashboard KPIs** *(shipped)* — outstanding ₹, paid this
    month, revenue this month, recent invoices, low stock — replacing
    Step 1's placeholder cards.
-4. **Mobile shell** — hamburger / drawer; current shell is `md:` and up.
+4. **Mobile shell** *(shipped)* — `MobileNav`: a top bar + slide-in
+   drawer below `md`. The sidebar body (`SidebarContent`) is shared
+   between the desktop `<aside>` and the drawer.
 
 **Mid-2D detour — payment recording** *(shipped 2026-05-19)*. Steps 3
 + the customer-udhaar view both need real paid/unpaid numbers, and

@@ -7,11 +7,13 @@
  *   - Nav               — Dashboard / Invoices / Customers / Products / Settings
  *   - Footer            — user identity, sign-out, "Powered by AstraBill"
  *
+ * `SidebarContent` is the shared inner body — it renders inside the desktop
+ * `<aside>` (`Sidebar`) AND inside the mobile drawer (`MobileNav`). The
+ * `onNavigate` callback lets the drawer close itself when a link is tapped.
+ *
  * Branding strategy: restrained. The brand colour shows on (1) the active
- * nav item's left edge, (2) the business avatar fallback. The rest of the
- * sidebar stays neutral so the data area reads cleanly regardless of which
- * colour the shop picked. The whole-sidebar-painted-brand-colour option was
- * considered and rejected — too gaudy for bright reds / greens.
+ * nav item's left edge, (2) the business avatar fallback. The rest stays
+ * neutral so the data area reads cleanly whatever colour the shop picked.
  *
  * Client component: `usePathname` for active-state + dropdown state. All
  * heavy data (business list) is computed on the server and passed in.
@@ -20,7 +22,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { type CSSProperties, useState } from "react";
+import { useState } from "react";
 import {
   Check,
   ChevronsUpDown,
@@ -41,13 +43,31 @@ import { routes } from "@/lib/routes";
 import type { SessionUser } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
-interface SidebarProps {
+export interface SidebarProps {
   business: Business;
   businesses: Array<{ business: Business; membership: BusinessMember }>;
   user: SessionUser;
 }
 
-export function Sidebar({ business, businesses, user }: SidebarProps) {
+/** Desktop sidebar — fixed-width column, hidden below the `md` breakpoint
+ *  (where `MobileNav` takes over). */
+export function Sidebar(props: SidebarProps) {
+  return (
+    <aside className="hidden w-64 shrink-0 border-r border-sidebar-border md:flex">
+      <SidebarContent {...props} />
+    </aside>
+  );
+}
+
+/** The sidebar body — shared by the desktop `<aside>` and the mobile drawer.
+ *  `onNavigate` fires when any nav/switcher link is followed, so the mobile
+ *  drawer can close itself. */
+export function SidebarContent({
+  business,
+  businesses,
+  user,
+  onNavigate,
+}: SidebarProps & { onNavigate?: () => void }) {
   const pathname = usePathname();
   const b = routes.b(business.id);
 
@@ -60,11 +80,12 @@ export function Sidebar({ business, businesses, user }: SidebarProps) {
   ] as const;
 
   return (
-    <aside
-      className="bg-sidebar text-sidebar-foreground hidden w-64 shrink-0 flex-col border-r border-sidebar-border md:flex"
-      style={{ "--brand-accent": business.brandColor } as CSSProperties}
-    >
-      <BusinessSwitcher business={business} businesses={businesses} />
+    <div className="bg-sidebar text-sidebar-foreground flex h-full w-full flex-col">
+      <BusinessSwitcher
+        business={business}
+        businesses={businesses}
+        onNavigate={onNavigate}
+      />
 
       <nav className="flex flex-1 flex-col gap-0.5 px-3 py-4">
         {navItems.map((item) => {
@@ -79,6 +100,7 @@ export function Sidebar({ business, businesses, user }: SidebarProps) {
             <Link
               key={item.path}
               href={item.path}
+              onClick={onNavigate}
               className={cn(
                 "group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
                 isActive
@@ -107,7 +129,7 @@ export function Sidebar({ business, businesses, user }: SidebarProps) {
           <Logo variant="wordmark" className="h-3 w-auto opacity-70" />
         </div>
       </div>
-    </aside>
+    </div>
   );
 }
 
@@ -116,9 +138,11 @@ export function Sidebar({ business, businesses, user }: SidebarProps) {
 function BusinessSwitcher({
   business,
   businesses,
+  onNavigate,
 }: {
   business: Business;
   businesses: Array<{ business: Business; membership: BusinessMember }>;
+  onNavigate?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const hasMore = businesses.length > 1;
@@ -164,7 +188,10 @@ function BusinessSwitcher({
                     key={b.id}
                     role="menuitem"
                     href={routes.b(b.id).dashboard}
-                    onClick={() => setOpen(false)}
+                    onClick={() => {
+                      setOpen(false);
+                      onNavigate?.();
+                    }}
                     className="flex items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-muted"
                   >
                     <BusinessAvatar business={b} className="h-6 w-6 text-[10px]" />
@@ -179,7 +206,10 @@ function BusinessSwitcher({
             <Link
               role="menuitem"
               href={routes.onboarding}
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                setOpen(false);
+                onNavigate?.();
+              }}
               className={cn(
                 "flex items-center gap-2 px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
                 hasMore && "border-t border-border",
@@ -197,7 +227,8 @@ function BusinessSwitcher({
 
 /* --------------------------------------------------------------------- */
 
-function BusinessAvatar({
+/** Business logo, or a brand-coloured initials tile when no logo is set. */
+export function BusinessAvatar({
   business,
   className,
 }: {
@@ -206,7 +237,7 @@ function BusinessAvatar({
 }) {
   if (business.logoUrl) {
     // Plain <img>: the URL is Cloudinary (validated server-side) and the
-    // sidebar avatar is tiny — next/image's optimization isn't worth the
+    // avatar is tiny — next/image's optimization isn't worth the
     // remoteImages config burden here.
     // eslint-disable-next-line @next/next/no-img-element
     return (

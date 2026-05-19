@@ -692,3 +692,25 @@ Real numbers throughout, possible because payment recording landed
 first. No new decision page — a straightforward read view on top of
 the payment primitive; `decision/payment-recording.md` Status
 updated to mark the udhaar view shipped.
+
+## [2026-05-19] build | Phase 2D Step 4 — mobile shell
+
+The desktop sidebar was `md:`-only — below that breakpoint the app
+had no navigation at all. For a mobile-first product where 90% of
+WhatsApped invoices open on phones, that was a real gap.
+
+- `Sidebar.tsx` split: the inner body extracted to a shared
+  `SidebarContent` (BusinessSwitcher + nav + footer). The desktop
+  `Sidebar` is now just the `<aside hidden md:flex>` wrapping it.
+- New `MobileNav` — a sticky top bar (hamburger + business avatar +
+  name) and a slide-in left drawer holding `SidebarContent`. The
+  drawer is always mounted; opacity + transform toggle it so it
+  slides and fades. Body scroll locks while open; Escape closes it;
+  tapping a nav link closes it (via `SidebarContent`'s `onNavigate`).
+- `BrandedAppShell` restructured — sidebar + a column holding the
+  mobile header and `<main>`.
+
+**Phase 2D is now complete** (Steps 1–4). The app feels like the
+owner's branded billing dashboard on every screen size. Status tables
+in `decision/white-label-app-shell.md` + `decision/phase-2-plan.md`
+updated; no new decision page (Step 4 of an existing decision).

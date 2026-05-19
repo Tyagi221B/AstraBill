@@ -160,13 +160,14 @@ id five times.
 | 1 | Path-based routing scaffold (`/b/[businessId]/` layout + membership check), `BrandedAppShell`, `Sidebar` with BusinessSwitcher, smart `/dashboard` redirect, dashboard placeholder, `lib/routes.ts` | ✅ shipped |
 | 2 | Migrate `/invoices`, `/customers`, `/products`, `/settings/branding` under `/b/[businessId]/...` | ✅ shipped |
 | 3 | Real dashboard KPIs (outstanding ₹, paid this month, revenue this month, recent invoices, low stock) replacing the placeholder cards | ✅ shipped |
-| 4 | Mobile shell — hamburger / drawer for the sidebar; current shell is `md:` and up only | pending |
+| 4 | Mobile shell — `MobileNav`: a top bar + slide-in drawer below `md`, where the desktop sidebar is hidden | ✅ shipped |
 
-Step 3 KPIs were gated on payment recording — every money figure on the
-dashboard is a function of what's been paid (see [[decision/payment-recording]]).
-Top-customers was dropped from the Step 3 set as a later addition; the shipped
-KPIs are outstanding / paid-this-month / revenue-this-month + recent invoices
-+ low stock. Only the mobile shell (Step 4) remains.
+**Phase 2D is complete.** Step 3 KPIs were gated on payment recording — every
+money figure on the dashboard is a function of what's been paid (see
+[[decision/payment-recording]]); top-customers was dropped from the Step 3
+set as a later addition. Step 4 split the sidebar body into a shared
+`SidebarContent` rendered by both the desktop `<aside>` and a mobile drawer.
+The app now feels like the owner's billing dashboard on every screen size.
 
 ## Related
 
