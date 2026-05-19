@@ -205,19 +205,11 @@ The non-binding choices that resolve in design review, not SSOT:
   default, but hardware/retail vs pharma have different defaults.
   Could ship a per-vertical preset picker during onboarding — V1.1
   question, not a 2C blocker.
-- **Scale-to-fit (deferred — revisit if real invoices hit it).**
-  Stage 2 tightened the Modern template's rhythm so a typical
-  invoice (3-12 line items + every section) lands on one page, and
-  a genuinely long one paginates cleanly. A narrow window remains:
-  an invoice at ~13-16 items can land at ~1.05 pages and push a
-  little content over. It never looks like a fragment (page 2 still
-  carries the whole summary / HSN / bank / terms), so it is not a
-  blocker. The bulletproof fix is scale-to-fit — measure rendered
-  content height in `render.ts`; if it overflows one page by
-  ≤~15%, re-render with a Puppeteer `scale` so it snaps onto one
-  page. Costs a measure-then-rerender pass only when triggered.
-  Deferred at the user's call (2026-05-19) — add it if production
-  invoices actually land in that window.
+- ~~Scale-to-fit (deferred)~~ — **resolved in build, see "Dynamic
+  fit-to-page" below.** The deferred scale-to-fit was the
+  one-directional version (down-scale a slightly-long invoice onto
+  one page). The shipped version goes both directions — short
+  invoices scale UP too, which the deferred note didn't anticipate.
 
 ## Brand-colour application — resolved in build
 
@@ -242,6 +234,39 @@ traditional even when the picked font is a sans. `fonts.ts` embeds
 only the *one* picked family per render (base64 data-URI, no CDN);
 Poppins and Noto Sans additionally embed their Devanagari subset so a
 Hindi business name renders.
+
+## Dynamic fit-to-page — resolved in build
+
+Stage 2 tuned the Modern template tight (9.5px base) so that a 12-item
+invoice would fit one page. The cost was an under-fill problem at the
+other end: a 1–3-item invoice read tiny and stranded the bottom half
+of the page — visibly smaller and less full than competitor invoices.
+User feedback (2026-05-19): "our size is too small as compared to
+others."
+
+The shipped fix reverses the design constraint. Both templates' CSS
+moved fully to `rem` units; one root font-size therefore drives the
+whole layout. `render.ts` measures `.doc` height once after SSR and
+picks the root size that fills ~93% of the usable A4 height:
+
+| Invoice length | Root size | Outcome |
+|---|---|---|
+| Short (1–3 items) | scaled UP, capped at 16px | masthead/type read big, page fills |
+| Typical (5–10 items) | ≈ default 11px | one page, comfortable |
+| Slightly long | scaled DOWN, floor 8.5px | squeezed onto one page |
+| Genuinely long (~13+ items) | default 11px | paginates normally |
+
+Only the type scales — the page width (A4) and the `.doc` mm gutter
+stay fixed, so content reflows vertically and is never clipped
+sideways. Borders stay at fixed px so hairlines don't grow into bars.
+
+The second render is a `page.evaluate` that sets
+`document.documentElement.style.fontSize` (inline style beats the
+stylesheet's `html { font-size }` by specificity) — no
+re-`setContent`, so the logo image isn't re-fetched. Total render
+~165ms.
+
+This supersedes the originally-deferred one-directional scale-to-fit.
 
 ## Live preview — resolved in build (Stage 6)
 
@@ -298,6 +323,12 @@ with a live preview.
 - **Stage 6** — `/settings/branding` (Template · Colors · Font ·
   Columns + logo upload), `GET /i/preview`, and
   `renderBrandingPreviewPdf`. `3ee03ae`.
+- **Dynamic fit-to-page** — both templates re-cut in `rem`; the
+  renderer measures content height and picks the root font-size that
+  fills ~93% of A4. Short invoices scale UP (masthead bigger, page
+  fills), slightly-long invoices scale DOWN (one page); genuinely
+  long ones paginate at the default. Replaces the deferred
+  scale-to-fit item. `fd6d66d`.
 
 **Deferred to 2C.5** (unchanged): thermal-80 template, festive /
 themed templates, the pharma column set (batch / MFG / EXP) and a

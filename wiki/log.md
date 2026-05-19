@@ -526,3 +526,25 @@ Stages 0–5:
 (thermal-80, festive templates, the pharma column set + its template,
 custom-T&C library). Full state in
 decision/invoice-design-system.md "Status".
+
+## [2026-05-19] build | Dynamic fit-to-page — invoices fill the A4 dynamically
+
+User feedback on the just-shipped 2C-1: a short invoice's content read
+small and stranded the bottom of the page — visibly less substantial
+than myBillBook / Vyapar / Tally clones. Stage 2's tight 9.5px base
+fit a 12-item invoice on one page at the cost of under-filling a
+1–3-item one.
+
+Reworked the renderer to be dynamic both ways. `fd6d66d`:
+
+- Both templates' CSS converted to `rem` units (one root font-size
+  drives the whole layout). Borders stay px so hairlines don't grow.
+- `render.ts` measures `.doc` height after SSR and picks the root
+  size that fills ~93% of A4. Short → scale UP (cap 16px), long →
+  scale DOWN (floor 8.5px), genuinely long → default + paginate.
+- Re-application via `page.evaluate` (inline style on `<html>`), no
+  re-setContent. Total render ~165ms.
+
+Replaces the originally-deferred one-directional scale-to-fit; the
+shipped form handles UNDER-fill too. Updated
+decision/invoice-design-system.md.
