@@ -427,3 +427,58 @@ hand-rolled-vs-CLI tradeoff. overview.md thesis-evolution line added.
 Typecheck clean. Dev-server smoke test: every migrated route returns 200.
 The "app pass" branch of frontend work is now complete; further frontend
 polish lands on top of this foundation.
+
+## [2026-05-19] ingest | myBillBook competitor profile + Phase 2C scoped (Invoice Design System)
+
+Wiki research caught a competitor gap: **myBillBook** (FloBiz, ~$40M
+raised, "1 Crore+ businesses" on their landing) wasn't in the
+competitor catalogue. The 6 landing screenshots ingested today show
+their #1 paid-tier upsell is **brand-customizable invoices** — the
+"Your bill, Your Brand: Color · Logo · Font · And More!" animated
+hero, three template sizes (Thermal · A4 · A5), a "Customize your own
+Invoice" drag-and-toggle builder, and "Special Themes" including a
+Ganesha-watermarked variant.
+
+Strategic implication: AstraBill's current PDF (one generic template,
+no brand fields, no logo upload) does not clear the Indian SME
+category's table-stakes bar. The "your customer sees your invoice
+and knows it's *yours*" test is what converts a Day-1 free signup to
+paid retention — and it's the artifact the future WhatsApp loop
+delivers, so a generic PDF undermines the loop AstraBill is built
+around.
+
+Pages created:
+- `wiki/competitor/mybillbook.md` — full profile, hero pitch
+  verbatim, template catalogue, strengths/weaknesses, threat
+  assessment. Updated `wiki/index.md`.
+- `wiki/decision/invoice-design-system.md` — Phase 2C LLD. Template
+  engine (parameterized per template, served from the PDF
+  microservice), branding fields on `businesses` (`logo_url` already
+  in schema, now wired up; new `brand_color`, `brand_font`,
+  `invoice_template_id`, `invoice_settings` JSONB), Cloudinary
+  signed-upload pipeline, `/settings/branding` UI with live preview,
+  three V1 templates (Modern · Classic · Thermal 80mm), festive
+  templates + column-toggle in 2C.5.
+
+Wiki + DECISIONS realigned:
+- `wiki/decision/phase-2-plan.md` — sequencing rewritten. **2C now
+  lands before 2B.** Reason: 2C is unblocked codebase work;
+  2B requires Meta WABA template verification + Razorpay KYC (both
+  multi-week external blockers). Building 2C during that window
+  means 2B's first WhatsApp send delivers a brand-customised PDF,
+  not a generic one.
+- `wiki/overview.md` — competitor differentiation table expanded to
+  include myBillBook column + two new rows (brand-customizable PDF;
+  themed templates). Thesis-evolution line added for the 2C-before-2B
+  pivot.
+- `wiki/index.md` — both new pages indexed.
+
+`DECISIONS.md` left untouched in this entry — 2C's open questions
+(default template, free-vs-paid branding gate, "Made with AstraBill"
+footer, font set, brand-colour application breadth) are explicitly
+listed in `decision/invoice-design-system.md` and resolved during
+the build, not pre-decided in the SSOT.
+
+Open question for the user: a couple of the 2C scope choices need
+direction before migration 0003 opens — listed in the new decision
+page's "Open questions" section.

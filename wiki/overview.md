@@ -24,16 +24,18 @@ The positioning: **Tally for your CA; AstraBill for you.**
 
 ## Differentiation Stack
 
-| Feature | Tally | Vyapar | KhataBook | AstraBill |
-|---------|-------|--------|-----------|-----------|
-| Mobile access | ❌ | ✅ | ✅ | ✅ |
-| WhatsApp invoice (working) | ❌ | ❌ (broken) | ❌ | ✅ |
-| UPI payment link in invoice | ❌ | Partial | ❌ | ✅ |
-| Proper RBAC (salesman can't see margin) | Partial | ❌ | ❌ | ✅ |
-| AI-assisted (2026 features) | ❌ | ❌ | ❌ | ✅ |
-| No training needed | ❌ | Partial | ✅ | ✅ |
-| PWA / offline | ❌ | Partial | ✅ | ✅ |
-| Price (annual, 1 user) | ₹5,310 renewal | ~₹5,000 | Free/low | ₹4,999 |
+| Feature | Tally | Vyapar | myBillBook | KhataBook | AstraBill |
+|---------|-------|--------|------------|-----------|-----------|
+| Mobile access | ❌ | ✅ | ✅ | ✅ | ✅ |
+| WhatsApp invoice (working) | ❌ | ❌ (broken) | Sub-feature | ❌ | ✅ |
+| UPI payment link in invoice | ❌ | Partial | Partial | ❌ | ✅ |
+| Brand-customizable PDF (logo, color, font) | ❌ | ✅ | ✅ (their wedge) | ❌ | 2C |
+| Themed templates (festive / sector-specific) | ❌ | Some | ✅ | ❌ | 2C.5 |
+| Proper RBAC (salesman can't see margin) | Partial | ❌ | ❌ | ❌ | ✅ |
+| AI-assisted (2026 features) | ❌ | ❌ | ❌ | ❌ | ✅ |
+| No training needed | ❌ | Partial | Partial | ✅ | ✅ |
+| PWA / offline | ❌ | Partial | ✅ | ✅ | ✅ |
+| Price (annual, 1 user) | ₹5,310 renewal | ~₹5,000 | ₹999–2,499/mo gated | Free/low | ₹4,999 |
 
 ## Hero Feature (V1)
 
@@ -63,6 +65,7 @@ GST filing → V2. See `DECISIONS.md`.)
 - **2026-05-17**: Thesis formed after first major research pass. Market validated. Differentiation identified. Tally education gap confirmed. Marketing identified as the real moat.
 - **2026-05-18**: Phase 2A shipped — customers + products catalogues, the invoice-anatomy migration (dual-unit lines, ship-to, extra charges, transport, e-way), FY-aware invoice numbering, and stock movement on finalise. The build now turns to Phase 2B, the WhatsApp hero loop. Thesis unchanged; this is execution.
 - **2026-05-19**: Frontend app pass (F3) shipped — shadcn/ui adopted (non-destructive merge), five hand-rolled v4 primitives (Input/Label/Textarea/Card/Badge), `AppShell` deduping chrome across every authed page, welcoming `/sign-in`, every app page off inline styles and on the token system. Phase 2B (WhatsApp hero loop) starts from a frontend foundation that no longer fights the build.
+- **2026-05-19**: myBillBook competitor ingest changed the build order. Their landing leads with "Your bill, Your Brand: Color · Logo · Font · And More!" — brand-customizable invoices are the category's #1 paid-tier upsell, not vanity. AstraBill's PDF is currently one generic template; that's the trust gap that loses Day-1 signups. New phase **2C (Invoice Design System)** scoped — template engine, brand fields on businesses, Cloudinary logo upload, three V1 templates (Modern · Classic · Thermal 80mm), customization UI. **2C lands before 2B** because 2B has external blockers (Meta WABA + Razorpay KYC) and its hero artifact is the PDF this work makes worth sending. [[decision/invoice-design-system]] + [[competitor/mybillbook]].
 
 ## Related Pages
 

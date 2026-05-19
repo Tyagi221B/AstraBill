@@ -21,7 +21,8 @@
 | [decision/code-architecture.md](decision/code-architecture.md) | decision | LLD: thin routes → service → repo → DB. Interfaces for externals. Typed errors. |
 | [decision/v1-scope.md](decision/v1-scope.md) | decision | V1: GST invoice + PDF + WhatsApp + Udhaar + Inventory. English only. No shortcuts. |
 | [decision/phase-2-plan.md](decision/phase-2-plan.md) | decision | 2A (customers, products, invoice anatomy, FY numbering, stock) shipped; page is now the live 2B WhatsApp hero-loop blueprint. |
-| [decision/frontend-architecture.md](decision/frontend-architecture.md) | decision | Tailwind v4 + CSS-variable theming (light/dark via next-themes); marketing site as a route group; shadcn deferred to the app pass. |
+| [decision/frontend-architecture.md](decision/frontend-architecture.md) | decision | Tailwind v4 + CSS-variable theming (light/dark via next-themes); marketing site as a route group; shadcn adopted in F3. |
+| [decision/invoice-design-system.md](decision/invoice-design-system.md) | decision | Phase 2C: template engine + brand customization (logo, color, font, columns). Lands *before* 2B — no external blockers, and 2B's hero artifact is the PDF this work makes worth sending. |
 | **Competitors** | | |
 | [competitor/tally.md](competitor/tally.md) | competitor | The 30-year incumbent. Desktop-only, 70-90% MSME share, steep learning curve, ₹22,500+ |
 | [competitor/vyapar.md](competitor/vyapar.md) | competitor | Mobile challenger, 1Cr users, broken WhatsApp, serious RBAC privacy hole |
@@ -29,6 +30,7 @@
 | [competitor/zoho-books.md](competitor/zoho-books.md) | competitor | Best cloud accounting, but complex setup — for accountants not owners |
 | [competitor/refrens.md](competitor/refrens.md) | competitor | Best ratings (4.8★), WhatsApp-first, freelancer-focused — not our segment |
 | [competitor/odoo.md](competitor/odoo.md) | competitor | ERP for growing businesses. Too heavy for SMEs, but shows graduation path |
+| [competitor/mybillbook.md](competitor/mybillbook.md) | competitor | FloBiz-backed direct peer. "1 Crore+ businesses" claim. Leads with brand-customizable invoices — the gap AstraBill closes in 2C. |
 | **Customers** | | |
 | [customer/hardware-shop-owner.md](customer/hardware-shop-owner.md) | customer | Glass/hardware shop: multi-unit billing, udhaar tracking, kacha/pakka reality |
 | **Concepts** | | |

@@ -1,6 +1,6 @@
 ---
 type: decision
-updated: 2026-05-18
+updated: 2026-05-19
 sources: 1
 ---
 
@@ -34,8 +34,21 @@ notes are kept here because they are *why*, not *what*:
   index. Non-tax types keep their built-in prefixes; collision becomes
   impossible rather than merely unlikely.
 
-What 2A did **not** include, and 2B picks up: PDF generation, WhatsApp send,
-payments.
+What 2A did **not** include, and 2B/2C pick up: PDF generation,
+brand-customizable invoice templates, WhatsApp send, payments.
+
+## Phase 2C — Invoice Design System  (lands *before* 2B)
+
+The competitor ingest on 2026-05-19 ([[competitor/mybillbook]]) made
+clear that brand-customizable invoices are the category's #1 paid-tier
+upsell. AstraBill's PDF is currently one generic template — a Day-1
+trust gap. 2C closes it: template engine + brand fields + Cloudinary
+logo upload + customization UI + three V1 templates (Modern · Classic ·
+Thermal 80mm). LLD lives in [[decision/invoice-design-system]].
+
+**Why 2C precedes 2B:** 2B has external blockers (Meta WABA + Razorpay
+KYC, both multi-week). 2C is unblocked codebase + Cloudinary work.
+2B's hero artifact is the PDF; 2C makes that PDF worth sending.
 
 ## Phase 2B — WhatsApp Send + UPI  (the hero loop)
 
@@ -64,19 +77,26 @@ generated → WhatsApp delivered with PDF + UPI link → customer pays → webho
 ## Sequencing & parallel work
 
 1. **Submit Meta templates now (parallel):** `astrabill_otp_v1` +
-   `astrabill_invoice_v1`. Verification takes 1–3 days — start the clock so
-   it isn't the bottleneck.
+   `astrabill_invoice_v1`. Submit Razorpay KYC alongside. Both take
+   weeks — start the clock so they're not the bottleneck.
 2. **Phase 2A** — done.
-3. **Phase 2B** — build once the templates are verified.
-4. **Design pass** — the invoice PDF template lands inside 2B part 1; general
-   UI polish interleaves. Correctness first, then make it beautiful.
+3. **Phase 2C** — build *now*, while Meta + Razorpay verifications
+   pend. ~10 working days for the template engine + 3 templates +
+   branding model + Cloudinary logo upload + `/settings/branding` UI.
+4. **Phase 2B** — build once Meta + Razorpay are verified. The PDF
+   the loop sends is the one 2C made worth sending.
+5. **Festive/themed templates + column toggles (2C.5)** — interleaved
+   with 2B once the core 2C lands.
 
 ## Related Pages
 
 - [[customer/hardware-shop-owner]] — the real invoices Phase 2 is built from
+- [[competitor/mybillbook]] — the competitor whose template-system pressure
+  forced 2C into existence
+- [[decision/invoice-design-system]] — 2C LLD
 - [[decision/v1-scope]] — the four V1 features
 - [[decision/database-and-rbac]] — the flat-select rule for numeric tables
-- [[decision/pdf-generation]] — the PDF microservice
+- [[decision/pdf-generation]] — the PDF microservice 2C extends
 - [[decision/payment-gateway]] — Razorpay
 - [[decision/whatsapp-meta-api]] — the Meta send path
 - [[decision/infrastructure]] — where server-side PostHog enters in 2B
