@@ -12,7 +12,7 @@
 import type { CSSProperties } from "react";
 
 import type { InvoiceType, RenderRequest } from "../contract.js";
-import { INTER_FONT_CSS } from "../fonts.js";
+import { fontFaceCss, fontStack } from "../fonts.js";
 import { formatDate, formatInr, trimNumber } from "../format.js";
 import { MODERN_CSS } from "../styles.js";
 
@@ -37,8 +37,12 @@ export function Modern({ invoice, branding }: RenderRequest) {
   const tr = invoice.transport;
   const hasTransport = Boolean(tr.mode || tr.vehicleNumber || tr.ewayBillNumber);
 
-  // Column count, for the empty cells on charge rows.
-  const rootStyle = { "--brand": branding.color } as CSSProperties;
+  // --brand drives the colour accents; --font follows the global font picker
+  // (DECISIONS — branding font set; the picker is per-business).
+  const rootStyle = {
+    "--brand": branding.color,
+    "--font": fontStack(branding.font),
+  } as CSSProperties;
 
   return (
     <html lang="en">
@@ -48,7 +52,9 @@ export function Modern({ invoice, branding }: RenderRequest) {
           {`${invoice.number ?? "Draft"} — ${invoice.business.name}`}
         </title>
         <style
-          dangerouslySetInnerHTML={{ __html: INTER_FONT_CSS + MODERN_CSS }}
+          dangerouslySetInnerHTML={{
+            __html: fontFaceCss(branding.font) + MODERN_CSS,
+          }}
         />
       </head>
       <body>

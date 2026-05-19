@@ -18,8 +18,9 @@
  * genuinely long — never because the rhythm was loose enough to strand a
  * lone block on page 2.
  *
- * `--brand` is set inline on .doc from branding.color. Inter is embedded via
- * INTER_FONT_CSS (fonts.ts); this string only references the family.
+ * `--brand` (colour) and `--font` (the picked font stack) are set inline on
+ * .doc from branding; the @font-face block is embedded ahead of this string
+ * by fontFaceCss(branding.font). This string only references `var(--font)`.
  */
 export const MODERN_CSS = `
   @page { size: A4; }
@@ -27,7 +28,6 @@ export const MODERN_CSS = `
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   html, body {
-    font-family: 'Inter', -apple-system, "Segoe UI", Roboto, sans-serif;
     color: #334155;
     font-size: 9.5px;
     line-height: 1.5;
@@ -41,7 +41,10 @@ export const MODERN_CSS = `
   tr { break-inside: avoid; }
   .summary, .party, .bank, .info-card { break-inside: avoid; }
 
-  .doc { padding: 0 14mm; }
+  .doc {
+    padding: 0 14mm;
+    font-family: var(--font, -apple-system, "Segoe UI", Roboto, sans-serif);
+  }
 
   /* ---- top accent ---- */
   .accent {
