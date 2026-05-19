@@ -110,6 +110,23 @@ Shipped in Phase 2A — see [[decision/phase-2-plan]].
 | Invoice types | `tax_invoice`, `estimate`, `cash_receipt`, `credit_note`, `debit_note`, `delivery_challan` (non-GST goods-movement note) | — | [[customer/hardware-shop-owner]] |
 | Amount in words | Rendered on the invoice PDF; derived at render time, not stored | a stored words column | [[decision/phase-2-plan]] |
 
+## Product — Invoice design & branding  (Phase 2C)
+
+Every fact below is *binding once 2C is in flight*; deviations require a
+DECISIONS update first. Rationale + LLD: [[decision/invoice-design-system]].
+Competitor pressure: [[competitor/mybillbook]].
+
+| Area | Decision | Never | Rationale |
+|------|----------|-------|-----------|
+| V1 template set | Three: `modern`, `classic`, `thermal_80`. Each = an HTML+CSS file inside the PDF microservice with its own bundled `.woff2` fonts (no CDN — print determinism) | a web-font CDN; user-uploaded HTML templates; per-invoice template override (V1 is per-business default) | [[decision/invoice-design-system]] |
+| Default template | `modern` — Inter, brand-colour accents, minimal borders. Reads cleanest on a phone screen, where 90% of WhatsApped invoices are opened | making `classic` default ("looks more authoritative" is a print-era reflex; the loop's read-surface is a phone) | [[decision/invoice-design-system]] |
+| Branding free vs paid | Logo + brand colour + font + all three V1 templates ship on the **Free** plan. Paid tiers unlock festive/themed templates (2C.5), column-toggle visibility, and footer removal | gating logo/colour/font behind paid (the trust moment is Day-1; you cannot earn retention through a paywall on the basics) | [[decision/invoice-design-system]] |
+| Free-plan PDF footer | "Made with AstraBill" rendered at 8pt grey, centred, at the bottom of every PDF page on the Free plan. Removed on paid plans | banner-sized branding; logos on the footer; mid-page watermarks | [[decision/invoice-design-system]] |
+| Branding font set | Four: `inter` (default), `poppins`, `noto_serif`, `noto_sans` (the last includes Devanagari so a Hindi business name renders correctly). Each template declares which it uses; the picker is global per business | a fifth "ornate" option (Playfair / display serifs) in V1 — choice overload; festive themes carry that buyer segment in 2C.5; web-font CDNs for any font | [[decision/invoice-design-system]] |
+| Branding columns on `businesses` | `logo_url` (already in schema), `brand_color` text (hex; `/^#[0-9a-fA-F]{6}$/`), `brand_font` text (one of the four), `invoice_template_id` text (one of the three), `invoice_settings` jsonb (column-visibility flags, defaults to all-visible) | per-invoice template override (V1); snapshotting branding into invoice rows at finalise (V1 re-renders from current branding — historical PDFs change look on theme change; tradeoff accepted) | [[decision/invoice-design-system]] |
+| Logo upload | Cloudinary signed direct-upload from the browser. New endpoint `POST /api/uploads/signature` returns timestamp + signature + folder restriction `astrabill/{businessId}/logos`. Browser uploads, then PATCHes `/api/businesses/{id}` with `logo_url`. Server validates URL host against Cloudinary whitelist | proxying uploads through Next.js (memory + bandwidth cost); accepting arbitrary URLs on the PATCH | [[decision/invoice-design-system]] |
+| Branding settings UI | New route `/settings/branding` under `AppShell`, tabs: Template · Colors · Font · Columns. Right pane is a live-preview iframe at `/i/preview?...` rendering the user's most-recent finalised invoice with current branding | a drag-and-drop builder like myBillBook's column-toggle canvas (the three good defaults strategy beats one generic + builder) | [[decision/invoice-design-system]] |
+
 ## Product — Pricing
 
 | Plan | Price | Key limits | Rationale |

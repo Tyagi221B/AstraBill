@@ -176,27 +176,37 @@ realistic sample). Preview is a server-rendered iframe pointing at
 `/i/preview?template=...&color=...` — uses the same template files
 the PDF microservice does, so what they see is what they print.
 
-## Open questions
+## Resolved (locked in DECISIONS.md, 2026-05-19)
 
-These need user direction before / during the build:
+1. **Default template = Modern.** Phone is the read-surface; Modern
+   beats Classic there. Classic is one click away in the picker.
+2. **Branding on Free, festive + columns on Paid.** Logo, colour,
+   font, and all three V1 templates are Free-plan features. Paid
+   tiers (2C.5) unlock festive/themed templates, column-toggle
+   visibility, and Free-plan-footer removal. The branding basics
+   are the trust moment; you cannot earn retention through a paywall
+   on the basics.
+3. **"Made with AstraBill" footer = yes, on Free.** 8pt grey, centred,
+   bottom of every page. Removed on paid plans. Doubles as organic
+   distribution (every customer who opens an invoice sees the mark).
+4. **Font set = 4.** Inter, Poppins, Noto Serif, Noto Sans
+   (Devanagari-capable). No fifth ornate face in V1 — festive
+   templates in 2C.5 carry that buyer segment.
 
-1. **Default template** — Modern, or Classic? My read: **Modern**
-   default, Classic switchable. Modern reads cleaner on a phone
-   screen, which is where 90% of WhatsApped invoices are read.
-2. **Free plan + branding** — myBillBook gates customization behind
-   paid tiers. Do we put templates + colour + logo on **Free**, and
-   gate only the festive/themed templates + column-toggle on paid?
-   My read: **yes**, give branding away — it's the trust moment that
-   converts free to paid through retention, not through a paywall.
-3. **"Made with AstraBill" footer** — invisible by default, or 8pt
-   grey at the bottom of the PDF? Pricing lever: paid plans remove it.
-4. **Font set** — Inter, Poppins, Noto Serif, Noto Sans (Devanagari-
-   capable). Want a fifth more "ornate" option (Playfair Display)
-   for jewellers / boutique businesses?
-5. **Brand-color application** — only on table header strip + accent
-   line? Or also on the totals box, the H1, and the signature box?
-   The "tasteful" answer is *table headers + accent only*; too much
-   colour and the invoice looks like a brochure.
+## Open during the build
+
+The non-binding choices that resolve in design review, not SSOT:
+
+- **Brand-color application breadth.** Default plan: table header
+  strip + accent line only. Totals box and H1 stay token-neutral.
+  Revisit after the first Modern template renders.
+- **Festive template set for 2C.5.** Probably Ganesha + Lakshmi +
+  one secular-festive (floral border). Final list lands when 2C.5
+  starts.
+- **Per-business default for `invoice_settings` columns.** All-on by
+  default, but hardware/retail vs pharma have different defaults.
+  Could ship a per-vertical preset picker during onboarding — V1.1
+  question, not a 2C blocker.
 
 ## Related Pages
 
@@ -209,5 +219,7 @@ These need user direction before / during the build:
 
 ## Status
 
-Not started. Awaiting user direction on the open questions above
-before opening migration 0003.
+Scope locked, four binding choices resolved on 2026-05-19 (see
+DECISIONS.md "Product — Invoice design & branding"). Next step:
+open drizzle migration 0003 for the new `businesses` columns and
+stand up the template registry inside the PDF microservice.
