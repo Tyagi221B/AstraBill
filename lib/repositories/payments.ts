@@ -8,7 +8,7 @@
  * reads note in lib/repositories/invoices.ts).
  */
 import "server-only";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import Decimal from "decimal.js";
 
 import { db, type Tx } from "../db";
@@ -79,4 +79,26 @@ export async function softDeletePayment(
     .update(payments)
     .set({ deletedAt: new Date() })
     .where(eq(payments.id, paymentId));
+}
+
+/**
+ * Total money received by a business since an instant — `SUM(amount)` over
+ * non-deleted payments with `paid_at >= since`. Drives the dashboard's
+ * "paid this month" figure. Returns a money string.
+ */
+export async function sumPaymentsForBusinessSince(
+  businessId: string,
+  since: Date,
+): Promise<string> {
+  const [row] = await db
+    .select({ total: sql<string>`coalesce(sum(${payments.amount}), 0)` })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.businessId, businessId),
+        isNull(payments.deletedAt),
+        gte(payments.paidAt, since),
+      ),
+    );
+  return row?.total ?? "0";
 }

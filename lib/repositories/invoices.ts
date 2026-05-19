@@ -426,6 +426,55 @@ export async function listInvoicesForUser(opts: {
     .limit(opts.limit ?? 50);
 }
 
+// ---- Dashboard aggregates ----------------------------------------------
+
+/**
+ * Total still owed to a business — `SUM(total - amount_paid)` over every
+ * non-draft, non-deleted invoice. Fully-paid invoices contribute 0, so no
+ * status filter beyond excluding drafts is needed. The headline udhaar
+ * figure. Returns a money string ("0" when there are no invoices).
+ */
+export async function sumOutstandingForBusiness(
+  businessId: string,
+): Promise<string> {
+  const [row] = await db
+    .select({
+      total: sql<string>`coalesce(sum(${invoices.total} - ${invoices.amountPaid}), 0)`,
+    })
+    .from(invoices)
+    .where(
+      and(
+        eq(invoices.businessId, businessId),
+        isNull(invoices.deletedAt),
+        ne(invoices.status, "draft"),
+      ),
+    );
+  return row?.total ?? "0";
+}
+
+/**
+ * Revenue booked since a date — `SUM(total)` over non-draft, non-deleted
+ * invoices with `issue_date >= since`. `since` is a YYYY-MM-DD string (the
+ * `issue_date` column is a calendar date). Returns a money string.
+ */
+export async function sumRevenueForBusinessSince(
+  businessId: string,
+  since: string,
+): Promise<string> {
+  const [row] = await db
+    .select({ total: sql<string>`coalesce(sum(${invoices.total}), 0)` })
+    .from(invoices)
+    .where(
+      and(
+        eq(invoices.businessId, businessId),
+        isNull(invoices.deletedAt),
+        ne(invoices.status, "draft"),
+        gte(invoices.issueDate, since),
+      ),
+    );
+  return row?.total ?? "0";
+}
+
 /** Bypass — used during a service's create flow where the tx-private state
  *  needs a final read after inserts. Kept here for SSOT discipline (only this
  *  file knows the Drizzle shape of the joined read). */

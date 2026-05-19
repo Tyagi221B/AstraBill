@@ -60,7 +60,7 @@ generic header. Mid-2B work surfaced this as the actual blocker: every
 branded chrome to live in. Detailed LLD:
 [[decision/white-label-app-shell]].
 
-Four steps. Steps 1 + 2 shipped 2026-05-19.
+Four steps. Steps 1–3 shipped 2026-05-19; only the mobile shell remains.
 
 1. **Foundation** *(shipped)* — `/b/[businessId]/` layout doing the
    one membership check, `BrandedAppShell` + `Sidebar` with the
@@ -69,9 +69,9 @@ Four steps. Steps 1 + 2 shipped 2026-05-19.
 2. **Page migration** *(shipped)* — `/invoices`, `/customers`,
    `/products`, `/settings/branding` migrated under
    `/b/[businessId]/...`; every authed page now in the branded shell.
-3. **Real dashboard KPIs** — outstanding ₹, paid this month, recent
-   invoices, top customers, low stock — replacing Step 1's placeholder
-   cards.
+3. **Real dashboard KPIs** *(shipped)* — outstanding ₹, paid this
+   month, revenue this month, recent invoices, low stock — replacing
+   Step 1's placeholder cards.
 4. **Mobile shell** — hamburger / drawer; current shell is `md:` and up.
 
 **Mid-2D detour — payment recording** *(shipped 2026-05-19)*. Steps 3

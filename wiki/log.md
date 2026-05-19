@@ -641,3 +641,29 @@ in schema):
 Decision page: `decision/payment-recording.md`. Binding facts in
 DECISIONS.md under a new "Product — Payment recording" section.
 Unblocks 2D Step 3 (real dashboard KPIs) and the customer udhaar view.
+
+## [2026-05-19] build | Phase 2D Step 3 — real dashboard KPIs
+
+The placeholder "Coming soon" cards on `/b/[businessId]/dashboard`
+are now real numbers — possible only because payment recording
+landed first (every figure is a function of what's been paid).
+
+- Three KPIs: **outstanding** (`SUM(total - amount_paid)` over
+  non-draft invoices — the udhaar headline), **paid this month**
+  (`SUM(payments.amount)` since the 1st), **revenue this month**
+  (`SUM(total)` over invoices issued since the 1st).
+- **Recent invoices** — the six newest, with status + total,
+  clickable through to the detail page.
+- **Low stock** — active products at or below their alert threshold;
+  the card only renders when there's something to flag.
+- Layers: three SQL aggregate repo functions
+  (`sumOutstandingForBusiness`, `sumRevenueForBusinessSince`,
+  `sumPaymentsForBusinessSince`) + `listLowStockProducts` →
+  `lib/services/dashboard.ts` (`getBusinessDashboard`, self-guarding
+  on membership) → the rewritten dashboard page.
+- "This month" is bounded at UTC midnight of the 1st — the IST skew
+  at the boundary is an accepted V1 imprecision.
+
+2D is now Steps 1–3 done; only the mobile shell (Step 4) remains.
+No new decision page — this is Step 3 of `decision/white-label-app-
+shell.md`, whose Status table is updated.

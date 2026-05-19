@@ -4,7 +4,7 @@
  * here; purchasePrice redaction lives in the service layer.
  */
 import "server-only";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { db, type Tx } from "../db";
 import {
@@ -156,6 +156,30 @@ export async function softDeleteProduct(
     .update(products)
     .set({ deletedAt: new Date() })
     .where(eq(products.id, productId));
+}
+
+/**
+ * Active products at or below their low-stock threshold, lowest stock first.
+ * Only products with a threshold set are considered — a null threshold means
+ * the owner isn't tracking a floor for that item. Drives the dashboard's
+ * low-stock alert list.
+ */
+export async function listLowStockProducts(
+  businessId: string,
+): Promise<Product[]> {
+  return db
+    .select()
+    .from(products)
+    .where(
+      and(
+        eq(products.businessId, businessId),
+        isNull(products.deletedAt),
+        eq(products.isActive, true),
+        isNotNull(products.lowStockThreshold),
+        sql`${products.stock} <= ${products.lowStockThreshold}`,
+      ),
+    )
+    .orderBy(asc(products.stock));
 }
 
 /**

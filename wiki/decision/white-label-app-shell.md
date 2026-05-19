@@ -158,13 +158,15 @@ id five times.
 | Step | What | Status |
 |------|------|--------|
 | 1 | Path-based routing scaffold (`/b/[businessId]/` layout + membership check), `BrandedAppShell`, `Sidebar` with BusinessSwitcher, smart `/dashboard` redirect, dashboard placeholder, `lib/routes.ts` | ✅ shipped |
-| 2 | Migrate `/invoices`, `/customers`, `/products`, `/settings/branding` under `/b/[businessId]/...`. Until then the sidebar links to the old paths and those pages render without the new shell — a deliberate transitional gap | pending |
-| 3 | Real dashboard KPIs (outstanding ₹, paid this month, recent invoices, top customers, low stock) replacing the placeholder cards | pending |
+| 2 | Migrate `/invoices`, `/customers`, `/products`, `/settings/branding` under `/b/[businessId]/...` | ✅ shipped |
+| 3 | Real dashboard KPIs (outstanding ₹, paid this month, revenue this month, recent invoices, low stock) replacing the placeholder cards | ✅ shipped |
 | 4 | Mobile shell — hamburger / drawer for the sidebar; current shell is `md:` and up only | pending |
 
-Step 2 unblocks every later feature (payment recording, WhatsApp send) — those
-add buttons/panels to pages whose URL shape should be settled first. The
-order is: rebuild the spine (2D), then graft features onto it.
+Step 3 KPIs were gated on payment recording — every money figure on the
+dashboard is a function of what's been paid (see [[decision/payment-recording]]).
+Top-customers was dropped from the Step 3 set as a later addition; the shipped
+KPIs are outstanding / paid-this-month / revenue-this-month + recent invoices
++ low stock. Only the mobile shell (Step 4) remains.
 
 ## Related
 
