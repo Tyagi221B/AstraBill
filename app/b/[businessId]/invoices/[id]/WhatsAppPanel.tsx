@@ -1,6 +1,6 @@
 "use client";
 /**
- * WhatsAppPanel — send the `astrabill_invoice` template to the invoice's
+ * WhatsAppPanel — send the `astrabill_invoice_v1` template to the invoice's
  * customer and show the send history.
  *
  * Shown only on finalised invoices (the server gates that). Sends post to

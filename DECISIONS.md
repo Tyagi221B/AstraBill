@@ -166,7 +166,7 @@ that the WhatsApp button URL points to. Rationale + LLD:
 
 | Area | Decision | Never | Rationale |
 |------|----------|-------|-----------|
-| URL pattern | `/i/[shareToken]` — **locked** by the Meta-approved template button URL (`https://www.astrabill.com/i/{{1}}`). Changing this invalidates every already-sent invoice link and requires a new Meta template version | `/i/{uuid}`; rotating the path shape after templates approve | [[decision/public-invoice-share]] |
+| URL pattern | `/i/[shareToken]` — **locked** by the Meta template button base URL (`https://www.astrabill.com/i/`) + the share_token appended. Meta's URL-button mechanism *appends* the variable value, it does not substitute — the base URL field never contains `{{1}}`. Changing the base invalidates every already-sent invoice link and requires a new Meta template version | `/i/{uuid}`; rotating the path shape after templates approve; typing `{{1}}` into the URL field | [[decision/public-invoice-share]] |
 | Share token | 16-char URL-safe random — `randomBytes(12).toString("base64url")`, ~96 bits of entropy. Stored in `invoices.share_token`, unique. Stamped on at finalise alongside the invoice number, one transaction | the invoice UUID as the public identifier; a sequential / guessable handle; a signed JWT (over-engineering — entropy IS the auth) | [[decision/public-invoice-share]] |
 | Token nullability | Nullable column. Drafts have `share_token IS NULL`; the row gets a token the moment it's finalised | generating a token at draft create (drafts may never be issued); a NOT NULL constraint that would block adoption for existing finalised invoices | [[decision/public-invoice-share]] |
 | Auth model | The token IS the auth. The public page + the public PDF endpoint do NO membership check, NO `requireUser`. Anyone with the URL sees the invoice, by design | wrapping the public page in `requireUser`; rate-limiting in v1 (acceptable; entropy + obscurity are enough); signed query strings on top of the token | [[decision/public-invoice-share]] |
@@ -178,11 +178,11 @@ that the WhatsApp button URL points to. Rationale + LLD:
 
 The "Send on WhatsApp" loop for a finalised invoice. The button on the
 invoice detail page posts to `POST /api/invoices/[id]/send-whatsapp`, which
-calls the `astrabill_invoice` template and delivers the share-link URL.
+calls the `astrabill_invoice_v1` template and delivers the share-link URL.
 
 | Area | Decision | Never | Rationale |
 |------|----------|-------|-----------|
-| Template | `astrabill_invoice` — Utility, English (`en`), text body + 1 dynamic URL button. **Approved** by Meta 2026-05-19. The body has 4 variables; the button URL is locked to `https://www.astrabill.com/i/{{1}}` | hard-coding template content elsewhere; sending without going through the template | [[decision/whatsapp-meta-api]] |
+| Template | `astrabill_invoice_v1` — Utility, English (`en`), text body + 1 dynamic URL button. The body has 4 variables; the URL button **base** is `https://www.astrabill.com/i/` and Meta **appends** the variable value (the share_token) at the end — Meta's URL buttons append, they do not substitute. Submitted 2026-05-20 after the v0 had its URL incorrectly typed with `{{1}}` inline (which Meta then concatenated rather than substituted) | hard-coding template content elsewhere; sending without going through the template; typing `{{1}}` into the URL field (only the base goes there) | [[decision/whatsapp-meta-api]] |
 | Body variable order | `{{1}}` = customer name · `{{2}}` = invoice number · `{{3}}` = business name · `{{4}}` = amount (raw "1442.00", no `₹` — the template provides it). Order is locked by the approved template | reordering body vars without a new template submission | [[decision/whatsapp-meta-api]] |
 | Button variable | URL button index 0, `{{1}}` = `invoices.share_token`. The full URL Meta delivers is the public `/i/[shareToken]` view | sending the invoice UUID; sending the authed URL | [[decision/public-invoice-share]] |
 | Send entrypoint | One service: `sendInvoiceOnWhatsApp(invoiceId, actorUserId)`. The route is a thin POST. The service owns membership scoping, permission check, finalised-only guard, customer-phone guard, lazy share_token backfill, log row insert, the Meta call, and the success/failure mark | branching the binding from route or UI; calling the provider from anywhere other than this service | [[decision/whatsapp-meta-api]] |

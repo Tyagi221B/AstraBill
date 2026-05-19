@@ -1,5 +1,5 @@
 /**
- * POST /api/invoices/[id]/send-whatsapp — deliver the `astrabill_invoice`
+ * POST /api/invoices/[id]/send-whatsapp — deliver the `astrabill_invoice_v1`
  * template to the invoice's customer over Meta Cloud API.
  *
  * Idempotent from the customer's perspective only by accident — every POST

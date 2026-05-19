@@ -794,3 +794,34 @@ Razorpay leg of 2B is separate work.
 DECISIONS.md gained a "Product — WhatsApp invoice send (Phase 2B)"
 section; rationale on the *why* lives at
 [[decision/whatsapp-invoice-send]] (no fact restatement).
+
+## [2026-05-20] build | astrabill_invoice_v1 — URL fix + template recreate
+
+First real test send revealed Meta's URL-button gotcha. The v0 template
+had `{{1}}` typed into the URL field; Meta preserved it literally and
+*appended* the share_token after it, producing
+`https://www.astrabill.com/i/{{1}}CwoI8ZxIJyzqSFiw` — a broken link.
+
+The actual mechanic, confirmed by Meta's own tooltip ("Only one variable
+can be added to the end of a URL.") and the docs: URL buttons **append**
+the variable to a static base. The base URL field never contains
+`{{1}}`; that placeholder shows in the UI only as a visual hint of
+where the appended value lands.
+
+Approved templates can't have their URL button edited — Meta's editor
+throws "error saving" when you try. So the v0 was abandoned and a fresh
+template `astrabill_invoice_v1` submitted with:
+
+- URL base `https://www.astrabill.com/i/` (no `{{1}}` typed in)
+- Sample URL `https://www.astrabill.com/i/abc123xyz`
+- Body text identical to v0
+
+Code change: `INVOICE_TEMPLATE` constant in `lib/services/whatsapp-send.ts`
+flipped from `astrabill_invoice` to `astrabill_invoice_v1`. Template
+naming now matches the `astrabill_otp_v1` convention.
+
+DECISIONS.md row + the public-invoice-share rationale page corrected
+to reflect "append, not substitute" — this was a real misconception
+in the original docs.
+
+Template is in review. Once Active, retest a fresh invoice send.

@@ -7,14 +7,16 @@
  *     → wamid logged in `whatsapp_messages`
  *
  * This file is the ONLY place that knows the binding between the
- * `astrabill_invoice` template and the invoice fields. Body variables, in
- * order, must match the approved Meta template:
+ * `astrabill_invoice_v1` template and the invoice fields. Body variables,
+ * in order, must match the approved Meta template:
  *
  *   {{1}} customer name      {{2}} invoice number
  *   {{3}} business name      {{4}} amount (no symbol — the template has ₹)
  *
- * URL button (index 0): {{1}} = share_token, slotting into the template's
- * locked URL `https://www.astrabill.com/i/{{1}}`.
+ * URL button (index 0): the value we pass (the share_token) is APPENDED
+ * by Meta to the template's static base URL `https://www.astrabill.com/i/`
+ * — Meta's URL-button mechanism appends, it does not substitute. The base
+ * must NOT contain `{{1}}` (a gotcha we hit on the v0 template).
  *
  * Lazy backfill: invoices finalised BEFORE Phase 2B have `share_token = NULL`.
  * The first send for such an invoice generates and persists a token. Done with
@@ -45,7 +47,7 @@ import {
 import { generateShareToken } from "../share-token";
 import { whatsapp } from "../whatsapp";
 
-const INVOICE_TEMPLATE = "astrabill_invoice";
+const INVOICE_TEMPLATE = "astrabill_invoice_v1";
 const INVOICE_TEMPLATE_LANG = "en";
 
 /**
@@ -65,7 +67,7 @@ export interface SendInvoiceResult {
 }
 
 /**
- * Send (or resend) the `astrabill_invoice` template for one invoice. Membership
+ * Send (or resend) the `astrabill_invoice_v1` template for one invoice. Membership
  * + `whatsapp:send` permission required. The invoice must be finalised — a
  * draft is not an issued document and has no number to send. The customer
  * must have a phone on file.

@@ -37,9 +37,14 @@ cleaner in a WhatsApp message preview.
 
 ## Why the URL pattern is now LOCKED
 
-The Meta-approved WhatsApp template (`astrabill_invoice`) has a URL button
-hard-coded to `https://www.astrabill.com/i/{{1}}`. Once Meta approves a
-template, its URL pattern is frozen — changing it requires submitting a new
+The Meta WhatsApp template (`astrabill_invoice_v1`) has a URL button with
+**base** `https://www.astrabill.com/i/` and Meta appends the variable
+value (the share_token) at the end. Meta's URL-button mechanism is
+*append*, not *substitute* — a subtle gotcha discovered on the first
+real send (v0 of the template had `{{1}}` typed into the URL field,
+which Meta preserved literally then appended to, producing
+`/i/{{1}}<token>`). The v1 template fixes this. Once Meta approves a
+template, its URL base is frozen — changing it requires submitting a new
 template version and re-review. So `/i/[shareToken]` is a binding URL
 contract. Any future migration of the public-view route would invalidate
 every already-sent invoice link AND require a new Meta template.
