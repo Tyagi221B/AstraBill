@@ -41,6 +41,39 @@ export function GoogleIcon({ className, ...props }: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function UpiIcon({ className, ...props }: SVGProps<SVGSVGElement>) {
+  // NPCI's UPI mark — diagonally-split shield in the brand orange / green,
+  // white "UPI" wordmark. Reduced to a clean two-tone glyph that reads well
+  // at icon sizes (24–48px) where the official photographic mark turns to
+  // mush.
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      viewBox="0 0 24 24"
+      width="1em"
+      height="1em"
+      className={className}
+      {...props}
+    >
+      <path fill="#FF7300" d="M3 3h18L3 21z" />
+      <path fill="#098041" d="M21 3v18H3z" />
+      <text
+        x="12"
+        y="15.5"
+        textAnchor="middle"
+        fontFamily="ui-sans-serif, system-ui, sans-serif"
+        fontSize="6.5"
+        fontWeight="800"
+        fill="#ffffff"
+        letterSpacing="0.3"
+      >
+        UPI
+      </text>
+    </svg>
+  );
+}
+
 export function WhatsAppIcon({
   className,
   ...props
