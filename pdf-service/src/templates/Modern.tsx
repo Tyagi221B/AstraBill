@@ -349,7 +349,7 @@ export function Modern({ invoice, branding }: RenderRequest) {
               bank.accountNumber ||
               bank.ifsc ||
               bank.upiId) && (
-              <div className="info-card" style={{ marginTop: "12px" }}>
+              <div className="info-card" style={{ marginTop: "1.2rem" }}>
                 <span className="label">Payment details</span>
                 <div className="bank-grid">
                   {bank.accountHolder && (
