@@ -103,11 +103,13 @@ While Meta reviews, the prerequisites land:
    on Digital Ocean ([[decision/pdf-generation]]). The same renderer
    now backs both the authed download and the public PDF endpoint.
 
-2. **WhatsApp invoice send** *(pending Meta)* — `astrabill_invoice`
-   template (text + URL button), sent direct from Next via the Meta
-   Cloud API. `IWhatsAppProvider` interface; manual trigger from the
-   invoice detail page in v1; queueing is a later refactor when
-   volume justifies it.
+2. **WhatsApp invoice send** *(shipped)* — `astrabill_invoice`
+   template approved by Meta, full send loop built on top: repo
+   (immutable history), service (membership + permission + finalised
+   + has-phone guards, lazy share_token backfill, transport-layer
+   var sanitisation), thin POST route, and a `WhatsAppPanel` card on
+   the invoice detail page with send/resend + send history. The hero
+   loop is now end-to-end. See [[decision/whatsapp-invoice-send]].
 3. **Razorpay** — `IPaymentProvider` interface + `RazorpayProvider`. Payment
    Link per invoice; webhook → mark invoice paid → send receipt. The webhook
    is the first genuinely server-only event, so this is where server-side

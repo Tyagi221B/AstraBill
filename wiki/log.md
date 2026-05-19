@@ -759,3 +759,38 @@ DECISIONS.md under a new "Product — Public invoice share" section.
 Remaining for 2B (blocked on Meta approval): WhatsApp client module
 + "Send on WhatsApp" button on the invoice page +
 `whatsapp_messages` logging.
+
+## [2026-05-19] build | Phase 2B — WhatsApp send (hero loop end-to-end)
+
+`astrabill_invoice` came back approved (~3h SLA). Built the rest of the
+send loop on top of the public-share infrastructure shipped earlier
+today.
+
+What landed:
+
+- `lib/repositories/whatsapp-messages.ts` — insert / mark-sent /
+  mark-failed / list. Rows are immutable history (no soft-delete) —
+  the table reflects the audit trail directly.
+- `lib/services/whatsapp-send.ts` — `sendInvoiceOnWhatsApp` and
+  `listInvoiceWhatsAppSends`. The service is the only file that knows
+  the `astrabill_invoice` body-var order, language code, and URL-
+  button binding. Guards: membership (404), `whatsapp:send` (403),
+  finalised-only (409), customer-must-have-phone (422). Lazy
+  share_token backfill for pre-2B finalised invoices via a race-safe
+  conditional UPDATE. Transport-layer whitespace sanitisation against
+  Meta's #131008.
+- `POST /api/invoices/[id]/send-whatsapp` — a thin route. Maps
+  service errors to HTTP via the standard wrapper.
+- `WhatsAppPanel` card on the invoice detail page — send / resend
+  button (label flips after the first send), masked phone display,
+  full send history list with per-row status badges and error
+  messages. Inline-status UX consistent with `PaymentPanel`; no toast
+  library introduced.
+
+What did NOT land here: `astrabill_payment_reminder` still in review
+(not blocking — utility template for the V2 reminder cron), and the
+Razorpay leg of 2B is separate work.
+
+DECISIONS.md gained a "Product — WhatsApp invoice send (Phase 2B)"
+section; rationale on the *why* lives at
+[[decision/whatsapp-invoice-send]] (no fact restatement).

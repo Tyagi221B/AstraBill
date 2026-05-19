@@ -174,6 +174,27 @@ that the WhatsApp button URL points to. Rationale + LLD:
 | SEO | Pages set `robots: { index: false, follow: false }` in `generateMetadata`; `robots.ts` also disallows `/i/`. Both layers because Google sometimes indexes `robots`-blocked pages via inbound links — the meta tag is the harder block | relying on `robots.txt` alone | [[decision/public-invoice-share]] |
 | Plan-gated mark | A small "Made with AstraBill" link sits below the invoice card **only on the free plan** — same rule as the PDF footer ([[decision/invoice-design-system]]). The customer-facing surface is the customer-facing surface, regardless of medium | a different gating policy for web vs PDF | [[decision/public-invoice-share]] |
 
+## Product — WhatsApp invoice send  (Phase 2B)
+
+The "Send on WhatsApp" loop for a finalised invoice. The button on the
+invoice detail page posts to `POST /api/invoices/[id]/send-whatsapp`, which
+calls the `astrabill_invoice` template and delivers the share-link URL.
+
+| Area | Decision | Never | Rationale |
+|------|----------|-------|-----------|
+| Template | `astrabill_invoice` — Utility, English (`en`), text body + 1 dynamic URL button. **Approved** by Meta 2026-05-19. The body has 4 variables; the button URL is locked to `https://www.astrabill.com/i/{{1}}` | hard-coding template content elsewhere; sending without going through the template | [[decision/whatsapp-meta-api]] |
+| Body variable order | `{{1}}` = customer name · `{{2}}` = invoice number · `{{3}}` = business name · `{{4}}` = amount (raw "1442.00", no `₹` — the template provides it). Order is locked by the approved template | reordering body vars without a new template submission | [[decision/whatsapp-meta-api]] |
+| Button variable | URL button index 0, `{{1}}` = `invoices.share_token`. The full URL Meta delivers is the public `/i/[shareToken]` view | sending the invoice UUID; sending the authed URL | [[decision/public-invoice-share]] |
+| Send entrypoint | One service: `sendInvoiceOnWhatsApp(invoiceId, actorUserId)`. The route is a thin POST. The service owns membership scoping, permission check, finalised-only guard, customer-phone guard, lazy share_token backfill, log row insert, the Meta call, and the success/failure mark | branching the binding from route or UI; calling the provider from anywhere other than this service | [[decision/whatsapp-meta-api]] |
+| Send permission | `whatsapp:send` — owner / admin / accountant / salesman. Viewer cannot send. Salesman CAN send (it's an outbound customer action, not a profit-data action) | giving viewer send; gating send on `payment:record` | [[decision/database-and-rbac]] |
+| Drafts cannot send | `status='draft'` invoices have no number — refused with a 409. Finalise first | sending a draft (template body would be malformed) | — |
+| No-phone refusal | If `customers.phone` is NULL the send is refused with a 422. UI surfaces it as "Add a phone number" before the user can click Send | sending to a placeholder phone; silently no-op'ing | — |
+| Lazy share_token backfill | An invoice finalised before Phase 2B has `share_token IS NULL`. The first send generates and persists a token via a conditional UPDATE (`WHERE id = ? AND share_token IS NULL`) — race-safe against concurrent clicks. Once non-null the token never changes | running a one-off migration script (the on-demand path is enough); generating a fresh token per send (would invalidate already-printed URLs) | [[decision/public-invoice-share]] |
+| Send log | Every send writes a `whatsapp_messages` row — queued on insert, then `sent` (with Meta wamid) or `failed` (with error). Rows are **immutable** — no soft-delete column, no edit. The history list IS the audit | editing a row to "fix" a status; re-using a row across resends | — |
+| Resend semantics | "Resend" is just another POST that writes a new `whatsapp_messages` row. No server-side debouncing or rate limit in v1; the UI shows a confirm dialog | reusing the previous wamid; merging "send" + "resend" into a different flow | — |
+| Variable sanitisation | Body var text is normalised at the transport boundary (`/\s+/g → ' '`, trim) so customer / business names with paste-induced newlines or tabs don't trip Meta's #131008. The stored value is left alone — this is transport-only | sanitising on write (loses fidelity); skipping it (random sends will fail) | — |
+| Failure UX | The panel renders inline status (badge + history list) and shows the failed row's error message — same convention as `PaymentPanel`. No global toast in v1 | layering a toast library only for this one feature | — |
+
 ## Product — Pricing
 
 | Plan | Price | Key limits | Rationale |

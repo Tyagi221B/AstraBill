@@ -26,6 +26,7 @@
 | [decision/white-label-app-shell.md](decision/white-label-app-shell.md) | decision | Phase 2D: path-based `/b/[businessId]/...` routing, branded sidebar, smart `/dashboard` redirect. Makes the app feel like the owner's billing dashboard, the parallel of 2C on the chrome side. |
 | [decision/payment-recording.md](decision/payment-recording.md) | decision | Manual payment recording: `amount_paid` derived from payment rows, status follows the sum, void = soft delete. The keystone the dashboard KPIs + udhaar view depend on. |
 | [decision/public-invoice-share.md](decision/public-invoice-share.md) | decision | Customer-facing `/i/[shareToken]` view + PDF download. 16-char token IS the auth; URL locked by the Meta-approved template button. The infra the 2B WhatsApp send plugs into. |
+| [decision/whatsapp-invoice-send.md](decision/whatsapp-invoice-send.md) | decision | Phase 2B hero loop — "Send on WhatsApp" on a finalised invoice. Template binding in one service, immutable send history, lazy share_token backfill, transport-layer sanitisation. |
 | **Competitors** | | |
 | [competitor/tally.md](competitor/tally.md) | competitor | The 30-year incumbent. Desktop-only, 70-90% MSME share, steep learning curve, ₹22,500+ |
 | [competitor/vyapar.md](competitor/vyapar.md) | competitor | Mobile challenger, 1Cr users, broken WhatsApp, serious RBAC privacy hole |

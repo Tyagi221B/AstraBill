@@ -6,11 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
 import { getMembership, roleHas } from "@/lib/rbac";
+import { findCustomerById } from "@/lib/repositories/customers";
 import { getInvoice } from "@/lib/services/invoices";
 import { listInvoicePayments } from "@/lib/services/payments";
+import { listInvoiceWhatsAppSends } from "@/lib/services/whatsapp-send";
 import { requireUser } from "@/lib/session";
 import { InvoiceActions } from "./InvoiceActions";
 import { PaymentPanel } from "./PaymentPanel";
+import { WhatsAppPanel } from "./WhatsAppPanel";
 
 export const metadata: Metadata = {
   title: "Invoice · AstraBill",
@@ -54,17 +57,21 @@ export default async function InvoicePage({
   const taxClass =
     Number(invoice.igstAmount) > 0 ? "interstate" : "intrastate";
 
-  // Payments exist only on finalised invoices — a draft is not an issued
-  // document and takes no money. The panel + its data are skipped for drafts.
+  // Payments + WhatsApp sends exist only on finalised invoices — a draft is
+  // not an issued document. Their panels + data are skipped for drafts.
   const isDraft = invoice.status === "draft";
-  const [payments, membership] = await Promise.all([
+  const [payments, whatsappSends, membership, customer] = await Promise.all([
     isDraft ? Promise.resolve([]) : listInvoicePayments(id, user.id),
+    isDraft ? Promise.resolve([]) : listInvoiceWhatsAppSends(id, user.id),
     getMembership(user.id, businessId),
+    invoice.customerId ? findCustomerById(invoice.customerId) : Promise.resolve(null),
   ]);
   const canRecordPayment =
     !!membership && roleHas(membership.role, "payment:record");
   const canDeletePayment =
     !!membership && roleHas(membership.role, "payment:delete");
+  const canSendWhatsApp =
+    !!membership && roleHas(membership.role, "whatsapp:send");
 
   return (
     <>
@@ -211,22 +218,40 @@ export default async function InvoicePage({
       </Card>
 
       {!isDraft && (
-        <div className="mb-5">
-          <PaymentPanel
-            invoiceId={invoice.id}
-            total={invoice.total}
-            amountPaid={invoice.amountPaid}
-            canRecord={canRecordPayment}
-            canDelete={canDeletePayment}
-            payments={payments.map((p) => ({
-              id: p.id,
-              amount: p.amount,
-              method: p.method,
-              reference: p.reference,
-              paidAt: p.paidAt.toISOString().slice(0, 10),
-            }))}
-          />
-        </div>
+        <>
+          <div className="mb-5">
+            <WhatsAppPanel
+              invoiceId={invoice.id}
+              customerName={customer?.name ?? null}
+              customerPhone={customer?.phone ?? null}
+              canSend={canSendWhatsApp}
+              sends={whatsappSends.map((s) => ({
+                id: s.id,
+                status: s.status,
+                toPhone: s.toPhone,
+                sentAt: s.sentAt ? s.sentAt.toISOString() : null,
+                createdAt: s.createdAt.toISOString(),
+                errorMessage: s.errorMessage,
+              }))}
+            />
+          </div>
+          <div className="mb-5">
+            <PaymentPanel
+              invoiceId={invoice.id}
+              total={invoice.total}
+              amountPaid={invoice.amountPaid}
+              canRecord={canRecordPayment}
+              canDelete={canDeletePayment}
+              payments={payments.map((p) => ({
+                id: p.id,
+                amount: p.amount,
+                method: p.method,
+                reference: p.reference,
+                paidAt: p.paidAt.toISOString().slice(0, 10),
+              }))}
+            />
+          </div>
+        </>
       )}
 
       {invoice.notes && (
