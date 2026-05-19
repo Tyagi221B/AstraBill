@@ -119,7 +119,11 @@ export interface LineItemOnInvoice {
   unitPrice: string;
   discountAmount: string;
   gstRate: string;
-  /** Per-line total, post-discount, GST-inclusive component split per taxClass. */
+  /**
+   * Taxable line value — qty × rate − discount, PRE-GST. The line-items
+   * "Amount" column shows this, and the sum of these is the invoice
+   * subtotal; GST is added below the table, not per line.
+   */
   amount: string;
 }
 

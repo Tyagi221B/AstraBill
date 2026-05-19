@@ -150,7 +150,9 @@ function buildRenderRequest(
       unitPrice: l.unitPrice,
       discountAmount: l.discountAmount,
       gstRate: l.gstRate,
-      amount: l.amount,
+      // The "Amount" column is the pre-GST taxable value, so the column
+      // sums to the subtotal — NOT l.amount, which is GST-inclusive.
+      amount: l.taxableAmount,
     })),
 
     extraCharges: invoice.extraCharges.map((c) => ({
