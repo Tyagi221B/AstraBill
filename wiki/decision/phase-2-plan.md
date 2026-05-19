@@ -43,8 +43,9 @@ The competitor ingest on 2026-05-19 ([[competitor/mybillbook]]) made
 clear that brand-customizable invoices are the category's #1 paid-tier
 upsell. AstraBill's PDF is currently one generic template — a Day-1
 trust gap. 2C closes it: template engine + brand fields + Cloudinary
-logo upload + customization UI + three V1 templates (Modern · Classic ·
-Thermal 80mm). LLD lives in [[decision/invoice-design-system]].
+logo upload + customization UI + two V1 templates (Modern · Classic;
+Thermal 80mm deferred to 2C.5). LLD lives in
+[[decision/invoice-design-system]].
 
 **Why 2C precedes 2B:** 2B has external blockers (Meta WABA + Razorpay
 KYC, both multi-week). 2C is unblocked codebase + Cloudinary work.

@@ -14,11 +14,18 @@ import "server-only";
 import { db } from "../db";
 import { writeAuditEntry } from "../audit";
 import type { Business, BusinessMember } from "../db/schema";
-import type { CreateBusinessInput } from "../schemas/business";
+import { ForbiddenError, NotFoundError } from "../errors";
+import { roleHas } from "../rbac";
+import type {
+  CreateBusinessInput,
+  UpdateBrandingInput,
+} from "../schemas/business";
 import {
+  getBusinessForUserTx,
   insertBusiness,
   insertMember,
   listBusinessesForUser,
+  updateBusinessRow,
 } from "../repositories/businesses";
 
 export interface ServiceContext {
@@ -72,6 +79,44 @@ export async function createBusiness(
     });
 
     return { business, membership };
+  });
+}
+
+/**
+ * Update a business's invoice branding (colour / font / template / column
+ * settings). Owner-only — `settings:edit` is owner's alone in the RBAC
+ * catalogue. A non-member is treated as 404 (no existence leak); a member
+ * whose role lacks the permission gets 403.
+ */
+export async function updateBusinessBranding(
+  businessId: string,
+  input: UpdateBrandingInput,
+  actorUserId: string,
+  ctx: ServiceContext = {},
+): Promise<Business> {
+  return db.transaction(async (tx) => {
+    const found = await getBusinessForUserTx(tx, actorUserId, businessId);
+    if (!found) throw new NotFoundError("Business not found");
+    if (!roleHas(found.role, "settings:edit")) {
+      throw new ForbiddenError(
+        `Your role (${found.role}) cannot edit business settings`,
+      );
+    }
+
+    // `input` is the Zod-validated patch — keys map 1:1 to business columns.
+    const updated = await updateBusinessRow(tx, businessId, input);
+
+    await writeAuditEntry(tx, {
+      action: "business.update",
+      businessId,
+      actorUserId,
+      entityType: "business",
+      entityId: businessId,
+      changes: input,
+      ipAddress: ctx.ipAddress ?? null,
+      userAgent: ctx.userAgent ?? null,
+    });
+    return updated;
   });
 }
 

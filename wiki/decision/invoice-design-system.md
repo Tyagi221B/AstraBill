@@ -55,19 +55,20 @@ of "still no WhatsApp send" — that's the cost we accept for shipping
   ([[decision/infrastructure]] already names Cloudinary). Onboarding
   gains an optional logo step; `/settings/branding` lets them change
   it.
-- **Three invoice templates**:
+- **Two invoice templates**:
   - **Modern** — Inter, brand-colour accents, minimal borders. Default.
   - **Classic** — serif, traditional Indian business look (Om Glass
     Enterprises' real invoice is the reference).
-  - **Thermal 80mm** — POS printer format, monospace, condensed. The
-    half of buyers who still print on a Bluetooth thermal printer get
-    a first-class output.
 - **Settings UI** — `/settings/branding` page; tabs for Template,
   Colors, Font, Columns. Live preview of the user's actual most-recent
   invoice with branding applied.
 
 ### What lands in V1.x (2C-2)
 
+- **Thermal 80mm template** — POS printer format, monospace,
+  condensed, for buyers who print on a Bluetooth thermal printer.
+  Cut from V1 (2026-05-19, user's call) to keep the V1 ship to two
+  well-crafted templates; lands in 2C.5.
 - **Festive / themed templates** — Ganesha, Lakshmi, generic festive
   border, neutral floral. myBillBook treats these as paid-tier; we'll
   ship a couple on the free plan to under-cut their upsell.
@@ -99,7 +100,7 @@ or LiquidJS for substitution) in the PDF microservice
 ```jsonc
 POST /render
 {
-  "template": "modern" | "classic" | "thermal_80",
+  "template": "modern" | "classic",
   "branding": { "logoUrl", "color", "font" },
   "settings": { "columns": { "hsn": true, "batch": false, ... } },
   "invoice": { ...full invoice JSON, line items inline... }
@@ -137,7 +138,7 @@ New columns on `businesses` (drizzle migration 0003):
 | `logo_url` | text | NULL | Cloudinary URL; existed in schema, now wired |
 | `brand_color` | text | `#2563eb` | hex; validated `/^#[0-9a-fA-F]{6}$/` |
 | `brand_font` | text | `'inter'` | enum: `'inter' \| 'poppins' \| 'noto_serif' \| 'noto_sans'` |
-| `invoice_template_id` | text | `'modern'` | enum: `'modern' \| 'classic' \| 'thermal_80'` |
+| `invoice_template_id` | text | `'modern'` | one of `'modern' \| 'classic'` (validated by Zod, not a pg enum — 2C.5 templates add without a migration) |
 | `invoice_settings` | jsonb | `{}` | column-visibility + future toggles |
 
 Per-invoice override: deferred. Every invoice picks up the business's
@@ -165,7 +166,7 @@ considers snapshot-at-finalise.
 New route under the AppShell ([[decision/frontend-architecture]]).
 Tabs:
 
-1. **Template** — three template thumbnails, click to select
+1. **Template** — template thumbnails (two in V1), click to select
 2. **Colors** — brand colour picker (HSL picker + preset palette)
 3. **Font** — radio list of four fonts with sample preview
 4. **Columns** — toggle list (HSN, Batch, MFG, EXP, Discount, Tax)
@@ -181,7 +182,7 @@ the PDF microservice does, so what they see is what they print.
 1. **Default template = Modern.** Phone is the read-surface; Modern
    beats Classic there. Classic is one click away in the picker.
 2. **Branding on Free, festive + columns on Paid.** Logo, colour,
-   font, and all three V1 templates are Free-plan features. Paid
+   font, and both V1 templates are Free-plan features. Paid
    tiers (2C.5) unlock festive/themed templates, column-toggle
    visibility, and Free-plan-footer removal. The branding basics
    are the trust moment; you cannot earn retention through a paywall

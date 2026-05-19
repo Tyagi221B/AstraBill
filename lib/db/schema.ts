@@ -165,6 +165,37 @@ export const accounts = pgTable(
 
 // --- businesses ----------------------------------------------------------
 
+/**
+ * Per-business invoice display settings — currently line-items column
+ * visibility. Stored as `invoice_settings` jsonb. The default shows the
+ * columns a general trading shop needs and hides the pharma-specific ones
+ * (batch / MFG / EXP); 2C.5 surfaces the toggles in the branding UI and
+ * ships a template that renders those columns.
+ */
+export type InvoiceSettings = {
+  columns: {
+    hsn: boolean;
+    batch: boolean;
+    mfg: boolean;
+    exp: boolean;
+    discount: boolean;
+    tax: boolean;
+    secondaryQty: boolean;
+  };
+};
+
+export const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
+  columns: {
+    hsn: true,
+    batch: false,
+    mfg: false,
+    exp: false,
+    discount: true,
+    tax: true,
+    secondaryQty: true,
+  },
+};
+
 export const businesses = pgTable("businesses", {
   id: uuid("id").defaultRandom().primaryKey(),
   name: text("name").notNull(),
@@ -191,6 +222,16 @@ export const businesses = pgTable("businesses", {
   // Overrides the per-type default invoice-number prefix (INV/EST/CR/...).
   // Null → the service uses the per-type default.
   invoiceNumberPrefix: text("invoice_number_prefix"),
+  // --- invoice branding (Phase 2C) ---
+  // Free string + Zod-validated at the API boundary, not pg enums — 2C.5
+  // templates / fonts add without an enum-altering migration.
+  brandColor: text("brand_color").notNull().default("#2563eb"),
+  brandFont: text("brand_font").notNull().default("inter"),
+  invoiceTemplateId: text("invoice_template_id").notNull().default("modern"),
+  invoiceSettings: jsonb("invoice_settings")
+    .$type<InvoiceSettings>()
+    .notNull()
+    .default(DEFAULT_INVOICE_SETTINGS),
   // Subscription plan — gates feature limits at the service layer.
   plan: planTier("plan").notNull().default("free"),
   planValidUntil: date("plan_valid_until"),

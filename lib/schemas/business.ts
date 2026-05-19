@@ -46,3 +46,40 @@ export const createBusinessSchema = z.object({
 });
 
 export type CreateBusinessInput = z.infer<typeof createBusinessSchema>;
+
+// ---- branding (Phase 2C) -----------------------------------------------
+
+/** 6-digit hex colour, e.g. #2563eb. */
+const hexColor = z
+  .string()
+  .regex(/^#[0-9a-fA-F]{6}$/, "Brand colour must be a 6-digit hex like #2563eb");
+
+/** Line-items column visibility — all seven flags required as a set. */
+const invoiceColumns = z.object({
+  hsn: z.boolean(),
+  batch: z.boolean(),
+  mfg: z.boolean(),
+  exp: z.boolean(),
+  discount: z.boolean(),
+  tax: z.boolean(),
+  secondaryQty: z.boolean(),
+});
+
+/**
+ * Branding patch — every field optional, but at least one must be present.
+ * `logoUrl` is deliberately NOT here: it lands in Stage 4 with the Cloudinary
+ * host whitelist, so the endpoint never accepts an arbitrary image URL.
+ */
+export const updateBrandingSchema = z
+  .object({
+    brandColor: hexColor,
+    brandFont: z.enum(["inter", "poppins", "noto_serif", "noto_sans"]),
+    invoiceTemplateId: z.enum(["modern", "classic"]),
+    invoiceSettings: z.object({ columns: invoiceColumns }),
+  })
+  .partial()
+  .refine((o) => Object.keys(o).length > 0, {
+    message: "Provide at least one branding field to update",
+  });
+
+export type UpdateBrandingInput = z.infer<typeof updateBrandingSchema>;
