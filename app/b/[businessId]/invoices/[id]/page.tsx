@@ -5,9 +5,12 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
+import { getMembership, roleHas } from "@/lib/rbac";
 import { getInvoice } from "@/lib/services/invoices";
+import { listInvoicePayments } from "@/lib/services/payments";
 import { requireUser } from "@/lib/session";
 import { InvoiceActions } from "./InvoiceActions";
+import { PaymentPanel } from "./PaymentPanel";
 
 export const metadata: Metadata = {
   title: "Invoice · AstraBill",
@@ -50,6 +53,18 @@ export default async function InvoicePage({
 
   const taxClass =
     Number(invoice.igstAmount) > 0 ? "interstate" : "intrastate";
+
+  // Payments exist only on finalised invoices — a draft is not an issued
+  // document and takes no money. The panel + its data are skipped for drafts.
+  const isDraft = invoice.status === "draft";
+  const [payments, membership] = await Promise.all([
+    isDraft ? Promise.resolve([]) : listInvoicePayments(id, user.id),
+    getMembership(user.id, businessId),
+  ]);
+  const canRecordPayment =
+    !!membership && roleHas(membership.role, "payment:record");
+  const canDeletePayment =
+    !!membership && roleHas(membership.role, "payment:delete");
 
   return (
     <>
@@ -194,6 +209,25 @@ export default async function InvoicePage({
           </p>
         </CardContent>
       </Card>
+
+      {!isDraft && (
+        <div className="mb-5">
+          <PaymentPanel
+            invoiceId={invoice.id}
+            total={invoice.total}
+            amountPaid={invoice.amountPaid}
+            canRecord={canRecordPayment}
+            canDelete={canDeletePayment}
+            payments={payments.map((p) => ({
+              id: p.id,
+              amount: p.amount,
+              method: p.method,
+              reference: p.reference,
+              paidAt: p.paidAt.toISOString().slice(0, 10),
+            }))}
+          />
+        </div>
+      )}
 
       {invoice.notes && (
         <Card>

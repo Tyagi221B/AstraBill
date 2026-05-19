@@ -143,6 +143,21 @@ side. Rationale + LLD: [[decision/white-label-app-shell]].
 | "Powered by AstraBill" mark | Centre-bottom of the sidebar wordmark at 10px / 70% opacity. Visible to the owner, invisible across a counter. Carried on **both** free and paid plans — only the *customer-facing* PDF footer mark is plan-gated | banner-sized; in the page header; removed on paid plans (we never sold removal of the in-app mark) | [[decision/white-label-app-shell]] |
 | URL helpers | `lib/routes.ts` is the SSOT for URL structure. The `routes.b(businessId)` factory returns the family of business-scoped URLs in one go (sidebar emits five — pulling the factory once beats threading the id five times) | string-templating paths in JSX (`/b/${id}/invoices`); duplicating URL shape across files | [[decision/white-label-app-shell]] |
 
+## Product — Payment recording
+
+Manual payment recording against invoices — the mechanism behind the V1
+udhaar tracker, and the keystone the dashboard KPIs + customer-udhaar view
+depend on. Rationale + LLD: [[decision/payment-recording]].
+
+| Area | Decision | Never | Rationale |
+|------|----------|-------|-----------|
+| `amount_paid` is derived | `invoices.amount_paid` is **always** recomputed as `SUM(payments.amount WHERE deleted_at IS NULL)` — the payment rows are the single source of truth; the invoice column is a derived cache | `UPDATE … SET amount_paid = amount_paid + :x` (an incrementally-mutated counter drifts and can't self-check) | [[decision/payment-recording]] |
+| Status derivation | Payment status follows the sum: `amount_paid >= total` → `paid` (+ `paid_at`); `0 < amount_paid < total` → `partially_paid`; `amount_paid == 0` → `sent`. Computed in one pure function, after every record/void | a client-supplied status; storing status independently of the sum | [[decision/payment-recording]] |
+| Payments need a finalised invoice | A payment can only be recorded against `status != 'draft'`. A draft has no number and a still-mutable total — money against a moving total is meaningless | recording a payment on a draft | [[decision/payment-recording]] |
+| Concurrency | Record + void both lock the invoice row `FOR UPDATE` before re-summing, so two concurrent payments serialise and the sum can't lose a row | re-summing without the lock (READ COMMITTED lets each tx miss the other's uncommitted row) | [[decision/payment-recording]] |
+| Voiding a payment | A void is a **soft delete** (`deleted_at`) + recompute. The row stays; the audit log keeps both `payment.record` and `payment.delete`. Correcting a mis-keyed payment = void + re-record | editing a payment in place; hard-deleting it (both erase that a wrong figure was entered) | [[decision/payment-recording]] |
+| RBAC | `payment:record` = owner / admin / accountant; `payment:delete` = owner / admin. A salesman collecting cash cannot record it in V1 — recording is an accountant-grade action | giving salesman `payment:record` without a deliberate decision | [[decision/database-and-rbac]] |
+
 ## Product — Pricing
 
 | Plan | Price | Key limits | Rationale |

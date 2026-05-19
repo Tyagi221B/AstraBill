@@ -60,20 +60,25 @@ generic header. Mid-2B work surfaced this as the actual blocker: every
 branded chrome to live in. Detailed LLD:
 [[decision/white-label-app-shell]].
 
-Four steps. Step 1 shipped 2026-05-19.
+Four steps. Steps 1 + 2 shipped 2026-05-19.
 
 1. **Foundation** *(shipped)* — `/b/[businessId]/` layout doing the
    one membership check, `BrandedAppShell` + `Sidebar` with the
    BusinessSwitcher, smart `/dashboard` redirect, dashboard
    placeholder, `lib/routes.ts` SSOT.
-2. **Page migration** — `/invoices`, `/customers`, `/products`,
-   `/settings/branding` move under `/b/[businessId]/...`. Until then
-   the sidebar links to the old paths and those pages render without
-   the new shell — a deliberate transitional gap.
+2. **Page migration** *(shipped)* — `/invoices`, `/customers`,
+   `/products`, `/settings/branding` migrated under
+   `/b/[businessId]/...`; every authed page now in the branded shell.
 3. **Real dashboard KPIs** — outstanding ₹, paid this month, recent
    invoices, top customers, low stock — replacing Step 1's placeholder
    cards.
 4. **Mobile shell** — hamburger / drawer; current shell is `md:` and up.
+
+**Mid-2D detour — payment recording** *(shipped 2026-05-19)*. Steps 3
++ the customer-udhaar view both need real paid/unpaid numbers, and
+nothing was ever marked paid. Manual payment recording was built as
+the prerequisite — see [[decision/payment-recording]]. Step 3's KPIs
+become real with it in place.
 
 ## Phase 2B — WhatsApp Send + UPI  (the hero loop)
 

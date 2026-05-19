@@ -24,6 +24,7 @@
 | [decision/frontend-architecture.md](decision/frontend-architecture.md) | decision | Tailwind v4 + CSS-variable theming (light/dark via next-themes); marketing site as a route group; shadcn adopted in F3. |
 | [decision/invoice-design-system.md](decision/invoice-design-system.md) | decision | Phase 2C: template engine + brand customization (logo, color, font, columns). Lands *before* 2B — no external blockers, and 2B's hero artifact is the PDF this work makes worth sending. |
 | [decision/white-label-app-shell.md](decision/white-label-app-shell.md) | decision | Phase 2D: path-based `/b/[businessId]/...` routing, branded sidebar, smart `/dashboard` redirect. Makes the app feel like the owner's billing dashboard, the parallel of 2C on the chrome side. |
+| [decision/payment-recording.md](decision/payment-recording.md) | decision | Manual payment recording: `amount_paid` derived from payment rows, status follows the sum, void = soft delete. The keystone the dashboard KPIs + udhaar view depend on. |
 | **Competitors** | | |
 | [competitor/tally.md](competitor/tally.md) | competitor | The 30-year incumbent. Desktop-only, 70-90% MSME share, steep learning curve, ₹22,500+ |
 | [competitor/vyapar.md](competitor/vyapar.md) | competitor | Mobile challenger, 1Cr users, broken WhatsApp, serious RBAC privacy hole |

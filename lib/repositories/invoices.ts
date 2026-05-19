@@ -52,6 +52,52 @@ export async function lockBusinessRow(
 }
 
 /**
+ * Acquire an invoice row with `FOR UPDATE` lock. The payment record/delete
+ * path holds this lock so two concurrent payments against the same invoice
+ * serialise — the second sees the first's row before re-summing, so the
+ * amount-paid total can't lose a row. Soft-deleted invoices return null.
+ */
+export async function lockInvoiceRow(
+  tx: Tx,
+  invoiceId: string,
+): Promise<Invoice | null> {
+  const rows = await tx
+    .select()
+    .from(invoices)
+    .where(and(eq(invoices.id, invoiceId), isNull(invoices.deletedAt)))
+    .for("update");
+  return rows[0] ?? null;
+}
+
+/**
+ * Write a recomputed payment state onto an invoice — `amount_paid`, the
+ * derived `status`, and `paid_at`. The service computes all three from the
+ * payments table (the single source of truth for what's been paid); this
+ * just performs the write.
+ */
+export async function applyPaymentState(
+  tx: Tx,
+  invoiceId: string,
+  state: {
+    amountPaid: string;
+    status: Invoice["status"];
+    paidAt: Date | null;
+  },
+): Promise<Invoice> {
+  const [row] = await tx
+    .update(invoices)
+    .set({
+      amountPaid: state.amountPaid,
+      status: state.status,
+      paidAt: state.paidAt,
+    })
+    .where(eq(invoices.id, invoiceId))
+    .returning();
+  if (!row) throw new Error("Apply payment state returned no row");
+  return row;
+}
+
+/**
  * Count FINALISED invoices of a given type, within one financial year, for a
  * business. The new number's sequence = this count + 1, so the printed series
  * is gap-free even if a draft is abandoned (drafts aren't counted).

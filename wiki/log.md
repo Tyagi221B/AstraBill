@@ -592,3 +592,52 @@ dashboard KPIs. Step 4 = mobile (hamburger / drawer).
 Decision page: `decision/white-label-app-shell.md`. Binding facts
 added to DECISIONS.md under a new "Product — App shell & navigation
 (Phase 2D)" section.
+
+## [2026-05-19] build | Phase 2D Step 2 — pages migrated under /b/[businessId]/
+
+Closed the transitional gap from Step 1. Invoices, customers,
+products, and settings/branding all moved under /b/[businessId]/... —
+every authed business page now renders inside the BrandedAppShell.
+
+- businessId comes from the path param, not `?businessId=`.
+- AppShell + crumbs dropped; pages render a new shared `PageHeader`
+  (title / description / action) instead. AppShell stays only for
+  /onboarding (the one non-business-scoped authed page).
+- List pages are single-business now — the cross-business "Business"
+  column and the business filter pills are gone.
+- Detail/edit pages guard `row.businessId === params.businessId` so a
+  crafted cross-business URL is a 404.
+- Forms take a one-element businesses array, lock the <select>;
+  redirects after save go through `routes.b(id)`.
+- BrandingEditor lost its in-page business switcher (the sidebar owns
+  switching). Sidebar nav uses canonical routes; proxy.ts + robots.ts
+  drop the old top-level paths.
+
+Verified with a clean production build — all 12 /b/[businessId]/*
+routes resolve, no stale paths.
+
+## [2026-05-19] build | Payment recording — the udhaar keystone
+
+Stepped back mid-2D: customers + products are a working CRUD but the
+*reporting* layer (customer udhaar, dashboard KPIs) was missing — and
+it's all gated on one primitive that didn't exist. An invoice went
+`draft → sent` and stayed `sent` forever; nothing was ever paid.
+
+Built manual payment recording (the `payments` table already existed
+in schema):
+
+- `amount_paid` is derived — always `SUM(payments WHERE deleted_at IS
+  NULL)`, never an incrementally-mutated counter. Status follows the
+  sum (paid / partially_paid / sent) via one pure function.
+- Record + void both lock the invoice row `FOR UPDATE`, so concurrent
+  payments serialise and the re-sum can't lose a row.
+- A void is a soft delete + recompute — the row stays, the audit log
+  keeps both record + delete; correcting a typo = void + re-record.
+- Payments only attach to finalised invoices.
+- schema → repository → service → API (`POST /api/invoices/[id]/
+  payments`, `DELETE /api/payments/[id]`) → `PaymentPanel` on the
+  invoice detail page (summary bar + record form + history + void).
+
+Decision page: `decision/payment-recording.md`. Binding facts in
+DECISIONS.md under a new "Product — Payment recording" section.
+Unblocks 2D Step 3 (real dashboard KPIs) and the customer udhaar view.
