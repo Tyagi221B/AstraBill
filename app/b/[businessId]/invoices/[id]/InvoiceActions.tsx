@@ -8,6 +8,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import posthog from "posthog-js";
+import { toast } from "sonner";
 
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { routes } from "@/lib/routes";
@@ -23,7 +24,6 @@ export function InvoiceActions({
   status: string;
 }) {
   const [busy, setBusy] = useState<null | "finalize" | "delete">(null);
-  const [error, setError] = useState<string | null>(null);
   const b = routes.b(businessId);
 
   // Only drafts have actions in V1.
@@ -39,7 +39,6 @@ export function InvoiceActions({
       return;
     }
     setBusy("finalize");
-    setError(null);
     try {
       const res = await fetch(`/api/invoices/${invoiceId}/finalize`, {
         method: "POST",
@@ -51,7 +50,9 @@ export function InvoiceActions({
       posthog.capture("invoice_finalized", { invoice_id: invoiceId });
       window.location.reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(
+        err instanceof Error ? err.message : "Something went wrong",
+      );
       setBusy(null);
     }
   }
@@ -59,7 +60,6 @@ export function InvoiceActions({
   async function remove() {
     if (!confirm("Delete this draft invoice? This cannot be undone.")) return;
     setBusy("delete");
-    setError(null);
     try {
       const res = await fetch(`/api/invoices/${invoiceId}`, {
         method: "DELETE",
@@ -70,18 +70,15 @@ export function InvoiceActions({
       if (!json.ok) throw new Error(json.error.message);
       window.location.assign(b.invoices);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(
+        err instanceof Error ? err.message : "Something went wrong",
+      );
       setBusy(null);
     }
   }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {error && (
-        <span role="alert" className="mr-1 text-xs text-destructive">
-          {error}
-        </span>
-      )}
       <Link
         href={b.editInvoice(invoiceId)}
         className={buttonClasses("outline", "sm")}

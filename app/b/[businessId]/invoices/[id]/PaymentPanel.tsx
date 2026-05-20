@@ -10,6 +10,7 @@
  */
 import { useState, type FormEvent } from "react";
 import posthog from "posthog-js";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -79,13 +80,11 @@ export function PaymentPanel({
   );
   const [reference, setReference] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function record(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setError(null);
     try {
       const res = await fetch(`/api/invoices/${invoiceId}/payments`, {
         method: "POST",
@@ -104,7 +103,9 @@ export function PaymentPanel({
       posthog.capture("payment_recorded", { invoice_id: invoiceId });
       window.location.reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(
+        err instanceof Error ? err.message : "Something went wrong",
+      );
       setBusy(false);
     }
   }
@@ -116,7 +117,6 @@ export function PaymentPanel({
       return;
     }
     setDeletingId(id);
-    setError(null);
     try {
       const res = await fetch(`/api/payments/${id}`, { method: "DELETE" });
       const json = (await res.json()) as
@@ -125,7 +125,9 @@ export function PaymentPanel({
       if (!json.ok) throw new Error(json.error.message);
       window.location.reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(
+        err instanceof Error ? err.message : "Something went wrong",
+      );
       setDeletingId(null);
     }
   }
@@ -176,15 +178,6 @@ export function PaymentPanel({
             />
           </div>
         </div>
-
-        {error && (
-          <div
-            role="alert"
-            className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-          >
-            {error}
-          </div>
-        )}
 
         {/* ---- record form ---- */}
         {open && (

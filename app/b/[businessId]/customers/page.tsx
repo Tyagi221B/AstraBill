@@ -6,7 +6,9 @@
  */
 import Link from "next/link";
 import type { Metadata } from "next";
+import { Users } from "lucide-react";
 
+import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,14 +50,19 @@ export default async function CustomersPage({
       />
 
       {customers.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">
-              No customers yet. Walk-in sales work without a customer; saved
-              customers make repeat invoices a one-tap pick.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Users}
+          title="No customers yet"
+          description="Walk-in sales work without a customer. Saved customers make repeat invoices a one-tap pick, and unlock the udhaar tracker."
+          action={
+            <Link
+              href={b.newCustomer}
+              className={buttonClasses("primary", "sm")}
+            >
+              + Add your first customer
+            </Link>
+          }
+        />
       ) : (
         <Card>
           <CardContent className="px-0">

@@ -8,7 +8,9 @@
  */
 import Link from "next/link";
 import type { Metadata } from "next";
+import { ReceiptText } from "lucide-react";
 
+import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/Button";
@@ -118,19 +120,27 @@ export default async function InvoicesListPage({
       </div>
 
       {invoices.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
-            <p className="text-sm text-muted-foreground">
-              No invoices{activeStatus ? ` with status ${activeStatus}` : ""} yet.
-            </p>
+        <EmptyState
+          icon={ReceiptText}
+          title={
+            activeStatus
+              ? `No ${activeStatus.replace("_", " ")} invoices`
+              : "No invoices yet"
+          }
+          description={
+            activeStatus
+              ? "Switch the status filter above to see other invoices."
+              : "Your first invoice is a draft until you finalise. GST is computed automatically from the place of supply."
+          }
+          action={
             <Link
               href={b.newInvoice}
               className={buttonClasses("primary", "sm")}
             >
-              Create your first invoice
+              + Create your first invoice
             </Link>
-          </CardContent>
-        </Card>
+          }
+        />
       ) : (
         <Card>
           <CardContent className="px-0">

@@ -111,6 +111,79 @@ export default async function InvoicePage({
         }
       />
 
+      {/* ===== Top: Bill to (left) + Invoice meta (right), like the form ===== */}
+      <div className="mb-5 grid grid-cols-1 gap-5 md:grid-cols-2">
+        <Card>
+          <CardContent className="pt-6">
+            <h2 className="mb-3 text-base font-semibold">Bill to</h2>
+            {customer ? (
+              <div className="text-sm">
+                <div className="font-medium text-foreground">
+                  {customer.name}
+                </div>
+                {customer.gstin && (
+                  <div className="mt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+                    GSTIN ·{" "}
+                    <span className="font-mono text-foreground">
+                      {customer.gstin}
+                    </span>
+                  </div>
+                )}
+                {(customer.addressLine1 ||
+                  customer.addressLine2 ||
+                  customer.city ||
+                  customer.stateCode) && (
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {[
+                      customer.addressLine1,
+                      customer.addressLine2,
+                      customer.city,
+                      customer.stateCode,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </div>
+                )}
+                {customer.phone && (
+                  <div className="mt-1 font-mono text-xs text-muted-foreground">
+                    {customer.phone}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Walk-in — no saved customer.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <h2 className="mb-3 text-base font-semibold">Invoice</h2>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              <dt className="text-muted-foreground">Issued</dt>
+              <dd className="tabular-nums">{invoice.issueDate}</dd>
+              {invoice.dueDate && (
+                <>
+                  <dt className="text-muted-foreground">Due</dt>
+                  <dd className="tabular-nums">{invoice.dueDate}</dd>
+                </>
+              )}
+              <dt className="text-muted-foreground">Type</dt>
+              <dd>{TYPE_LABEL[invoice.type] ?? invoice.type}</dd>
+              {invoice.placeOfSupplyStateCode && (
+                <>
+                  <dt className="text-muted-foreground">Place of supply</dt>
+                  <dd>{invoice.placeOfSupplyStateCode}</dd>
+                </>
+              )}
+            </dl>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ===== Line items — full width ===== */}
       <Card className="mb-5">
         <CardContent className="pt-6">
           <h2 className="mb-4 text-base font-semibold">Line items</h2>
@@ -162,60 +235,64 @@ export default async function InvoicePage({
         </CardContent>
       </Card>
 
-      <Card className="ml-auto mb-5 max-w-sm">
-        <CardContent className="pt-6">
-          <h2 className="mb-4 text-base font-semibold">Totals</h2>
-          <dl className="flex flex-col gap-1.5 text-sm tabular-nums">
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Subtotal</dt>
-              <dd>₹ {invoice.subtotal}</dd>
-            </div>
-            {Number(invoice.discountAmount) > 0 && (
+      {/* ===== Totals — inline at the end of the table block, right-anchored on lg ===== */}
+      <div className="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div />
+        <Card>
+          <CardContent className="pt-6">
+            <h2 className="mb-3 text-base font-semibold">Totals</h2>
+            <dl className="flex flex-col gap-1.5 text-sm tabular-nums">
               <div className="flex justify-between">
-                <dt className="text-muted-foreground">Discount</dt>
-                <dd>− ₹ {invoice.discountAmount}</dd>
+                <dt className="text-muted-foreground">Subtotal</dt>
+                <dd>₹ {invoice.subtotal}</dd>
               </div>
-            )}
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Taxable</dt>
-              <dd>₹ {invoice.taxableAmount}</dd>
-            </div>
-            {taxClass === "intrastate" ? (
-              <>
+              {Number(invoice.discountAmount) > 0 && (
                 <div className="flex justify-between">
-                  <dt className="text-muted-foreground">CGST</dt>
-                  <dd>₹ {invoice.cgstAmount}</dd>
+                  <dt className="text-muted-foreground">Discount</dt>
+                  <dd>− ₹ {invoice.discountAmount}</dd>
                 </div>
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">SGST</dt>
-                  <dd>₹ {invoice.sgstAmount}</dd>
-                </div>
-              </>
-            ) : (
+              )}
               <div className="flex justify-between">
-                <dt className="text-muted-foreground">IGST</dt>
-                <dd>₹ {invoice.igstAmount}</dd>
+                <dt className="text-muted-foreground">Taxable</dt>
+                <dd>₹ {invoice.taxableAmount}</dd>
               </div>
-            )}
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Round-off</dt>
-              <dd>
-                {invoice.roundOff.startsWith("-") ? "−" : "+"} ₹{" "}
-                {invoice.roundOff.replace(/^-/, "")}
-              </dd>
-            </div>
-            <div className="mt-2 flex justify-between border-t border-border pt-2.5 text-base font-bold">
-              <dt>Total</dt>
-              <dd>₹ {invoice.total}</dd>
-            </div>
-          </dl>
-          <p className="mt-3 text-center text-xs text-muted-foreground">
-            {taxClass === "intrastate"
-              ? "Intrastate — CGST + SGST"
-              : "Interstate — IGST"}
-          </p>
-        </CardContent>
-      </Card>
+              {taxClass === "intrastate" ? (
+                <>
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">CGST</dt>
+                    <dd>₹ {invoice.cgstAmount}</dd>
+                  </div>
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">SGST</dt>
+                    <dd>₹ {invoice.sgstAmount}</dd>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">IGST</dt>
+                  <dd>₹ {invoice.igstAmount}</dd>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Round-off</dt>
+                <dd>
+                  {invoice.roundOff.startsWith("-") ? "−" : "+"} ₹{" "}
+                  {invoice.roundOff.replace(/^-/, "")}
+                </dd>
+              </div>
+              <div className="mt-2 flex justify-between border-t border-border pt-2.5 text-base font-bold">
+                <dt>Total</dt>
+                <dd>₹ {invoice.total}</dd>
+              </div>
+            </dl>
+            <p className="mt-3 text-center text-xs text-muted-foreground">
+              {taxClass === "intrastate"
+                ? "Intrastate — CGST + SGST"
+                : "Interstate — IGST"}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
       {!isDraft && (
         <>

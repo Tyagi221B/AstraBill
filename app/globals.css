@@ -210,6 +210,17 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
+
+  /* Keyboard-only focus ring for anchors that aren't already a styled
+     control (Button / buttonClasses() already carries its own focus
+     treatment). This is the Phase 2E Step 3 accessibility polish — every
+     interactive surface gets a visible keyboard target without becoming
+     loud on mouse-click. */
+  a:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 }
 
 /* Reusable brand-gradient text — used on the wordmark accent + hero. */

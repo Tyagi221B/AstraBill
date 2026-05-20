@@ -10,6 +10,7 @@
  */
 import { useState } from "react";
 import posthog from "posthog-js";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
@@ -76,7 +77,6 @@ export function WhatsAppPanel({
   sends: SendRow[];
 }) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   // The most recent send (non-deleted), regardless of status. Drives the
   // primary CTA label ("Send" vs "Resend") and the headline indicator.
@@ -97,7 +97,6 @@ export function WhatsAppPanel({
       return;
     }
     setBusy(true);
-    setError(null);
     try {
       const res = await fetch(`/api/invoices/${invoiceId}/send-whatsapp`, {
         method: "POST",
@@ -112,7 +111,9 @@ export function WhatsAppPanel({
       });
       window.location.reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(
+        err instanceof Error ? err.message : "Something went wrong",
+      );
       setBusy(false);
     }
   }
@@ -175,15 +176,6 @@ export function WhatsAppPanel({
             </p>
           )}
         </div>
-
-        {error && (
-          <div
-            role="alert"
-            className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-          >
-            {error}
-          </div>
-        )}
 
         {/* ---- history ---- */}
         {sends.length > 0 && (

@@ -8,6 +8,7 @@
  * refuses to expose it (defense in depth).
  */
 import { useState, type FormEvent } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -72,7 +73,6 @@ export function ProductForm({
   const [businessId, setBusinessId] = useState(initialBusinessId);
   const [f, setF] = useState<ProductFormInitial>(initial ?? blank);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   function set<K extends keyof ProductFormInitial>(
     key: K,
@@ -84,7 +84,6 @@ export function ProductForm({
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setError(null);
     try {
       const payload: Record<string, unknown> = {
         name: f.name.trim(),
@@ -113,12 +112,14 @@ export function ProductForm({
         | { ok: true; data: { id: string } }
         | { ok: false; error: { message: string } };
       if (!json.ok) {
-        setError(json.error.message);
+        toast.error(json.error.message);
         return;
       }
       window.location.assign(routes.b(businessId).products);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(
+        err instanceof Error ? err.message : "Something went wrong",
+      );
     } finally {
       setBusy(false);
     }
@@ -263,15 +264,6 @@ export function ProductForm({
           </div>
         </CardContent>
       </Card>
-
-      {error && (
-        <div
-          role="alert"
-          className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-        >
-          {error}
-        </div>
-      )}
 
       <div className="flex justify-end">
         <Button

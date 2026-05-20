@@ -5,6 +5,7 @@ import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { PostHogIdentify } from "@/components/PostHogIdentify";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { Toaster } from "@/components/ui/Toaster";
 import {
   SITE_DESCRIPTION,
   SITE_NAME,
@@ -55,6 +56,7 @@ export default async function RootLayout({
             />
           )}
           {children}
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

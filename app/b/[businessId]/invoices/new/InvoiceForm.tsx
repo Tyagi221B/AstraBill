@@ -15,6 +15,7 @@
  */
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -261,8 +262,6 @@ export function InvoiceForm({
   );
 
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [errorDetails, setErrorDetails] = useState<unknown>(null);
 
   // Show the dual-unit billing columns (2nd qty + 2nd unit). Only this
   // niche pair is gated behind a toggle — everything else (HSN, Discount,
@@ -405,8 +404,6 @@ export function InvoiceForm({
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setError(null);
-    setErrorDetails(null);
     try {
       const sharedFields = {
         customerId: customerId || null,
@@ -453,14 +450,19 @@ export function InvoiceForm({
         | { ok: true; data: { id: string } }
         | { ok: false; error: { message: string; details?: unknown } };
       if (!json.ok) {
-        setError(json.error.message);
-        setErrorDetails(json.error.details);
+        toast.error(json.error.message, {
+          description: json.error.details
+            ? JSON.stringify(json.error.details, null, 2)
+            : undefined,
+        });
         return;
       }
       const id = isEdit ? editingInvoiceId! : json.data.id;
       window.location.assign(routes.b(businessId).invoice(id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(
+        err instanceof Error ? err.message : "Something went wrong",
+      );
     } finally {
       setBusy(false);
     }
@@ -597,18 +599,6 @@ export function InvoiceForm({
           </div>
         </div>
       </div>
-
-      {/* ===== Error banner — visible across all viewports ===== */}
-      {error && (
-        <div className="mb-5 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-          <div>{error}</div>
-          {errorDetails ? (
-            <pre className="mt-1.5 max-w-full overflow-x-auto whitespace-pre-wrap rounded bg-destructive/10 px-2 py-1.5 text-xs">
-              {JSON.stringify(errorDetails, null, 2)}
-            </pre>
-          ) : null}
-        </div>
-      )}
 
       <div className="flex flex-col gap-5">
         {/* ===== Top split: Bill To (left) + Invoice details (right) ===== */}

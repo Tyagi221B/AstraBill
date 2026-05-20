@@ -6,7 +6,9 @@
  */
 import Link from "next/link";
 import type { Metadata } from "next";
+import { Package } from "lucide-react";
 
+import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,14 +59,19 @@ export default async function ProductsPage({
       />
 
       {products.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">
-              No products yet. Add the items you sell to make invoicing
-              one-tap, and your stock will follow.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={Package}
+          title="No products yet"
+          description="Add the items you sell to make invoicing one-tap. Stock follows automatically as you bill."
+          action={
+            <Link
+              href={b.newProduct}
+              className={buttonClasses("primary", "sm")}
+            >
+              + Add your first product
+            </Link>
+          }
+        />
       ) : (
         <Card>
           <CardContent className="px-0">

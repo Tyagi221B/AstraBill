@@ -5,6 +5,7 @@
  * selector and routes the submit to PATCH /api/customers/[id].
  */
 import { useState, type FormEvent } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,7 +14,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { INDIAN_STATES } from "@/lib/constants/indian-states";
 import { routes } from "@/lib/routes";
-import { cn } from "@/lib/utils";
 
 type BusinessOption = { id: string; name: string; stateCode: string | null };
 
@@ -61,7 +61,6 @@ export function CustomerForm({
   const [businessId, setBusinessId] = useState(initialBusinessId);
   const [f, setF] = useState<CustomerFormInitial>(initial ?? blank);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   function set<K extends keyof CustomerFormInitial>(
     key: K,
@@ -73,7 +72,6 @@ export function CustomerForm({
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setError(null);
     try {
       const payload: Record<string, string | null | undefined> = {
         name: f.name.trim(),
@@ -101,12 +99,14 @@ export function CustomerForm({
         | { ok: true; data: { id: string } }
         | { ok: false; error: { message: string } };
       if (!json.ok) {
-        setError(json.error.message);
+        toast.error(json.error.message);
         return;
       }
       window.location.assign(routes.b(businessId).customers);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(
+        err instanceof Error ? err.message : "Something went wrong",
+      );
     } finally {
       setBusy(false);
     }
@@ -251,17 +251,6 @@ export function CustomerForm({
           </div>
         </CardContent>
       </Card>
-
-      {error && (
-        <div
-          role="alert"
-          className={cn(
-            "rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive",
-          )}
-        >
-          {error}
-        </div>
-      )}
 
       <div className="flex justify-end">
         <Button
