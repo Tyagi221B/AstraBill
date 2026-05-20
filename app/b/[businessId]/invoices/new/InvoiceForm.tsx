@@ -264,20 +264,19 @@ export function InvoiceForm({
   const [error, setError] = useState<string | null>(null);
   const [errorDetails, setErrorDetails] = useState<unknown>(null);
 
-  // Show the advanced line-item columns (HSN, 2nd qty + unit, per-line
-  // Discount). Default-on if the edit data has any of them populated, so
-  // an existing invoice with HSN codes doesn't appear to "lose" its data
-  // behind the toggle when opened for edit.
-  const initialAdvanced =
+  // Show the dual-unit billing columns (2nd qty + 2nd unit). Only this
+  // niche pair is gated behind a toggle — everything else (HSN, Discount,
+  // GST, Amount) is shown by default since every invoice realistically
+  // uses them. Default-on for an edit view when existing data has
+  // dual-unit values, so opening an existing invoice doesn't hide its
+  // data behind the toggle.
+  const initialDualUnit =
     initial?.lineItems?.some(
       (l) =>
-        (l.hsnCode && l.hsnCode.trim() !== "") ||
         (l.secondaryQuantity && l.secondaryQuantity.trim() !== "") ||
-        !!l.secondaryUnit ||
-        (l.discountAmount && Number(l.discountAmount) !== 0),
+        !!l.secondaryUnit,
     ) ?? false;
-  const [showAdvancedColumns, setShowAdvancedColumns] =
-    useState(initialAdvanced);
+  const [showDualUnit, setShowDualUnit] = useState(initialDualUnit);
 
   const business = businesses.find((b) => b.id === businessId)!;
   const businessCustomers = useMemo(
@@ -558,226 +557,349 @@ export function InvoiceForm({
 
   return (
     <form onSubmit={submit} className="flex flex-col">
-      {/* Two-column layout: form sections on the left, sticky totals rail on
-          the right (desktop ≥lg). Below lg, totals collapse to inline at end. */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        {/* ===== LEFT: form sections ===== */}
-        <div className="flex min-w-0 flex-col gap-5">
-          {/* ---- Header (always open) ---- */}
+      {/* ===== Sticky action bar (md+ sticky; inline on mobile because
+                MobileNav already owns the top edge there) ===== */}
+      <div className="-mx-6 mb-5 border-b border-border bg-background/95 px-6 py-3 backdrop-blur sm:-mx-10 sm:px-10 md:sticky md:top-0 md:z-20">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-xl font-semibold tracking-tight">
+              {isEdit ? "Edit invoice" : "New invoice"}
+            </h1>
+            {!isEdit && (
+              <p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">
+                Draft saved on create. GST is computed from your business state
+                and the place of supply.
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2.5">
+            <a
+              href={routes.b(businessId).invoices}
+              className={buttonClasses("outline", "md")}
+            >
+              Cancel
+            </a>
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              disabled={submitDisabled}
+              className="hidden md:inline-flex"
+            >
+              {busy
+                ? isEdit
+                  ? "Saving…"
+                  : "Creating…"
+                : isEdit
+                  ? "Save changes"
+                  : "Create draft"}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* ===== Error banner — visible across all viewports ===== */}
+      {error && (
+        <div className="mb-5 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          <div>{error}</div>
+          {errorDetails ? (
+            <pre className="mt-1.5 max-w-full overflow-x-auto whitespace-pre-wrap rounded bg-destructive/10 px-2 py-1.5 text-xs">
+              {JSON.stringify(errorDetails, null, 2)}
+            </pre>
+          ) : null}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-5">
+        {/* ===== Top split: Bill To (left) + Invoice details (right) ===== */}
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <Card>
             <CardContent className="pt-6">
-              <h2 className="mb-4 text-base font-semibold">Header</h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="biz">
-                Business
-                {isEdit && (
-                  <span className="font-normal text-muted-foreground">· locked</span>
-                )}
-              </Label>
-              <select
-                id="biz"
-                value={businessId}
-                onChange={(e) => {
-                  setBusinessId(e.target.value);
-                  setCustomerId(""); // customer list changes with business
-                }}
-                disabled={isEdit || businesses.length === 1}
-                className={SELECT_CLASS}
-              >
-                {businesses.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                    {b.stateCode ? ` (${b.stateCode})` : " (no state set)"}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="type">
-                Type
-                {isEdit && (
-                  <span className="font-normal text-muted-foreground">· locked</span>
-                )}
-              </Label>
-              <select
-                id="type"
-                value={type}
-                onChange={(e) => setType(e.target.value as InvoiceTypeValue)}
-                disabled={isEdit}
-                className={SELECT_CLASS}
-              >
-                {TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="customer">Customer</Label>
-              <select
-                id="customer"
-                value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
-                className={SELECT_CLASS}
-              >
-                <option value="">Walk-in (no saved customer)</option>
-                {businessCustomers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                    {c.gstin ? ` · ${c.gstin}` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="pos">
-                Place of supply{" "}
-                <span className="font-normal text-muted-foreground">
-                  (defaults to customer or business state)
-                </span>
-              </Label>
-              <select
-                id="pos"
-                value={placeOfSupplyStateCode}
-                onChange={(e) => setPlaceOfSupplyStateCode(e.target.value)}
-                className={SELECT_CLASS}
-              >
-                <option value="">
-                  {selectedCustomer?.stateCode
-                    ? `Customer — ${selectedCustomer.stateCode}`
-                    : business.stateCode
-                      ? `Same as business — ${business.stateCode}`
-                      : "— Select —"}
-                </option>
-                {INDIAN_STATES.map((s) => (
-                  <option key={s.code} value={s.code}>
-                    {s.name} ({s.code})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="due">
-                Due date{" "}
-                <span className="font-normal text-muted-foreground">(optional)</span>
-              </Label>
-              <Input
-                id="due"
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+              <h2 className="mb-4 text-base font-semibold">Bill to</h2>
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="customer">Customer</Label>
+                  <select
+                    id="customer"
+                    value={customerId}
+                    onChange={(e) => setCustomerId(e.target.value)}
+                    className={SELECT_CLASS}
+                  >
+                    <option value="">Walk-in (no saved customer)</option>
+                    {businessCustomers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                        {c.gstin ? ` · ${c.gstin}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {selectedCustomer &&
+                (selectedCustomer.gstin ||
+                  selectedCustomer.addressLine1 ||
+                  selectedCustomer.addressLine2 ||
+                  selectedCustomer.city) ? (
+                  <div className="rounded-md bg-muted/40 px-3 py-2.5 text-sm">
+                    {selectedCustomer.gstin && (
+                      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                        GSTIN ·{" "}
+                        <span className="font-mono text-foreground">
+                          {selectedCustomer.gstin}
+                        </span>
+                      </div>
+                    )}
+                    {(selectedCustomer.addressLine1 ||
+                      selectedCustomer.addressLine2 ||
+                      selectedCustomer.city ||
+                      selectedCustomer.stateCode) && (
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {[
+                          selectedCustomer.addressLine1,
+                          selectedCustomer.addressLine2,
+                          selectedCustomer.city,
+                          selectedCustomer.stateCode,
+                        ]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* ---- Line items ---- */}
-      {/* Default 6 columns (Item / Qty / Unit / Price / GST / Amount + ✕).
-          Advanced columns (HSN / 2nd qty / 2nd unit / Discount) appear when
-          `showAdvancedColumns` is on. Item column stacks Product picker
-          above Description input so both stay visible without claiming two
-          columns. Generous cell padding (py-3 px-2.5) keeps the table
-          readable instead of cramped. Outer `overflow-x-auto` only kicks
-          in on very narrow viewports because the default 6 columns fit a
-          typical desktop form region without scroll. */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-base font-semibold">Line items</h2>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowAdvancedColumns((v) => !v)}
-                className="text-xs font-medium text-primary hover:underline"
-              >
-                {showAdvancedColumns ? "− Hide advanced columns" : "+ Show advanced columns"}
-              </button>
-              <Button type="button" variant="outline" size="sm" onClick={addLine}>
-                + Add line
-              </Button>
+          <Card>
+            <CardContent className="pt-6">
+              <h2 className="mb-4 text-base font-semibold">Invoice details</h2>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="biz">
+                    Business
+                    {isEdit && (
+                      <span className="font-normal text-muted-foreground">
+                        {" "}
+                        · locked
+                      </span>
+                    )}
+                  </Label>
+                  <select
+                    id="biz"
+                    value={businessId}
+                    onChange={(e) => {
+                      setBusinessId(e.target.value);
+                      setCustomerId("");
+                    }}
+                    disabled={isEdit || businesses.length === 1}
+                    className={SELECT_CLASS}
+                  >
+                    {businesses.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                        {b.stateCode ? ` (${b.stateCode})` : " (no state set)"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="type">
+                    Type
+                    {isEdit && (
+                      <span className="font-normal text-muted-foreground">
+                        {" "}
+                        · locked
+                      </span>
+                    )}
+                  </Label>
+                  <select
+                    id="type"
+                    value={type}
+                    onChange={(e) =>
+                      setType(e.target.value as InvoiceTypeValue)
+                    }
+                    disabled={isEdit}
+                    className={SELECT_CLASS}
+                  >
+                    {TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="pos">Place of supply</Label>
+                  <select
+                    id="pos"
+                    value={placeOfSupplyStateCode}
+                    onChange={(e) => setPlaceOfSupplyStateCode(e.target.value)}
+                    className={SELECT_CLASS}
+                  >
+                    <option value="">
+                      {selectedCustomer?.stateCode
+                        ? `Customer — ${selectedCustomer.stateCode}`
+                        : business.stateCode
+                          ? `Same as business — ${business.stateCode}`
+                          : "— Select —"}
+                    </option>
+                    {INDIAN_STATES.map((s) => (
+                      <option key={s.code} value={s.code}>
+                        {s.name} ({s.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="due">
+                    Due date{" "}
+                    <span className="font-normal text-muted-foreground">
+                      (optional)
+                    </span>
+                  </Label>
+                  <Input
+                    id="due"
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ===== Line items — full width ===== */}
+        {/* 9 always-visible columns: Item / HSN / Qty / Unit / Price /
+            Discount / GST / Amount + ✕. The dual-unit pair (2nd qty / 2nd
+            unit) sits behind a "+ dual-unit billing" toggle — it's niche
+            and visually expensive when off. */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-base font-semibold">Line items</h2>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowDualUnit((v) => !v)}
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  {showDualUnit
+                    ? "− dual-unit billing"
+                    : "+ dual-unit billing"}
+                </button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addLine}
+                >
+                  + Add line
+                </Button>
+              </div>
             </div>
-          </div>
-          <div className="overflow-x-auto rounded-md border border-border">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="px-2.5 py-2.5 font-medium" style={{ minWidth: "16rem" }}>
-                    Item
-                  </th>
-                  {showAdvancedColumns && (
-                    <th className="px-2.5 py-2.5 font-medium" style={{ minWidth: "7rem" }}>
+            <div className="overflow-x-auto rounded-md border border-border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                    <th
+                      className="px-2.5 py-2.5 font-medium"
+                      style={{ minWidth: "16rem" }}
+                    >
+                      Item
+                    </th>
+                    <th
+                      className="px-2.5 py-2.5 font-medium"
+                      style={{ minWidth: "7rem" }}
+                    >
                       HSN
                     </th>
-                  )}
-                  <th className="px-2.5 py-2.5 text-right font-medium" style={{ minWidth: "5rem" }}>
-                    Qty
-                  </th>
-                  <th className="px-2.5 py-2.5 font-medium" style={{ minWidth: "5.5rem" }}>
-                    Unit
-                  </th>
-                  {showAdvancedColumns && (
-                    <>
-                      <th className="px-2.5 py-2.5 text-right font-medium" style={{ minWidth: "5rem" }}>
-                        2nd qty
-                      </th>
-                      <th className="px-2.5 py-2.5 font-medium" style={{ minWidth: "5.5rem" }}>
-                        2nd unit
-                      </th>
-                    </>
-                  )}
-                  <th className="px-2.5 py-2.5 text-right font-medium" style={{ minWidth: "6rem" }}>
-                    Price
-                  </th>
-                  {showAdvancedColumns && (
-                    <th className="px-2.5 py-2.5 text-right font-medium" style={{ minWidth: "5.5rem" }}>
+                    <th
+                      className="px-2.5 py-2.5 text-right font-medium"
+                      style={{ minWidth: "5rem" }}
+                    >
+                      Qty
+                    </th>
+                    <th
+                      className="px-2.5 py-2.5 font-medium"
+                      style={{ minWidth: "5.5rem" }}
+                    >
+                      Unit
+                    </th>
+                    {showDualUnit && (
+                      <>
+                        <th
+                          className="px-2.5 py-2.5 text-right font-medium"
+                          style={{ minWidth: "5rem" }}
+                        >
+                          2nd qty
+                        </th>
+                        <th
+                          className="px-2.5 py-2.5 font-medium"
+                          style={{ minWidth: "5.5rem" }}
+                        >
+                          2nd unit
+                        </th>
+                      </>
+                    )}
+                    <th
+                      className="px-2.5 py-2.5 text-right font-medium"
+                      style={{ minWidth: "6rem" }}
+                    >
+                      Price
+                    </th>
+                    <th
+                      className="px-2.5 py-2.5 text-right font-medium"
+                      style={{ minWidth: "5.5rem" }}
+                    >
                       Discount
                     </th>
-                  )}
-                  {!isDeliveryChallan && (
-                    <th className="px-2.5 py-2.5 text-right font-medium" style={{ minWidth: "4.5rem" }}>
-                      GST %
+                    {!isDeliveryChallan && (
+                      <th
+                        className="px-2.5 py-2.5 text-right font-medium"
+                        style={{ minWidth: "4.5rem" }}
+                      >
+                        GST %
+                      </th>
+                    )}
+                    <th
+                      className="px-2.5 py-2.5 text-right font-medium"
+                      style={{ minWidth: "7rem" }}
+                    >
+                      Amount
                     </th>
-                  )}
-                  <th className="px-2.5 py-2.5 text-right font-medium" style={{ minWidth: "7rem" }}>
-                    Amount
-                  </th>
-                  <th className="w-12 px-2.5 py-2.5" aria-label="Remove" />
-                </tr>
-              </thead>
-              <tbody>
-                {lineItems.map((line, i) => (
-                  <tr key={i} className="border-t border-border align-top">
-                    {/* Item — Product picker stacked above Description */}
-                    <td className="px-2.5 py-3">
-                      <div className="flex flex-col gap-2">
-                        <select
-                          value={line.productId ?? ""}
-                          onChange={(e) => pickProductForLine(i, e.target.value)}
-                          className={CELL_SELECT_CLASS}
-                        >
-                          <option value="">— Custom / Free text —</option>
-                          {businessProducts.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          type="text"
-                          value={line.description}
-                          onChange={(e) =>
-                            updateLine(i, { description: e.target.value })
-                          }
-                          placeholder="Description (printed on the invoice)"
-                          className={CELL_INPUT_CLASS}
-                        />
-                      </div>
-                    </td>
-                    {/* HSN (advanced) */}
-                    {showAdvancedColumns && (
+                    <th className="w-12 px-2.5 py-2.5" aria-label="Remove" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {lineItems.map((line, i) => (
+                    <tr key={i} className="border-t border-border align-top">
+                      <td className="px-2.5 py-3">
+                        <div className="flex flex-col gap-2">
+                          <select
+                            value={line.productId ?? ""}
+                            onChange={(e) =>
+                              pickProductForLine(i, e.target.value)
+                            }
+                            className={CELL_SELECT_CLASS}
+                          >
+                            <option value="">— Custom / Free text —</option>
+                            {businessProducts.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="text"
+                            value={line.description}
+                            onChange={(e) =>
+                              updateLine(i, { description: e.target.value })
+                            }
+                            placeholder="Description (printed on the invoice)"
+                            className={CELL_INPUT_CLASS}
+                          />
+                        </div>
+                      </td>
                       <td className="px-2.5 py-3">
                         <input
                           type="text"
@@ -790,87 +912,92 @@ export function InvoiceForm({
                           className={cn(CELL_INPUT_CLASS, "font-mono")}
                         />
                       </td>
-                    )}
-                    {/* Qty */}
-                    <td className="px-2.5 py-3">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={line.quantity}
-                        onChange={(e) =>
-                          updateLine(i, { quantity: e.target.value })
-                        }
-                        className={cn(CELL_INPUT_CLASS, "text-right tabular-nums")}
-                      />
-                    </td>
-                    {/* Unit */}
-                    <td className="px-2.5 py-3">
-                      <select
-                        value={line.unit}
-                        onChange={(e) =>
-                          updateLine(i, { unit: e.target.value as UnitValue })
-                        }
-                        className={CELL_SELECT_CLASS}
-                      >
-                        {UNITS.map((u) => (
-                          <option key={u} value={u}>
-                            {u}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    {/* 2nd qty + 2nd unit (advanced) */}
-                    {showAdvancedColumns && (
-                      <>
-                        <td className="px-2.5 py-3">
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={line.secondaryQuantity}
-                            onChange={(e) =>
-                              updateLine(i, { secondaryQuantity: e.target.value })
-                            }
-                            placeholder="—"
-                            className={cn(
-                              CELL_INPUT_CLASS,
-                              "text-right tabular-nums",
-                            )}
-                          />
-                        </td>
-                        <td className="px-2.5 py-3">
-                          <select
-                            value={line.secondaryUnit}
-                            onChange={(e) =>
-                              updateLine(i, {
-                                secondaryUnit: e.target.value as UnitValue | "",
-                              })
-                            }
-                            className={CELL_SELECT_CLASS}
-                          >
-                            <option value="">—</option>
-                            {UNITS.map((u) => (
-                              <option key={u} value={u}>
-                                {u}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                      </>
-                    )}
-                    {/* Price */}
-                    <td className="px-2.5 py-3">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={line.unitPrice}
-                        onChange={(e) =>
-                          updateLine(i, { unitPrice: e.target.value })
-                        }
-                        className={cn(CELL_INPUT_CLASS, "text-right tabular-nums")}
-                      />
-                    </td>
-                    {/* Discount (advanced) */}
-                    {showAdvancedColumns && (
+                      <td className="px-2.5 py-3">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={line.quantity}
+                          onChange={(e) =>
+                            updateLine(i, { quantity: e.target.value })
+                          }
+                          className={cn(
+                            CELL_INPUT_CLASS,
+                            "text-right tabular-nums",
+                          )}
+                        />
+                      </td>
+                      <td className="px-2.5 py-3">
+                        <select
+                          value={line.unit}
+                          onChange={(e) =>
+                            updateLine(i, {
+                              unit: e.target.value as UnitValue,
+                            })
+                          }
+                          className={CELL_SELECT_CLASS}
+                        >
+                          {UNITS.map((u) => (
+                            <option key={u} value={u}>
+                              {u}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      {showDualUnit && (
+                        <>
+                          <td className="px-2.5 py-3">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={line.secondaryQuantity}
+                              onChange={(e) =>
+                                updateLine(i, {
+                                  secondaryQuantity: e.target.value,
+                                })
+                              }
+                              placeholder="—"
+                              className={cn(
+                                CELL_INPUT_CLASS,
+                                "text-right tabular-nums",
+                              )}
+                            />
+                          </td>
+                          <td className="px-2.5 py-3">
+                            <select
+                              value={line.secondaryUnit}
+                              onChange={(e) =>
+                                updateLine(i, {
+                                  secondaryUnit: e.target.value as
+                                    | UnitValue
+                                    | "",
+                                })
+                              }
+                              className={CELL_SELECT_CLASS}
+                            >
+                              <option value="">—</option>
+                              {UNITS.map((u) => (
+                                <option key={u} value={u}>
+                                  {u}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        </>
+                      )}
+                      <td className="px-2.5 py-3">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={line.unitPrice}
+                          onChange={(e) =>
+                            updateLine(i, { unitPrice: e.target.value })
+                          }
+                          className={cn(
+                            CELL_INPUT_CLASS,
+                            "text-right tabular-nums",
+                          )}
+                        />
+                      </td>
                       <td className="px-2.5 py-3">
                         <input
                           type="text"
@@ -886,296 +1013,294 @@ export function InvoiceForm({
                           )}
                         />
                       </td>
-                    )}
-                    {/* GST % (always for tax invoices; hidden for delivery_challan) */}
-                    {!isDeliveryChallan && (
-                      <td className="px-2.5 py-3">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={line.gstRate}
-                          onChange={(e) =>
-                            updateLine(i, { gstRate: e.target.value })
-                          }
-                          className={cn(CELL_INPUT_CLASS, "text-right tabular-nums")}
-                        />
+                      {!isDeliveryChallan && (
+                        <td className="px-2.5 py-3">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={line.gstRate}
+                            onChange={(e) =>
+                              updateLine(i, { gstRate: e.target.value })
+                            }
+                            className={cn(
+                              CELL_INPUT_CLASS,
+                              "text-right tabular-nums",
+                            )}
+                          />
+                        </td>
+                      )}
+                      <td className="px-2.5 py-3 text-right">
+                        <div className="flex h-9 items-center justify-end text-sm font-medium tabular-nums text-foreground">
+                          {lineAmounts?.[i]
+                            ? `₹ ${lineAmounts[i]!.amount}`
+                            : "—"}
+                        </div>
                       </td>
-                    )}
-                    {/* Amount — computed, read-only display */}
-                    <td className="px-2.5 py-3 text-right">
-                      <div className="flex h-9 items-center justify-end text-sm font-medium tabular-nums text-foreground">
-                        {lineAmounts?.[i] ? `₹ ${lineAmounts[i]!.amount}` : "—"}
-                      </div>
-                    </td>
-                    {/* Remove */}
-                    <td className="px-2.5 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => removeLine(i)}
-                        disabled={lineItems.length === 1}
-                        title={
-                          lineItems.length === 1
-                            ? "An invoice needs at least one line"
-                            : "Remove this line"
-                        }
-                        className={cn(
-                          "inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-sm transition-colors",
-                          lineItems.length === 1
-                            ? "cursor-not-allowed text-muted-foreground/50"
-                            : "text-destructive hover:bg-destructive/10",
-                        )}
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ---- Ship-to (accordion) ---- */}
-      <FormSection
-        title="Ship-to"
-        subtitle="optional"
-        summary={
-          shipToName || shipToAddress
-            ? `${shipToName}${shipToName && shipToAddress ? " · " : ""}${shipToAddress}`
-            : "Ships to the bill-to customer by default"
-        }
-        defaultOpen={shipToOpen}
-      >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_2fr]">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="shipName">Consignee name</Label>
-            <Input
-              id="shipName"
-              value={shipToName}
-              onChange={(e) => setShipToName(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="shipAddr">Ship-to address</Label>
-            <Input
-              id="shipAddr"
-              value={shipToAddress}
-              onChange={(e) => setShipToAddress(e.target.value)}
-            />
-          </div>
-        </div>
-      </FormSection>
-
-      {/* ---- Extra charges (accordion) ---- */}
-      <FormSection
-        title="Extra charges"
-        subtitle="cutting / labour / freight"
-        summary={
-          extraCharges.length > 0
-            ? `${extraCharges.length} charge${extraCharges.length > 1 ? "s" : ""}`
-            : "None added"
-        }
-        defaultOpen={extraChargesOpen}
-      >
-        <div className="mb-3 flex items-center justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={addCharge}
-          >
-            + Add charge
-          </Button>
-        </div>
-        {extraCharges.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Add taxable charges (cutting, processing) to fold into the taxable
-            base, or non-taxable charges (informal freight) that ride on top of
-            the rounded total.
-          </p>
-        ) : (
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-left text-muted-foreground">
-                  <th className="px-1.5 py-1.5 font-medium">Label</th>
-                  <th className="px-1.5 py-1.5 font-medium">Amount</th>
-                  <th className="px-1.5 py-1.5 font-medium">Taxable</th>
-                  <th className="px-1.5 py-1.5 font-medium">GST %</th>
-                  <th className="px-1.5 py-1.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {extraCharges.map((c, i) => (
-                  <tr key={i} className="border-t border-border align-top">
-                    <td className="px-1 py-1.5">
-                      <input
-                        type="text"
-                        value={c.label}
-                        onChange={(e) => updateCharge(i, { label: e.target.value })}
-                        placeholder="e.g. Cutting charge"
-                        className={CELL_INPUT_CLASS}
-                      />
-                    </td>
-                    <td className="w-32.5 px-1 py-1.5">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={c.amount}
-                        onChange={(e) =>
-                          updateCharge(i, { amount: e.target.value })
-                        }
-                        className={cn(CELL_INPUT_CLASS, "text-right tabular-nums")}
-                      />
-                    </td>
-                    <td className="w-27.5 px-1 py-1.5">
-                      <label className="flex items-center gap-2 text-sm text-foreground">
-                        <input
-                          type="checkbox"
-                          checked={c.taxable}
-                          onChange={(e) =>
-                            updateCharge(i, { taxable: e.target.checked })
-                          }
-                          className="h-4 w-4 rounded border-input"
-                        />
-                        Taxable
-                      </label>
-                    </td>
-                    <td className="w-25 px-1 py-1.5">
-                      {c.taxable ? (
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={c.gstRate}
-                          onChange={(e) =>
-                            updateCharge(i, { gstRate: e.target.value })
+                      <td className="px-2.5 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => removeLine(i)}
+                          disabled={lineItems.length === 1}
+                          title={
+                            lineItems.length === 1
+                              ? "An invoice needs at least one line"
+                              : "Remove this line"
                           }
                           className={cn(
-                            CELL_INPUT_CLASS,
-                            "text-right tabular-nums",
+                            "inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-sm transition-colors",
+                            lineItems.length === 1
+                              ? "cursor-not-allowed text-muted-foreground/50"
+                              : "text-destructive hover:bg-destructive/10",
                           )}
-                        />
-                      ) : (
-                        <span className="text-xs text-muted-foreground/70">—</span>
-                      )}
-                    </td>
-                    <td className="px-1 py-1.5 text-right">
-                      <button
-                        type="button"
-                        onClick={() => removeCharge(i)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-sm text-destructive transition-colors hover:bg-destructive/10"
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-      </FormSection>
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* ---- Transport / e-way (accordion) ---- */}
-      <FormSection
-        title="Transport & e-way bill"
-        subtitle="optional"
-        summary={
-          transportMode || vehicleNumber || ewayBillNumber
-            ? [transportMode, vehicleNumber, ewayBillNumber]
-                .filter(Boolean)
-                .join(" · ")
-            : "Not set"
-        }
-        defaultOpen={transportOpen}
-      >
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="tmode">Transport mode</Label>
-            <Input
-              id="tmode"
-              value={transportMode}
-              onChange={(e) => setTransportMode(e.target.value)}
-              placeholder="Road / Rail / Self pickup"
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="veh">Vehicle number</Label>
-            <Input
-              id="veh"
-              value={vehicleNumber}
-              onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
-              placeholder="UP 32 AB 1234"
-              className="uppercase"
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="eway">E-way bill number</Label>
-            <Input
-              id="eway"
-              value={ewayBillNumber}
-              onChange={(e) => setEwayBillNumber(e.target.value)}
-              placeholder="generated outside AstraBill"
-            />
-          </div>
-        </div>
-      </FormSection>
+        {/* ===== Bottom 2-col: accordions (left) + Totals (right) ===== */}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="flex min-w-0 flex-col gap-5">
+            <FormSection
+              title="Ship-to"
+              subtitle="optional"
+              summary={
+                shipToName || shipToAddress
+                  ? `${shipToName}${shipToName && shipToAddress ? " · " : ""}${shipToAddress}`
+                  : "Ships to the bill-to customer by default"
+              }
+              defaultOpen={shipToOpen}
+            >
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_2fr]">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="shipName">Consignee name</Label>
+                  <Input
+                    id="shipName"
+                    value={shipToName}
+                    onChange={(e) => setShipToName(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="shipAddr">Ship-to address</Label>
+                  <Input
+                    id="shipAddr"
+                    value={shipToAddress}
+                    onChange={(e) => setShipToAddress(e.target.value)}
+                  />
+                </div>
+              </div>
+            </FormSection>
 
-      {/* ---- Notes (accordion) ---- */}
-      <FormSection
-        title="Notes"
-        subtitle="optional"
-        summary={
-          notes
-            ? notes.length > 70
-              ? `${notes.slice(0, 70).trim()}…`
-              : notes
-            : "No notes"
-        }
-        defaultOpen={notesOpen}
-      >
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="notes">Notes for the customer</Label>
-          <Textarea
-            id="notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={5}
-            placeholder="Anything the customer should see on the invoice."
-            className="min-h-28"
-          />
-        </div>
-      </FormSection>
-        </div>
-        {/* ===== END left column ===== */}
+            <FormSection
+              title="Extra charges"
+              subtitle="cutting / labour / freight"
+              summary={
+                extraCharges.length > 0
+                  ? `${extraCharges.length} charge${extraCharges.length > 1 ? "s" : ""}`
+                  : "None added"
+              }
+              defaultOpen={extraChargesOpen}
+            >
+              <div className="mb-3 flex items-center justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addCharge}
+                >
+                  + Add charge
+                </Button>
+              </div>
+              {extraCharges.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Add taxable charges (cutting, processing) to fold into the
+                  taxable base, or non-taxable charges (informal freight) that
+                  ride on top of the rounded total.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-muted-foreground">
+                        <th className="px-1.5 py-1.5 font-medium">Label</th>
+                        <th className="px-1.5 py-1.5 font-medium">Amount</th>
+                        <th className="px-1.5 py-1.5 font-medium">Taxable</th>
+                        <th className="px-1.5 py-1.5 font-medium">GST %</th>
+                        <th className="px-1.5 py-1.5" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {extraCharges.map((c, i) => (
+                        <tr
+                          key={i}
+                          className="border-t border-border align-top"
+                        >
+                          <td className="px-1 py-1.5">
+                            <input
+                              type="text"
+                              value={c.label}
+                              onChange={(e) =>
+                                updateCharge(i, { label: e.target.value })
+                              }
+                              placeholder="e.g. Cutting charge"
+                              className={CELL_INPUT_CLASS}
+                            />
+                          </td>
+                          <td className="w-32.5 px-1 py-1.5">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={c.amount}
+                              onChange={(e) =>
+                                updateCharge(i, { amount: e.target.value })
+                              }
+                              className={cn(
+                                CELL_INPUT_CLASS,
+                                "text-right tabular-nums",
+                              )}
+                            />
+                          </td>
+                          <td className="w-27.5 px-1 py-1.5">
+                            <label className="flex items-center gap-2 text-sm text-foreground">
+                              <input
+                                type="checkbox"
+                                checked={c.taxable}
+                                onChange={(e) =>
+                                  updateCharge(i, {
+                                    taxable: e.target.checked,
+                                  })
+                                }
+                                className="h-4 w-4 rounded border-input"
+                              />
+                              Taxable
+                            </label>
+                          </td>
+                          <td className="w-25 px-1 py-1.5">
+                            {c.taxable ? (
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={c.gstRate}
+                                onChange={(e) =>
+                                  updateCharge(i, { gstRate: e.target.value })
+                                }
+                                className={cn(
+                                  CELL_INPUT_CLASS,
+                                  "text-right tabular-nums",
+                                )}
+                              />
+                            ) : (
+                              <span className="text-xs text-muted-foreground/70">
+                                —
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-1 py-1.5 text-right">
+                            <button
+                              type="button"
+                              onClick={() => removeCharge(i)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-sm text-destructive transition-colors hover:bg-destructive/10"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </FormSection>
 
-        {/* ===== RIGHT: sticky totals rail (desktop only ≥lg) ===== */}
-        <aside className="hidden lg:block">
-          <div className="sticky top-6">
+            <FormSection
+              title="Transport & e-way bill"
+              subtitle="optional"
+              summary={
+                transportMode || vehicleNumber || ewayBillNumber
+                  ? [transportMode, vehicleNumber, ewayBillNumber]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : "Not set"
+              }
+              defaultOpen={transportOpen}
+            >
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="tmode">Transport mode</Label>
+                  <Input
+                    id="tmode"
+                    value={transportMode}
+                    onChange={(e) => setTransportMode(e.target.value)}
+                    placeholder="Road / Rail / Self pickup"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="veh">Vehicle number</Label>
+                  <Input
+                    id="veh"
+                    value={vehicleNumber}
+                    onChange={(e) =>
+                      setVehicleNumber(e.target.value.toUpperCase())
+                    }
+                    placeholder="UP 32 AB 1234"
+                    className="uppercase"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="eway">E-way bill number</Label>
+                  <Input
+                    id="eway"
+                    value={ewayBillNumber}
+                    onChange={(e) => setEwayBillNumber(e.target.value)}
+                    placeholder="generated outside AstraBill"
+                  />
+                </div>
+              </div>
+            </FormSection>
+
+            <FormSection
+              title="Notes"
+              subtitle="optional"
+              summary={
+                notes
+                  ? notes.length > 70
+                    ? `${notes.slice(0, 70).trim()}…`
+                    : notes
+                  : "No notes"
+              }
+              defaultOpen={notesOpen}
+            >
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="notes">Notes for the customer</Label>
+                <Textarea
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={5}
+                  placeholder="Anything the customer should see on the invoice."
+                  className="min-h-28"
+                />
+              </div>
+            </FormSection>
+          </div>
+          {/* Totals — inline (not sticky), matches myBillBook bottom-right */}
+          <div>
             <TotalsCard />
           </div>
-        </aside>
-
-        {/* ===== Mobile / tablet totals (inline at end) ===== */}
-        <div className="lg:hidden">
-          <TotalsCard />
         </div>
       </div>
-      {/* ===== END grid ===== */}
 
-      {/* Sticky bottom action bar — always-visible Save. Negative margins
-          break out of the BrandedAppShell's `px-6 sm:px-10` so the bar
-          spans the full content width. */}
-      <div className="sticky bottom-0 z-10 -mx-6 mt-5 border-t border-border bg-background/95 px-6 py-3 backdrop-blur sm:-mx-10 sm:px-10">
-        {error && (
-          <div className="mb-2 text-sm text-destructive">
-            <div>{error}</div>
-            {errorDetails ? (
-              <pre className="mt-1 max-w-md whitespace-pre-wrap rounded-md bg-destructive/10 px-2.5 py-2 text-xs">
-                {JSON.stringify(errorDetails, null, 2)}
-              </pre>
-            ) : null}
-          </div>
-        )}
+      {/* ===== Sticky bottom action bar — MOBILE ONLY ===== */}
+      {/* On desktop the sticky top bar carries Save; on mobile the bottom bar
+          puts Save at thumb reach. Negative margins break out of the
+          BrandedAppShell's `px-6 sm:px-10` so the bar spans full width. */}
+      <div className="sticky bottom-0 z-10 -mx-6 mt-5 border-t border-border bg-background/95 px-6 py-3 backdrop-blur sm:-mx-10 sm:px-10 md:hidden">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm text-muted-foreground">
             Total{" "}
@@ -1183,28 +1308,20 @@ export function InvoiceForm({
               ₹ {totals?.total ?? "0.00"}
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <a
-              href={routes.b(businessId).invoices}
-              className={buttonClasses("outline", "md")}
-            >
-              Cancel
-            </a>
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              disabled={submitDisabled}
-            >
-              {busy
-                ? isEdit
-                  ? "Saving…"
-                  : "Creating…"
-                : isEdit
-                  ? "Save changes"
-                  : "Create draft"}
-            </Button>
-          </div>
+          <Button
+            type="submit"
+            variant="primary"
+            size="md"
+            disabled={submitDisabled}
+          >
+            {busy
+              ? isEdit
+                ? "Saving…"
+                : "Creating…"
+              : isEdit
+                ? "Save"
+                : "Create"}
+          </Button>
         </div>
       </div>
     </form>

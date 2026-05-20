@@ -1,7 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 
-import { PageHeader } from "@/components/app/PageHeader";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
 import { listCustomersForUser } from "@/lib/services/customers";
 import { getInvoice } from "@/lib/services/invoices";
@@ -140,19 +139,13 @@ export default async function EditInvoicePage({
   };
 
   return (
-    <>
-      <PageHeader
-        title={`Edit ${invoice.number ?? "draft — number assigned on finalise"}`}
-        description="Drafts are fully editable. Once you finalise (mark as sent) the invoice becomes immutable — corrections then go through a credit note."
-      />
-      <InvoiceForm
-        businesses={businessOptions}
-        customers={customerOptions}
-        products={productOptions}
-        initialBusinessId={invoice.businessId}
-        editingInvoiceId={id}
-        initial={initial}
-      />
-    </>
+    <InvoiceForm
+      businesses={businessOptions}
+      customers={customerOptions}
+      products={productOptions}
+      initialBusinessId={invoice.businessId}
+      editingInvoiceId={id}
+      initial={initial}
+    />
   );
 }

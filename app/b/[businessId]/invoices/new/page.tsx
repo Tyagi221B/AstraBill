@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
-import { PageHeader } from "@/components/app/PageHeader";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
 import { listCustomersForUser } from "@/lib/services/customers";
 import { listProductsForUser } from "@/lib/services/products";
@@ -63,17 +62,11 @@ export default async function NewInvoicePage({
     }));
 
   return (
-    <>
-      <PageHeader
-        title="New invoice"
-        description="Add at least one line item. GST is computed automatically from your business state and the place of supply."
-      />
-      <InvoiceForm
-        businesses={businessOptions}
-        customers={customerOptions}
-        products={productOptions}
-        initialBusinessId={business.id}
-      />
-    </>
+    <InvoiceForm
+      businesses={businessOptions}
+      customers={customerOptions}
+      products={productOptions}
+      initialBusinessId={business.id}
+    />
   );
 }
