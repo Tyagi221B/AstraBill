@@ -123,9 +123,13 @@ const blankCharge = (): ExtraCharge => ({
 const SELECT_CLASS =
   "h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50";
 
-// Cell-sized variants for use inside the dense line-items table.
+// Cell-sized variants for use inside the line-items table. Phase 2E
+// upsized these from h-8/text-xs to h-9/text-sm so contents (HSN codes,
+// unit prices, GST %) don't truncate at typical cell widths. Cells now
+// fit their content; the outer table only needs horizontal scroll on
+// genuinely narrow viewports.
 const CELL_INPUT_CLASS =
-  "h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground shadow-xs focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none";
+  "h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm text-foreground shadow-xs focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none";
 const CELL_SELECT_CLASS = CELL_INPUT_CLASS;
 
 // ---- accordion section --------------------------------------------------
@@ -177,9 +181,6 @@ function FormSection({
             </div>
           )}
         </div>
-        <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
-          {open ? "Close" : "Open"}
-        </span>
       </button>
       {open && (
         <CardContent className="border-t border-border pt-5">
@@ -263,6 +264,21 @@ export function InvoiceForm({
   const [error, setError] = useState<string | null>(null);
   const [errorDetails, setErrorDetails] = useState<unknown>(null);
 
+  // Show the advanced line-item columns (HSN, 2nd qty + unit, per-line
+  // Discount). Default-on if the edit data has any of them populated, so
+  // an existing invoice with HSN codes doesn't appear to "lose" its data
+  // behind the toggle when opened for edit.
+  const initialAdvanced =
+    initial?.lineItems?.some(
+      (l) =>
+        (l.hsnCode && l.hsnCode.trim() !== "") ||
+        (l.secondaryQuantity && l.secondaryQuantity.trim() !== "") ||
+        !!l.secondaryUnit ||
+        (l.discountAmount && Number(l.discountAmount) !== 0),
+    ) ?? false;
+  const [showAdvancedColumns, setShowAdvancedColumns] =
+    useState(initialAdvanced);
+
   const business = businesses.find((b) => b.id === businessId)!;
   const businessCustomers = useMemo(
     () => customers.filter((c) => c.businessId === businessId),
@@ -291,9 +307,12 @@ export function InvoiceForm({
 
   // ---- live totals preview --------------------------------------------
 
-  const totals = useMemo(() => {
+  // Per-line computed amounts (exposed separately so the table's "Amount"
+  // column can show the GST-inclusive total per line — the same value
+  // that appears on the finalised invoice's PDF).
+  const lineAmounts = useMemo(() => {
     try {
-      const lineAmounts = lineItems.map((line) =>
+      return lineItems.map((line) =>
         computeLineItem(
           {
             quantity: line.quantity || "0",
@@ -304,6 +323,14 @@ export function InvoiceForm({
           taxClass,
         ),
       );
+    } catch {
+      return null;
+    }
+  }, [lineItems, taxClass, isDeliveryChallan]);
+
+  const totals = useMemo(() => {
+    if (!lineAmounts) return null;
+    try {
       const combined = lineItems.map((line, i) => ({
         ...line,
         gstRate: isDeliveryChallan ? "0" : line.gstRate,
@@ -326,7 +353,7 @@ export function InvoiceForm({
     } catch {
       return null;
     }
-  }, [lineItems, extraCharges, taxClass, isDeliveryChallan]);
+  }, [lineItems, lineAmounts, extraCharges, taxClass, isDeliveryChallan]);
 
   // ---- handlers --------------------------------------------------------
 
@@ -648,73 +675,124 @@ export function InvoiceForm({
       </Card>
 
       {/* ---- Line items ---- */}
+      {/* Default 6 columns (Item / Qty / Unit / Price / GST / Amount + ✕).
+          Advanced columns (HSN / 2nd qty / 2nd unit / Discount) appear when
+          `showAdvancedColumns` is on. Item column stacks Product picker
+          above Description input so both stay visible without claiming two
+          columns. Generous cell padding (py-3 px-2.5) keeps the table
+          readable instead of cramped. Outer `overflow-x-auto` only kicks
+          in on very narrow viewports because the default 6 columns fit a
+          typical desktop form region without scroll. */}
       <Card>
         <CardContent className="pt-6">
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-base font-semibold">Line items</h2>
-            <Button type="button" variant="outline" size="sm" onClick={addLine}>
-              + Add line
-            </Button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAdvancedColumns((v) => !v)}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                {showAdvancedColumns ? "− Hide advanced columns" : "+ Show advanced columns"}
+              </button>
+              <Button type="button" variant="outline" size="sm" onClick={addLine}>
+                + Add line
+              </Button>
+            </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+          <div className="overflow-x-auto rounded-md border border-border">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-muted-foreground">
-                  <th className="px-1.5 py-1.5 font-medium">Product</th>
-                  <th className="px-1.5 py-1.5 font-medium">Description</th>
-                  <th className="px-1.5 py-1.5 font-medium">HSN</th>
-                  <th className="px-1.5 py-1.5 font-medium">Qty</th>
-                  <th className="px-1.5 py-1.5 font-medium">Unit</th>
-                  <th className="px-1.5 py-1.5 font-medium">2nd qty</th>
-                  <th className="px-1.5 py-1.5 font-medium">2nd unit</th>
-                  <th className="px-1.5 py-1.5 font-medium">Unit price</th>
-                  <th className="px-1.5 py-1.5 font-medium">Discount</th>
-                  {!isDeliveryChallan && (
-                    <th className="px-1.5 py-1.5 font-medium">GST %</th>
+                <tr className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="px-2.5 py-2.5 font-medium" style={{ minWidth: "16rem" }}>
+                    Item
+                  </th>
+                  {showAdvancedColumns && (
+                    <th className="px-2.5 py-2.5 font-medium" style={{ minWidth: "7rem" }}>
+                      HSN
+                    </th>
                   )}
-                  <th className="px-1.5 py-1.5" />
+                  <th className="px-2.5 py-2.5 text-right font-medium" style={{ minWidth: "5rem" }}>
+                    Qty
+                  </th>
+                  <th className="px-2.5 py-2.5 font-medium" style={{ minWidth: "5.5rem" }}>
+                    Unit
+                  </th>
+                  {showAdvancedColumns && (
+                    <>
+                      <th className="px-2.5 py-2.5 text-right font-medium" style={{ minWidth: "5rem" }}>
+                        2nd qty
+                      </th>
+                      <th className="px-2.5 py-2.5 font-medium" style={{ minWidth: "5.5rem" }}>
+                        2nd unit
+                      </th>
+                    </>
+                  )}
+                  <th className="px-2.5 py-2.5 text-right font-medium" style={{ minWidth: "6rem" }}>
+                    Price
+                  </th>
+                  {showAdvancedColumns && (
+                    <th className="px-2.5 py-2.5 text-right font-medium" style={{ minWidth: "5.5rem" }}>
+                      Discount
+                    </th>
+                  )}
+                  {!isDeliveryChallan && (
+                    <th className="px-2.5 py-2.5 text-right font-medium" style={{ minWidth: "4.5rem" }}>
+                      GST %
+                    </th>
+                  )}
+                  <th className="px-2.5 py-2.5 text-right font-medium" style={{ minWidth: "7rem" }}>
+                    Amount
+                  </th>
+                  <th className="w-12 px-2.5 py-2.5" aria-label="Remove" />
                 </tr>
               </thead>
               <tbody>
                 {lineItems.map((line, i) => (
                   <tr key={i} className="border-t border-border align-top">
-                    <td className="min-w-35 px-1 py-1.5">
-                      <select
-                        value={line.productId ?? ""}
-                        onChange={(e) => pickProductForLine(i, e.target.value)}
-                        className={CELL_SELECT_CLASS}
-                      >
-                        <option value="">— custom —</option>
-                        {businessProducts.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
+                    {/* Item — Product picker stacked above Description */}
+                    <td className="px-2.5 py-3">
+                      <div className="flex flex-col gap-2">
+                        <select
+                          value={line.productId ?? ""}
+                          onChange={(e) => pickProductForLine(i, e.target.value)}
+                          className={CELL_SELECT_CLASS}
+                        >
+                          <option value="">— Custom / Free text —</option>
+                          {businessProducts.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="text"
+                          value={line.description}
+                          onChange={(e) =>
+                            updateLine(i, { description: e.target.value })
+                          }
+                          placeholder="Description (printed on the invoice)"
+                          className={CELL_INPUT_CLASS}
+                        />
+                      </div>
                     </td>
-                    <td className="min-w-50 px-1 py-1.5">
-                      <input
-                        type="text"
-                        value={line.description}
-                        onChange={(e) =>
-                          updateLine(i, { description: e.target.value })
-                        }
-                        placeholder="e.g. 5mm glass cut to size"
-                        className={CELL_INPUT_CLASS}
-                      />
-                    </td>
-                    <td className="w-22.5 px-1 py-1.5">
-                      <input
-                        type="text"
-                        value={line.hsnCode}
-                        onChange={(e) =>
-                          updateLine(i, { hsnCode: e.target.value })
-                        }
-                        maxLength={20}
-                        className={cn(CELL_INPUT_CLASS, "font-mono")}
-                      />
-                    </td>
-                    <td className="w-20 px-1 py-1.5">
+                    {/* HSN (advanced) */}
+                    {showAdvancedColumns && (
+                      <td className="px-2.5 py-3">
+                        <input
+                          type="text"
+                          value={line.hsnCode}
+                          onChange={(e) =>
+                            updateLine(i, { hsnCode: e.target.value })
+                          }
+                          maxLength={20}
+                          placeholder="—"
+                          className={cn(CELL_INPUT_CLASS, "font-mono")}
+                        />
+                      </td>
+                    )}
+                    {/* Qty */}
+                    <td className="px-2.5 py-3">
                       <input
                         type="text"
                         inputMode="decimal"
@@ -725,7 +803,8 @@ export function InvoiceForm({
                         className={cn(CELL_INPUT_CLASS, "text-right tabular-nums")}
                       />
                     </td>
-                    <td className="w-23 px-1 py-1.5">
+                    {/* Unit */}
+                    <td className="px-2.5 py-3">
                       <select
                         value={line.unit}
                         onChange={(e) =>
@@ -740,36 +819,46 @@ export function InvoiceForm({
                         ))}
                       </select>
                     </td>
-                    <td className="w-20 px-1 py-1.5">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={line.secondaryQuantity}
-                        onChange={(e) =>
-                          updateLine(i, { secondaryQuantity: e.target.value })
-                        }
-                        className={cn(CELL_INPUT_CLASS, "text-right tabular-nums")}
-                      />
-                    </td>
-                    <td className="w-23 px-1 py-1.5">
-                      <select
-                        value={line.secondaryUnit}
-                        onChange={(e) =>
-                          updateLine(i, {
-                            secondaryUnit: e.target.value as UnitValue | "",
-                          })
-                        }
-                        className={CELL_SELECT_CLASS}
-                      >
-                        <option value="">—</option>
-                        {UNITS.map((u) => (
-                          <option key={u} value={u}>
-                            {u}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="w-27.5 px-1 py-1.5">
+                    {/* 2nd qty + 2nd unit (advanced) */}
+                    {showAdvancedColumns && (
+                      <>
+                        <td className="px-2.5 py-3">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={line.secondaryQuantity}
+                            onChange={(e) =>
+                              updateLine(i, { secondaryQuantity: e.target.value })
+                            }
+                            placeholder="—"
+                            className={cn(
+                              CELL_INPUT_CLASS,
+                              "text-right tabular-nums",
+                            )}
+                          />
+                        </td>
+                        <td className="px-2.5 py-3">
+                          <select
+                            value={line.secondaryUnit}
+                            onChange={(e) =>
+                              updateLine(i, {
+                                secondaryUnit: e.target.value as UnitValue | "",
+                              })
+                            }
+                            className={CELL_SELECT_CLASS}
+                          >
+                            <option value="">—</option>
+                            {UNITS.map((u) => (
+                              <option key={u} value={u}>
+                                {u}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      </>
+                    )}
+                    {/* Price */}
+                    <td className="px-2.5 py-3">
                       <input
                         type="text"
                         inputMode="decimal"
@@ -780,19 +869,27 @@ export function InvoiceForm({
                         className={cn(CELL_INPUT_CLASS, "text-right tabular-nums")}
                       />
                     </td>
-                    <td className="w-22.5 px-1 py-1.5">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={line.discountAmount}
-                        onChange={(e) =>
-                          updateLine(i, { discountAmount: e.target.value })
-                        }
-                        className={cn(CELL_INPUT_CLASS, "text-right tabular-nums")}
-                      />
-                    </td>
+                    {/* Discount (advanced) */}
+                    {showAdvancedColumns && (
+                      <td className="px-2.5 py-3">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={line.discountAmount}
+                          onChange={(e) =>
+                            updateLine(i, { discountAmount: e.target.value })
+                          }
+                          placeholder="0"
+                          className={cn(
+                            CELL_INPUT_CLASS,
+                            "text-right tabular-nums",
+                          )}
+                        />
+                      </td>
+                    )}
+                    {/* GST % (always for tax invoices; hidden for delivery_challan) */}
                     {!isDeliveryChallan && (
-                      <td className="w-20 px-1 py-1.5">
+                      <td className="px-2.5 py-3">
                         <input
                           type="text"
                           inputMode="decimal"
@@ -804,7 +901,14 @@ export function InvoiceForm({
                         />
                       </td>
                     )}
-                    <td className="px-1 py-1.5 text-right">
+                    {/* Amount — computed, read-only display */}
+                    <td className="px-2.5 py-3 text-right">
+                      <div className="flex h-9 items-center justify-end text-sm font-medium tabular-nums text-foreground">
+                        {lineAmounts?.[i] ? `₹ ${lineAmounts[i]!.amount}` : "—"}
+                      </div>
+                    </td>
+                    {/* Remove */}
+                    <td className="px-2.5 py-3 text-right">
                       <button
                         type="button"
                         onClick={() => removeLine(i)}
@@ -815,7 +919,7 @@ export function InvoiceForm({
                             : "Remove this line"
                         }
                         className={cn(
-                          "inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card text-sm transition-colors",
+                          "inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-sm transition-colors",
                           lineItems.length === 1
                             ? "cursor-not-allowed text-muted-foreground/50"
                             : "text-destructive hover:bg-destructive/10",
