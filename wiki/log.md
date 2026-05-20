@@ -870,3 +870,70 @@ below…", "We appreciate your prompt payment" all read as marketing
 copy in Utility category). User will delete + recreate with cleaner
 copy as `astrabill_payment_reminder_v1`. Not blocking; it's for the V2
 reminder cron.
+
+## [2026-05-20] build | Phase 2E complete — UI refinement live on production
+
+All four steps of Phase 2E (foundation → invoice form → propagate →
+polish) shipped and pushed to `origin/main`. 11 commits went out in the
+deploy. The app that landed on `astrabill.com` today is the one the
+user finally pointed at and said "looks better than before."
+
+**Step 0 — Foundation.** Warm-paper palette (page `#FAFAF7`, cards
+pure white, primary `#1E40AF`), `defaultTheme="light"`, spacing +
+typography scale documented in the `globals.css` header comment,
+[[decision/ui-refinement-phase-2e]] written. Soft-tinted Badge pills
+replaced saturated solids; `Card` gained `shadow-sm dark:shadow-none`
+elevation; sidebar split into Workspace + Settings groups.
+
+**Step 1 — Invoice creation form.** Full myBillBook layout-for-layout
+match: sticky top action bar on md+ (title + Cancel + Save), Bill To
+card (left) + Invoice details card (right) at the top, line items
+table full-width with 9 always-visible columns (Item / HSN / Qty /
+Unit / Price / Discount / GST / Amount + ✕), "+ dual-unit billing"
+toggle gating only the niche 2nd-qty pair, four accordions (Ship-to ·
+Extra charges · Transport · Notes) bottom-left, Totals card
+bottom-right inline (not sticky — myBillBook's pattern), sticky-bottom
+Save bar on mobile only (`md:hidden`). PageHeader dropped from
+`new/page.tsx` and `edit/page.tsx` since the form now owns its title.
+Pre-rebuild the form lost width to a 320px sticky right rail and the
+HSN cell truncated; the rebuild gives every column its 6-9rem floor.
+
+**Step 2 — Propagate.** Invoice detail page got the same two-column
+rhythm as the form: a Bill to + Invoice meta split at the top, line
+items full-width, Totals card anchored bottom-right via a
+`grid-cols-[minmax(0,1fr)_360px]`. Replaces the orphaned
+`ml-auto max-w-sm` Totals card that floated alone with no left-side
+context.
+
+**Step 3 — Polish.** Four things landed:
+
+1. **`EmptyState` primitive** (`components/app/EmptyState.tsx`) —
+   icon tile + headline + sub-line + CTA, wrapped in a `<Card>`. Wired
+   into the empty states on `/invoices`, `/customers`, `/products`.
+   The bland "No customers yet." became a real first-touch surface.
+
+2. **`sonner` toast** (`components/ui/Toaster.tsx` mounted once in
+   `app/layout.tsx`, theme follows next-themes via `resolvedTheme`).
+   Every inline destructive-banner pattern across the six client
+   surfaces (InvoiceForm · CustomerForm · ProductForm · InvoiceActions
+   · WhatsAppPanel · PaymentPanel) replaced with `toast.error()`. The
+   inline-banner pattern from F3 was the half-cooked one this phase
+   exists to eliminate.
+
+3. **`Skeleton` primitive** (`components/ui/skeleton.tsx`) — soft
+   muted pulse using the same `bg-muted` token as cards. `loading.tsx`
+   shells on the three highest-traffic / heaviest server pages:
+   dashboard, `/invoices` list, `/invoices/[id]` detail. The detail
+   page does four parallel DB reads (payments, sends, membership,
+   customer) before paint — it benefits most.
+
+4. **Focus rings.** A single `a:focus-visible` rule in `globals.css`
+   draws a 2px ring at `--ring` with 2px offset. Button primitive
+   already carried its own ring, so this hits inline anchors like
+   "View →", "Edit →", and sidebar / breadcrumb links. Keyboard
+   navigation is now visible across the surface.
+
+After this deploy the only V1 piece left is **Razorpay** — the UPI
+payment link that closes the loop the WhatsApp send opened. The "Pay
+Now" button arrives into a polished visual language and inherits the
+discipline instead of layering on top of unrefined UI.
