@@ -71,13 +71,54 @@ export function SidebarContent({
   const pathname = usePathname();
   const b = routes.b(business.id);
 
-  const navItems = [
+  // Phase 2E: nav split into "Workspace" (daily operational pages) and
+  // "Settings" (configurational). The two-group structure gives breathing
+  // room and signals "where the work lives vs where the knobs are."
+  // Inspired by GymPilot's PLATFORM / SETTINGS pattern.
+  const workspaceItems = [
     { label: "Dashboard", path: b.dashboard, icon: LayoutDashboard },
     { label: "Invoices", path: b.invoices, icon: ReceiptText },
     { label: "Customers", path: b.customers, icon: Users },
     { label: "Products", path: b.products, icon: Package },
+  ] as const;
+  const settingsItems = [
     { label: "Settings", path: b.settings.branding, icon: Settings },
   ] as const;
+
+  type NavItem = (typeof workspaceItems)[number] | (typeof settingsItems)[number];
+
+  const renderNavLink = (item: NavItem) => {
+    // Exact match for the dashboard so it isn't also lit on /b/[id]/x.
+    // Everything else uses prefix match so deep links inside a section
+    // (e.g. /invoices/[id]/edit) keep the parent nav item active.
+    const isActive =
+      item.path === b.dashboard
+        ? pathname === b.dashboard
+        : pathname === item.path || pathname.startsWith(`${item.path}/`);
+    return (
+      <Link
+        key={item.path}
+        href={item.path}
+        onClick={onNavigate}
+        className={cn(
+          "group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+          isActive
+            ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        )}
+      >
+        {isActive && (
+          <span
+            aria-hidden
+            className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r"
+            style={{ backgroundColor: business.brandColor }}
+          />
+        )}
+        <item.icon className="h-4 w-4 shrink-0" />
+        <span className="truncate">{item.label}</span>
+      </Link>
+    );
+  };
 
   return (
     <div className="bg-sidebar text-sidebar-foreground flex h-full w-full flex-col">
@@ -87,39 +128,19 @@ export function SidebarContent({
         onNavigate={onNavigate}
       />
 
-      <nav className="flex flex-1 flex-col gap-0.5 px-3 py-4">
-        {navItems.map((item) => {
-          // Exact match for the dashboard so it isn't also lit on /b/[id]/x.
-          // Everything else uses prefix match so deep links inside a section
-          // (e.g. /invoices/[id]/edit) keep the parent nav item active.
-          const isActive =
-            item.path === b.dashboard
-              ? pathname === b.dashboard
-              : pathname === item.path || pathname.startsWith(`${item.path}/`);
-          return (
-            <Link
-              key={item.path}
-              href={item.path}
-              onClick={onNavigate}
-              className={cn(
-                "group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              {isActive && (
-                <span
-                  aria-hidden
-                  className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r"
-                  style={{ backgroundColor: business.brandColor }}
-                />
-              )}
-              <item.icon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{item.label}</span>
-            </Link>
-          );
-        })}
+      <nav className="flex flex-1 flex-col gap-5 px-3 py-4">
+        <div className="flex flex-col gap-0.5">
+          <div className="px-3 pb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+            Workspace
+          </div>
+          {workspaceItems.map(renderNavLink)}
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <div className="px-3 pb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+            Settings
+          </div>
+          {settingsItems.map(renderNavLink)}
+        </div>
       </nav>
 
       <div className="border-t border-sidebar-border p-3">

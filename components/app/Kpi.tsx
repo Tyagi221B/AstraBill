@@ -3,8 +3,10 @@
  * tabular-nums value, an optional hint line. Used on the dashboard and the
  * customer detail page.
  *
- * `tone` colours the value: `warning` (red — money owed / a problem),
- * `success` (green — all clear / collected), `neutral` (default foreground).
+ * Phase 2E: the `warning` value used to render in bright `text-destructive`
+ * red (`#dc2626`). On warm paper that read as "alarm" — too loud for "money
+ * owed". Softened to `text-red-700` (`#b91c1c`) — composed-but-important,
+ * not screaming. `success` similarly composed at `text-green-700`.
  */
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -29,8 +31,8 @@ export function Kpi({
         <div
           className={cn(
             "mt-1.5 text-2xl font-bold tabular-nums",
-            tone === "warning" && "text-destructive",
-            tone === "success" && "text-success",
+            tone === "warning" && "text-red-700 dark:text-red-400",
+            tone === "success" && "text-green-700 dark:text-green-400",
           )}
         >
           {value}

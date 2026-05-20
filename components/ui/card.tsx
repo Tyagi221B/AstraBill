@@ -3,11 +3,16 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 function Card({ className, ...props }: React.ComponentProps<"div">) {
+  // Phase 2E: shadow-sm (light) + shadow-none (dark) gives the GymPilot
+  // "soft elevation" feel — cards lift off the warm-paper page instead of
+  // sitting flat with borders. Dark mode keeps the border (cards-on-dark-bg
+  // need the edge) and drops the shadow (shadows disappear on dark bg
+  // anyway and only add visual noise).
   return (
     <div
       data-slot="card"
       className={cn(
-        "flex flex-col gap-4 rounded-card border border-border bg-card text-card-foreground shadow-xs",
+        "flex flex-col gap-4 rounded-card border border-border bg-card text-card-foreground shadow-sm dark:shadow-none",
         className,
       )}
       {...props}
