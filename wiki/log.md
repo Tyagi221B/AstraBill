@@ -825,3 +825,48 @@ to reflect "append, not substitute" — this was a real misconception
 in the original docs.
 
 Template is in review. Once Active, retest a fresh invoice send.
+
+## [2026-05-20] build | Phase 2B end-to-end on production
+
+The hero loop is live on `www.astrabill.com`. Three things landed today
+that together close the loop:
+
+1. **`astrabill_invoice_v1` approved** by Meta — Active - Quality. The
+   v0 template was abandoned because its URL field had `{{1}}` typed
+   into it (Meta appends, doesn't substitute — so the v0's button
+   produced `/i/{{1}}<token>`). v1 uses base `https://www.astrabill.com/i/`
+   with no `{{1}}` in the field; Meta appends the share_token cleanly.
+
+2. **AstraBill phone number registered with the Cloud API.** Added
+   `+91 87553 48646` to the Opryon Labs WABA, verified ownership via
+   OTP, then ran `POST /1164926513361309/register` with a 6-digit PIN
+   (saved to `.env.local`). The number is now Connected; display name
+   "AstraBill by Opryon Labs" is still in Meta review — sends will
+   arrive branded as GymPilot until that clears (cosmetic only; URL +
+   body work today).
+
+3. **9 commits pushed to `origin/main`.** The entire 2D + 2B + URL-fix
+   stack went out in one Vercel deploy. Public `/i/[shareToken]` +
+   `/api/i/[shareToken]/pdf` verified on `astrabill.com` against a
+   freshly-finalised invoice; the WhatsApp message's "View invoice"
+   button resolves to the clean URL and the public page renders the
+   real invoice (brand colour, line items, GST breakdown, totals).
+
+**4 of 4 V1 features are now real on production:** GST invoice + PDF ·
+WhatsApp send · udhaar tracker · inventory. Razorpay is the only V1
+piece left.
+
+DECISIONS.md gained an "Environments" row (dev = prod, single Supabase
+project for now) — codifying the operational reality and the
+discipline it requires. Rationale at [[decision/infrastructure]].
+
+The template row was updated to "Approved" status; the public-share +
+WhatsApp-send rationale pages already capture the append-not-substitute
+correction from yesterday.
+
+`astrabill_payment_reminder` is still in Meta review — flagged as
+likely needing rewording ("a friendly reminder", "Tap the button
+below…", "We appreciate your prompt payment" all read as marketing
+copy in Utility category). User will delete + recreate with cleaner
+copy as `astrabill_payment_reminder_v1`. Not blocking; it's for the V2
+reminder cron.

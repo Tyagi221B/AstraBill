@@ -74,6 +74,36 @@ sources: 0
 - No RLS — tenant isolation lives in the repository layer
   (see [[decision/database-and-rbac]]).
 
+### Dev = preprod = prod (single Supabase project, for now)
+
+All three origins — `localhost:3000` (dev via `.env.local`),
+`test.astrabill.com` (preprod), and `www.astrabill.com` (prod) — point
+at the same Supabase Postgres project. There is no separate staging DB.
+The reason this is fine *right now* and not later:
+
+- **Solo founder, no external customers.** The only writes are the user's
+  own test invoices and one shop owner's eventual real ones. There's no
+  external data to protect from an experimental migration.
+- **Simpler ops.** One DB to back up, one migration history to track, one
+  Drizzle meta-table to reason about. `npm run db:migrate` against
+  `.env.local` is the production migration.
+- **Faster feedback loop.** Test data written locally is the same data the
+  prod app sees — useful for verifying a deploy worked end-to-end (the
+  invoice token shipped to WhatsApp locally is valid on `astrabill.com`).
+
+**What this trades:** the freedom to run a destructive migration locally
+"to see what breaks." Right now any DROP TABLE / ALTER TABLE against
+`.env.local` is a DROP TABLE / ALTER TABLE in production. The discipline
+required is: never run anything against `.env.local` you wouldn't run
+against prod.
+
+**When to split:** the moment any external customer (beyond the user's
+brother's shop) signs up. Splitting is one new Supabase project + flip
+the Vercel env vars + `drizzle-kit migrate` once. Low effort; high value
+the moment data isn't 100% disposable.
+
+Binding fact (the "what") lives in `DECISIONS.md` → Stack → "Environments".
+
 ### Cloudinary — all file storage
 - Invoice PDFs (uploaded by the PDF service), business logos (uploaded from
   the Vercel API when an owner sets up their business), customer-facing
