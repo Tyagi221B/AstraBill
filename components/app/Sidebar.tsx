@@ -50,10 +50,19 @@ export interface SidebarProps {
 }
 
 /** Desktop sidebar — fixed-width column, hidden below the `md` breakpoint
- *  (where `MobileNav` takes over). */
+ *  (where `MobileNav` takes over).
+ *
+ *  Phase 2E: `sticky top-0 h-dvh` keeps the sidebar glued to the viewport
+ *  while main content scrolls. `h-dvh` (dynamic viewport height) handles
+ *  mobile-browser-chrome resizing correctly; falls back to `100vh` on
+ *  older browsers. The inner `SidebarContent` has `overflow-y-auto` so if
+ *  the nav list ever exceeds viewport height (many businesses in the
+ *  switcher), it can scroll within the column instead of pushing
+ *  main-content scroll. The sidebar's flex children layout is unaffected.
+ */
 export function Sidebar(props: SidebarProps) {
   return (
-    <aside className="hidden w-64 shrink-0 border-r border-sidebar-border md:flex">
+    <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 border-r border-sidebar-border md:flex">
       <SidebarContent {...props} />
     </aside>
   );
@@ -121,7 +130,7 @@ export function SidebarContent({
   };
 
   return (
-    <div className="bg-sidebar text-sidebar-foreground flex h-full w-full flex-col">
+    <div className="bg-sidebar text-sidebar-foreground flex h-full w-full flex-col overflow-y-auto">
       <BusinessSwitcher
         business={business}
         businesses={businesses}
