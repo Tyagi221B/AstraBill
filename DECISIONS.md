@@ -196,6 +196,21 @@ calls the `astrabill_invoice_v1` template and delivers the share-link URL.
 | Variable sanitisation | Body var text is normalised at the transport boundary (`/\s+/g → ' '`, trim) so customer / business names with paste-induced newlines or tabs don't trip Meta's #131008. The stored value is left alone — this is transport-only | sanitising on write (loses fidelity); skipping it (random sends will fail) | — |
 | Failure UX | The panel renders inline status (badge + history list) and shows the failed row's error message — same convention as `PaymentPanel`. No global toast in v1 | layering a toast library only for this one feature | — |
 
+## Product — UI refinement  (Phase 2E)
+
+Visual-polish pass on the in-app UI. Not a redesign — the IA / routes /
+flow stay. Refine the *look* until it stops feeling amateurish.
+Rationale + scope: [[decision/ui-refinement-phase-2e]].
+
+| Area | Decision | Never | Rationale |
+|------|----------|-------|-----------|
+| Aesthetic target | Zoho-like — light, calm, generous spacing. Restrained colour (brand colour used only on the primary action). Information hierarchy via typography weight, not boxes | Linear-style density (wrong for a 5-minute tool); Vyapar-style colour-and-friendliness (we beat them by being *more* professional, not by matching warmth) | [[decision/ui-refinement-phase-2e]] |
+| Default theme | **Light**. Toggle still exposes light / dark / system; explicit choice is persisted. The new-user *first paint* is light | `defaultTheme="system"` (leaks the user's dark-OS preference into a category that's universally light) | [[decision/ui-refinement-phase-2e]] |
+| Spacing scale | One documented scale applied everywhere: section 32 / intra-section 20 / form-row 16 / label-to-input 6 / card-padding 20–24 / page-padding 24–32 (desktop). Lives in the `app/globals.css` header comment and the 2E rationale page | ad-hoc spacing per component; introducing a CSS-variable layer when Tailwind's own scale already does the job | [[decision/ui-refinement-phase-2e]] |
+| Typography scale | One documented scale: page title `text-2xl font-bold` · section heading `text-base font-semibold` · subsection label `text-xs uppercase tracking-wide text-muted-foreground` · body `text-sm` · money `text-sm font-semibold tabular-nums`. Lives next to the spacing scale | mixing arbitrary `text-[Npx]` for headings; competing weight scales across screens | [[decision/ui-refinement-phase-2e]] |
+| Scope discipline | Refinement only — no new features, no flow changes, no new component libraries. The one new primitive is `sonner` toast (lands in Step 3) | bundling new features into a polish pass; introducing shadcn-full or a different design library | [[decision/ui-refinement-phase-2e]] |
+| Phasing | Step 0 (foundation: tokens · spacing scale · light default · this doc) → Step 1 (invoice creation form, the headline) → Step 2 (propagate to siblings) → Step 3 (polish: empty states · skeletons · sonner · focus states · mobile) | parallelising Step 1 and Step 2 (Step 1's choices are the template Step 2 propagates) | [[decision/ui-refinement-phase-2e]] |
+
 ## Product — Pricing
 
 | Plan | Price | Key limits | Rationale |
