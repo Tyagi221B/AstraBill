@@ -14,44 +14,54 @@
    Token set follows the shadcn/ui v4 contract so future primitives (Dialog,
    Sheet, DropdownMenu, Sidebar, charts) drop in without touching this block.
 --------------------------------------------------------------------------- */
+/* Light theme — "Warm paper" palette (Phase 2E, 2026-05-20).
+   Page is a warm off-white (#FAFAF7), cards are pure white. The contrast
+   creates depth without heavy borders. Inspired by Notion / Linear's
+   paper-feel surfaces. Primary is a deeper indigo-blue (#1E40AF, the
+   "considered" blue) — same family as the brand wordmark gradient.
+
+   Why warm and not cool: cool slate (Stripe-style) reads as fintech /
+   software-y; warm paper reads as a real document. Invoices ARE documents.
+   We lean into the metaphor. */
 :root {
-  --background: #ffffff;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
+  --background: #fafaf7;          /* warm cream off-white — the page */
+  --foreground: #1a1a1a;          /* warm near-black, not slate */
+  --card: #ffffff;                /* pure white — contrasts with page */
+  --card-foreground: #1a1a1a;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #5b6b84;
-  --border: #e2e8f0;
-  --input: #e2e8f0;
-  --primary: #2563eb;
+  --popover-foreground: #1a1a1a;
+  --muted: #f4f1ec;               /* warm hover / subtle section */
+  --muted-foreground: #6b6b68;    /* warm gray */
+  --border: #ede9e1;              /* warm beige-gray — subtle dividers */
+  --input: #ede9e1;
+  --primary: #1e40af;             /* deeper indigo-blue, the considered choice */
   --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #0f172a;
-  --accent: #eff4ff;
-  --accent-foreground: #1d4ed8;
-  --ring: #2563eb;
+  --secondary: #f4f1ec;
+  --secondary-foreground: #1a1a1a;
+  --accent: #eef1fb;              /* very subtle blue tint — primary's surface */
+  --accent-foreground: #1e40af;
+  --ring: #1e40af;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   --success: #16a34a;
 
-  /* Brand gradient — the blue from the AstraBill mark. */
+  /* Brand gradient — the blue from the AstraBill wordmark. Kept distinct
+     from --primary; the mark is brand, --primary is action. */
   --brand-from: #1d4ed8;
   --brand-to: #38bdf8;
 
   --radius: 0.75rem;
 
-  /* Sidebar — mirrors card / primary / accent / border / ring so the same
-     palette flows into the app sidebar when it's built. */
-  --sidebar: #ffffff;
-  --sidebar-foreground: #0f172a;
-  --sidebar-primary: #2563eb;
+  /* Sidebar — matches the page (warm cream) for cohesion. The active-nav
+     accent is the same blue tint as --accent. */
+  --sidebar: #fafaf7;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-primary: #1e40af;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eff4ff;
-  --sidebar-accent-foreground: #1d4ed8;
-  --sidebar-border: #e2e8f0;
-  --sidebar-ring: #2563eb;
+  --sidebar-accent: #eef1fb;
+  --sidebar-accent-foreground: #1e40af;
+  --sidebar-border: #ede9e1;
+  --sidebar-ring: #1e40af;
 
   /* Chart palette — neutral by default; will be replaced when reporting
      lands. */
