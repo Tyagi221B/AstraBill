@@ -13,7 +13,8 @@
  *   - Transport mode + vehicle number + optional e-way bill number
  *   - `delivery_challan` as a non-GST type option
  */
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
 
 import { Button, buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -126,6 +127,68 @@ const SELECT_CLASS =
 const CELL_INPUT_CLASS =
   "h-8 w-full rounded-md border border-input bg-background px-2 text-xs text-foreground shadow-xs focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none";
 const CELL_SELECT_CLASS = CELL_INPUT_CLASS;
+
+// ---- accordion section --------------------------------------------------
+// FormSection — twist-down card for optional content (Ship-to, Extra charges,
+// Transport, Notes). Default-closed if the field is empty, default-open if
+// the user already entered something (so an edit view doesn't hide existing
+// data behind a click). Header shows a one-line summary when collapsed so
+// the user can see "this is set to X" without expanding.
+
+function FormSection({
+  title,
+  subtitle,
+  summary,
+  defaultOpen,
+  children,
+}: {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  /** Short one-line summary shown when collapsed (e.g. "5/3, Subhash Nagar"). */
+  summary?: ReactNode;
+  defaultOpen: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Card>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-3 px-6 py-4 text-left transition-colors hover:bg-muted/40"
+        aria-expanded={open}
+      >
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
+            open && "rotate-180",
+          )}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <span className="text-base font-semibold">{title}</span>
+            {subtitle && (
+              <span className="text-xs text-muted-foreground">{subtitle}</span>
+            )}
+          </div>
+          {!open && summary && (
+            <div className="mt-0.5 truncate text-sm text-muted-foreground">
+              {summary}
+            </div>
+          )}
+        </div>
+        <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
+          {open ? "Close" : "Open"}
+        </span>
+      </button>
+      {open && (
+        <CardContent className="border-t border-border pt-5">
+          {children}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
 
 // ---- form ---------------------------------------------------------------
 
@@ -394,12 +457,89 @@ export function InvoiceForm({
     </div>
   );
 
+  /** Totals card — shared between the sticky desktop right rail and the
+   *  inline mobile placement. Rendered as `<Card>` so it matches every
+   *  other panel on the form. */
+  const TotalsCard = () => (
+    <Card>
+      <CardContent className="pt-6">
+        <h2 className="mb-3 text-base font-semibold">Totals</h2>
+        {totals ? (
+          <>
+            <TotalRow label="Subtotal" value={`₹ ${totals.subtotal}`} />
+            {Number(totals.discountAmount) > 0 && (
+              <TotalRow
+                label="Discount"
+                value={`− ₹ ${totals.discountAmount}`}
+              />
+            )}
+            {Number(totals.extraChargesTaxable) > 0 && (
+              <TotalRow
+                label="Taxable charges"
+                value={`₹ ${totals.extraChargesTaxable}`}
+              />
+            )}
+            <TotalRow
+              label="Taxable"
+              value={`₹ ${totals.taxableAmount}`}
+            />
+            {!isDeliveryChallan && totals.klass === "intrastate" ? (
+              <>
+                <TotalRow label="CGST" value={`₹ ${totals.cgstAmount}`} />
+                <TotalRow label="SGST" value={`₹ ${totals.sgstAmount}`} />
+              </>
+            ) : !isDeliveryChallan ? (
+              <TotalRow label="IGST" value={`₹ ${totals.igstAmount}`} />
+            ) : null}
+            <TotalRow
+              label="Round-off"
+              value={`${totals.roundOff.startsWith("-") ? "−" : "+"} ₹ ${totals.roundOff.replace(/^-/, "")}`}
+            />
+            {Number(totals.extraChargesNonTaxable) > 0 && (
+              <TotalRow
+                label="Freight / non-taxable"
+                value={`+ ₹ ${totals.extraChargesNonTaxable}`}
+              />
+            )}
+            <div className="mt-3 flex justify-between border-t border-border pt-3 text-base font-bold tabular-nums">
+              <span>Total</span>
+              <span>₹ {totals.total}</span>
+            </div>
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              {isDeliveryChallan
+                ? "Delivery challan — no GST"
+                : totals.klass === "intrastate"
+                  ? "Intrastate — CGST + SGST"
+                  : "Interstate — IGST"}
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Fill in the line items to preview the total.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  // Accordion default-open flags — open if data is present so an edit view
+  // doesn't hide existing fields behind a click.
+  const shipToOpen = !!(shipToName || shipToAddress);
+  const extraChargesOpen = extraCharges.length > 0;
+  const transportOpen = !!(transportMode || vehicleNumber || ewayBillNumber);
+  const notesOpen = !!notes;
+
   return (
-    <form onSubmit={submit} className="flex flex-col gap-5">
-      {/* ---- Header ---- */}
-      <Card>
-        <CardContent className="pt-6">
-          <h2 className="mb-4 text-base font-semibold">Header</h2>
+    <form onSubmit={submit} className="flex flex-col">
+      {/* Two-column layout: form sections on the left, sticky totals rail on
+          the right (desktop ≥lg). Below lg, totals collapse to inline at end. */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        {/* ===== LEFT: form sections ===== */}
+        <div className="flex min-w-0 flex-col gap-5">
+          {/* ---- Header (always open) ---- */}
+          <Card>
+            <CardContent className="pt-6">
+              <h2 className="mb-4 text-base font-semibold">Header</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label htmlFor="biz">
@@ -501,36 +641,6 @@ export function InvoiceForm({
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ---- Ship-to ---- */}
-      <Card>
-        <CardContent className="pt-6">
-          <h2 className="mb-4 text-base font-semibold">
-            Ship-to{" "}
-            <span className="font-normal text-muted-foreground">
-              (optional — leave blank to ship to the bill-to customer)
-            </span>
-          </h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_2fr]">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="shipName">Consignee name</Label>
-              <Input
-                id="shipName"
-                value={shipToName}
-                onChange={(e) => setShipToName(e.target.value)}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="shipAddr">Ship-to address</Label>
-              <Input
-                id="shipAddr"
-                value={shipToAddress}
-                onChange={(e) => setShipToAddress(e.target.value)}
               />
             </div>
           </div>
@@ -722,32 +832,65 @@ export function InvoiceForm({
         </CardContent>
       </Card>
 
-      {/* ---- Extra charges ---- */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold">
-              Extra charges{" "}
-              <span className="font-normal text-muted-foreground">
-                (cutting / labour / freight…)
-              </span>
-            </h2>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addCharge}
-            >
-              + Add charge
-            </Button>
+      {/* ---- Ship-to (accordion) ---- */}
+      <FormSection
+        title="Ship-to"
+        subtitle="optional"
+        summary={
+          shipToName || shipToAddress
+            ? `${shipToName}${shipToName && shipToAddress ? " · " : ""}${shipToAddress}`
+            : "Ships to the bill-to customer by default"
+        }
+        defaultOpen={shipToOpen}
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_2fr]">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="shipName">Consignee name</Label>
+            <Input
+              id="shipName"
+              value={shipToName}
+              onChange={(e) => setShipToName(e.target.value)}
+            />
           </div>
-          {extraCharges.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              None. Add taxable charges (cutting, processing) to fold into the
-              taxable base, or non-taxable charges (informal freight) that ride
-              on top of the rounded total.
-            </p>
-          ) : (
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="shipAddr">Ship-to address</Label>
+            <Input
+              id="shipAddr"
+              value={shipToAddress}
+              onChange={(e) => setShipToAddress(e.target.value)}
+            />
+          </div>
+        </div>
+      </FormSection>
+
+      {/* ---- Extra charges (accordion) ---- */}
+      <FormSection
+        title="Extra charges"
+        subtitle="cutting / labour / freight"
+        summary={
+          extraCharges.length > 0
+            ? `${extraCharges.length} charge${extraCharges.length > 1 ? "s" : ""}`
+            : "None added"
+        }
+        defaultOpen={extraChargesOpen}
+      >
+        <div className="mb-3 flex items-center justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addCharge}
+          >
+            + Add charge
+          </Button>
+        </div>
+        {extraCharges.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Add taxable charges (cutting, processing) to fold into the taxable
+            base, or non-taxable charges (informal freight) that ride on top of
+            the rounded total.
+          </p>
+        ) : (
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-left text-muted-foreground">
@@ -826,131 +969,101 @@ export function InvoiceForm({
               </tbody>
             </table>
           )}
-        </CardContent>
-      </Card>
+      </FormSection>
 
-      {/* ---- Transport / e-way ---- */}
-      <Card>
-        <CardContent className="pt-6">
-          <h2 className="mb-4 text-base font-semibold">
-            Transport &amp; e-way bill{" "}
-            <span className="font-normal text-muted-foreground">(optional)</span>
-          </h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="tmode">Transport mode</Label>
-              <Input
-                id="tmode"
-                value={transportMode}
-                onChange={(e) => setTransportMode(e.target.value)}
-                placeholder="Road / Rail / Self pickup"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="veh">Vehicle number</Label>
-              <Input
-                id="veh"
-                value={vehicleNumber}
-                onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
-                placeholder="UP 32 AB 1234"
-                className="uppercase"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="eway">E-way bill number</Label>
-              <Input
-                id="eway"
-                value={ewayBillNumber}
-                onChange={(e) => setEwayBillNumber(e.target.value)}
-                placeholder="generated outside AstraBill"
-              />
-            </div>
+      {/* ---- Transport / e-way (accordion) ---- */}
+      <FormSection
+        title="Transport & e-way bill"
+        subtitle="optional"
+        summary={
+          transportMode || vehicleNumber || ewayBillNumber
+            ? [transportMode, vehicleNumber, ewayBillNumber]
+                .filter(Boolean)
+                .join(" · ")
+            : "Not set"
+        }
+        defaultOpen={transportOpen}
+      >
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="tmode">Transport mode</Label>
+            <Input
+              id="tmode"
+              value={transportMode}
+              onChange={(e) => setTransportMode(e.target.value)}
+              placeholder="Road / Rail / Self pickup"
+            />
           </div>
-        </CardContent>
-      </Card>
-
-      {/* ---- Notes + totals ---- */}
-      <Card>
-        <CardContent className="pt-6">
-          <h2 className="mb-4 text-base font-semibold">Notes &amp; totals</h2>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_300px]">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="notes">
-                Notes{" "}
-                <span className="font-normal text-muted-foreground">(optional)</span>
-              </Label>
-              <Textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={5}
-                placeholder="Anything the customer should see on the invoice."
-                className="min-h-28"
-              />
-            </div>
-            <div className="rounded-md border border-border bg-muted/40 px-4 py-3">
-              {totals ? (
-                <>
-                  <TotalRow label="Subtotal" value={`₹ ${totals.subtotal}`} />
-                  {Number(totals.discountAmount) > 0 && (
-                    <TotalRow
-                      label="Discount"
-                      value={`− ₹ ${totals.discountAmount}`}
-                    />
-                  )}
-                  {Number(totals.extraChargesTaxable) > 0 && (
-                    <TotalRow
-                      label="Taxable charges"
-                      value={`₹ ${totals.extraChargesTaxable}`}
-                    />
-                  )}
-                  <TotalRow
-                    label="Taxable"
-                    value={`₹ ${totals.taxableAmount}`}
-                  />
-                  {!isDeliveryChallan && totals.klass === "intrastate" ? (
-                    <>
-                      <TotalRow label="CGST" value={`₹ ${totals.cgstAmount}`} />
-                      <TotalRow label="SGST" value={`₹ ${totals.sgstAmount}`} />
-                    </>
-                  ) : !isDeliveryChallan ? (
-                    <TotalRow label="IGST" value={`₹ ${totals.igstAmount}`} />
-                  ) : null}
-                  <TotalRow
-                    label="Round-off"
-                    value={`${totals.roundOff.startsWith("-") ? "−" : "+"} ₹ ${totals.roundOff.replace(/^-/, "")}`}
-                  />
-                  {Number(totals.extraChargesNonTaxable) > 0 && (
-                    <TotalRow
-                      label="Freight / non-taxable"
-                      value={`+ ₹ ${totals.extraChargesNonTaxable}`}
-                    />
-                  )}
-                  <div className="mt-2 flex justify-between border-t border-border pt-2 text-base font-bold tabular-nums">
-                    <span>Total</span>
-                    <span>₹ {totals.total}</span>
-                  </div>
-                  <p className="mt-2 text-center text-xs text-muted-foreground">
-                    {isDeliveryChallan
-                      ? "Delivery challan — no GST"
-                      : totals.klass === "intrastate"
-                        ? "Intrastate — CGST + SGST"
-                        : "Interstate — IGST"}
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Fill in the line items to preview the total.
-                </p>
-              )}
-            </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="veh">Vehicle number</Label>
+            <Input
+              id="veh"
+              value={vehicleNumber}
+              onChange={(e) => setVehicleNumber(e.target.value.toUpperCase())}
+              placeholder="UP 32 AB 1234"
+              className="uppercase"
+            />
           </div>
-        </CardContent>
-      </Card>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="eway">E-way bill number</Label>
+            <Input
+              id="eway"
+              value={ewayBillNumber}
+              onChange={(e) => setEwayBillNumber(e.target.value)}
+              placeholder="generated outside AstraBill"
+            />
+          </div>
+        </div>
+      </FormSection>
 
-      <div className="flex flex-wrap items-center justify-end gap-3">
+      {/* ---- Notes (accordion) ---- */}
+      <FormSection
+        title="Notes"
+        subtitle="optional"
+        summary={
+          notes
+            ? notes.length > 70
+              ? `${notes.slice(0, 70).trim()}…`
+              : notes
+            : "No notes"
+        }
+        defaultOpen={notesOpen}
+      >
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="notes">Notes for the customer</Label>
+          <Textarea
+            id="notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={5}
+            placeholder="Anything the customer should see on the invoice."
+            className="min-h-28"
+          />
+        </div>
+      </FormSection>
+        </div>
+        {/* ===== END left column ===== */}
+
+        {/* ===== RIGHT: sticky totals rail (desktop only ≥lg) ===== */}
+        <aside className="hidden lg:block">
+          <div className="sticky top-6">
+            <TotalsCard />
+          </div>
+        </aside>
+
+        {/* ===== Mobile / tablet totals (inline at end) ===== */}
+        <div className="lg:hidden">
+          <TotalsCard />
+        </div>
+      </div>
+      {/* ===== END grid ===== */}
+
+      {/* Sticky bottom action bar — always-visible Save. Negative margins
+          break out of the BrandedAppShell's `px-6 sm:px-10` so the bar
+          spans the full content width. */}
+      <div className="sticky bottom-0 z-10 -mx-6 mt-5 border-t border-border bg-background/95 px-6 py-3 backdrop-blur sm:-mx-10 sm:px-10">
         {error && (
-          <div className="mr-auto text-sm text-destructive">
+          <div className="mb-2 text-sm text-destructive">
             <div>{error}</div>
             {errorDetails ? (
               <pre className="mt-1 max-w-md whitespace-pre-wrap rounded-md bg-destructive/10 px-2.5 py-2 text-xs">
@@ -959,26 +1072,36 @@ export function InvoiceForm({
             ) : null}
           </div>
         )}
-        <a
-          href={routes.b(businessId).invoices}
-          className={buttonClasses("outline", "md")}
-        >
-          Cancel
-        </a>
-        <Button
-          type="submit"
-          variant="primary"
-          size="lg"
-          disabled={submitDisabled}
-        >
-          {busy
-            ? isEdit
-              ? "Saving…"
-              : "Creating…"
-            : isEdit
-              ? "Save changes"
-              : "Create draft"}
-        </Button>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-muted-foreground">
+            Total{" "}
+            <span className="ml-1 text-base font-bold tabular-nums text-foreground">
+              ₹ {totals?.total ?? "0.00"}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <a
+              href={routes.b(businessId).invoices}
+              className={buttonClasses("outline", "md")}
+            >
+              Cancel
+            </a>
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              disabled={submitDisabled}
+            >
+              {busy
+                ? isEdit
+                  ? "Saving…"
+                  : "Creating…"
+                : isEdit
+                  ? "Save changes"
+                  : "Create draft"}
+            </Button>
+          </div>
+        </div>
       </div>
     </form>
   );
