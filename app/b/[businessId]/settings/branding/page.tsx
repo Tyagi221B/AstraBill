@@ -10,6 +10,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/app/PageHeader";
+import { SettingsNav } from "@/components/app/SettingsNav";
 import { DEFAULT_INVOICE_SETTINGS } from "@/lib/db/schema";
 import { getMembership, roleHas } from "@/lib/rbac";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
@@ -34,9 +35,10 @@ export default async function BrandingSettingsPage({
   return (
     <>
       <PageHeader
-        title="Invoice branding"
-        description={`How ${business.name}’s invoices look when a customer opens them.`}
+        title="Settings"
+        description={`How ${business.name}’s invoices look and how customers pay you.`}
       />
+      <SettingsNav businessId={business.id} />
       <BrandingEditor
         businessId={business.id}
         canEdit={roleHas(membership.role, "settings:edit")}

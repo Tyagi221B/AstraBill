@@ -32,11 +32,10 @@ All four must ship together. Shipping 3/4 means our first customer (the brother)
 - Credit note / debit note support (adjustments)
 
 ### 2. WhatsApp Send + UPI Payment Link
-- Meta API: `astrabill_invoice_v1` template (PDF attachment + payment link button)
-- Razorpay: payment link per invoice OR Smart Collect virtual UPI ID
-- KYC handling: show invoice without payment link until Razorpay KYC complete → nudge
+- Meta API: `astrabill_invoice_v1` template (PDF attachment + share-link button)
+- **UPI deep link** (V1): `upi://pay?pa=<business.upi_id>&pn=...&am=<total>&tn=<inv-no>&cu=INR` rendered as a "Pay ₹X via UPI" button + QR code on the public share page and the invoice PDF. No gateway, no webhook. See [[decision/upi-deep-links]].
 - Sending from AstraBill's number (not owner's) — message body must be explicit: "Ramesh Hardware has sent you this invoice via AstraBill"
-- Payment received webhook → mark invoice PAID → send receipt on WhatsApp
+- Reconciliation: manual via the existing `Record payment` flow ([[decision/payment-recording]]) — shop owner sees the bank SMS, records the payment, status flips. Auto-reconcile is V1.x (per-merchant Razorpay).
 - PDF URL: redirect via our server (`/i/[invoiceId]/pdf`) — never expose raw Supabase URL
 
 ### 3. Udhaar Tracker

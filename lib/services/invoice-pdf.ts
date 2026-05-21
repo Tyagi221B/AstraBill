@@ -25,6 +25,7 @@ import type {
   TemplateId,
 } from "../pdf/contract";
 import type { Business, Customer } from "../db/schema";
+import { buildUpiPayUrl, renderUpiQrDataUrl } from "../upi";
 import { getCustomer } from "./customers";
 import { getInvoice, listInvoicesForUser } from "./invoices";
 import { getPublicInvoiceView } from "./public-invoice";
@@ -110,11 +111,11 @@ function buildTaxBreakdown(
     .sort((a, b) => Number(a.rate) - Number(b.rate));
 }
 
-function buildRenderRequest(
+async function buildRenderRequest(
   invoice: CreatedInvoiceRow,
   business: Business,
   customer: Customer | null,
-): RenderRequest {
+): Promise<RenderRequest> {
   // An invoice carries IGST xor CGST/SGST; non-zero IGST ⇒ interstate.
   const taxClass =
     new Decimal(invoice.igstAmount).greaterThan(0)
@@ -148,6 +149,29 @@ function buildRenderRequest(
     taxClass,
   );
 
+  // UPI deep-link QR for the PDF footer. Only built when the business has
+  // a VPA AND there is money still due — a draft has no number, a paid
+  // invoice has nothing to collect. The QR encodes the *outstanding*
+  // amount so a partially-paid invoice asks for the remainder.
+  const outstandingForQr = new Decimal(invoice.total)
+    .minus(invoice.amountPaid || "0")
+    .toFixed(2);
+  let upiQrDataUrl: string | null = null;
+  if (
+    business.upiId &&
+    invoice.status !== "draft" &&
+    invoice.status !== "paid" &&
+    new Decimal(outstandingForQr).greaterThan(0)
+  ) {
+    const upiUrl = buildUpiPayUrl({
+      vpa: business.upiId,
+      payeeName: business.name,
+      amount: outstandingForQr,
+      invoiceNumber: invoice.number,
+    });
+    if (upiUrl) upiQrDataUrl = await renderUpiQrDataUrl(upiUrl);
+  }
+
   const bank =
     business.bankName ||
     business.bankAccountNumber ||
@@ -160,6 +184,7 @@ function buildRenderRequest(
           ifsc: business.bankIfsc,
           accountHolder: business.bankAccountHolder,
           upiId: business.upiId,
+          upiQrDataUrl,
         }
       : null;
 
@@ -302,7 +327,7 @@ export async function renderInvoicePdf(
     ? await getCustomer(invoice.customerId, actorUserId)
     : null;
 
-  const payload = buildRenderRequest(invoice, business, customer);
+  const payload = await buildRenderRequest(invoice, business, customer);
   const bytes = await postRender(payload);
   const safeNumber = (invoice.number ?? "draft").replace(/[^\w-]+/g, "-");
   return { bytes, filename: `${safeNumber}.pdf` };
@@ -323,7 +348,11 @@ export async function renderPublicInvoicePdfByToken(
   const view = await getPublicInvoiceView(shareToken);
   if (!view) throw new NotFoundError("Invoice not found");
 
-  const payload = buildRenderRequest(view.invoice, view.business, view.customer);
+  const payload = await buildRenderRequest(
+    view.invoice,
+    view.business,
+    view.customer,
+  );
   const bytes = await postRender(payload);
   const safeNumber = (view.invoice.number ?? "draft").replace(/[^\w-]+/g, "-");
   return { bytes, filename: `${safeNumber}.pdf` };
@@ -413,7 +442,7 @@ export async function renderBrandingPreviewPdf(
       ? await getCustomer(full.customerId, actorUserId)
       : null;
     invoicePayload = full
-      ? buildRenderRequest(full, business, customer).invoice
+      ? (await buildRenderRequest(full, business, customer)).invoice
       : fixtures.complex.invoice;
   } else {
     invoicePayload = fixtures.complex.invoice;

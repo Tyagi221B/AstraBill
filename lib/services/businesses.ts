@@ -20,6 +20,7 @@ import { roleHas } from "../rbac";
 import type {
   CreateBusinessInput,
   UpdateBrandingInput,
+  UpdatePaymentSettingsInput,
 } from "../schemas/business";
 import {
   getBusinessForUserTx,
@@ -116,6 +117,45 @@ export async function updateBusinessBranding(
     }
 
     // `input` is the Zod-validated patch — keys map 1:1 to business columns.
+    const updated = await updateBusinessRow(tx, businessId, input);
+
+    await writeAuditEntry(tx, {
+      action: "business.update",
+      businessId,
+      actorUserId,
+      entityType: "business",
+      entityId: businessId,
+      changes: input,
+      ipAddress: ctx.ipAddress ?? null,
+      userAgent: ctx.userAgent ?? null,
+    });
+    return updated;
+  });
+}
+
+/**
+ * Update a business's payment-collection settings — for V1, just the UPI
+ * deep-link target (`upi_id`). Same auth model as branding: owner-only
+ * (`settings:edit`), 404 for not-a-member (no existence leak).
+ *
+ * `input.upiId === null` clears the VPA; the share-page Pay button hides
+ * itself when the VPA is null.
+ */
+export async function updateBusinessPaymentSettings(
+  businessId: string,
+  input: UpdatePaymentSettingsInput,
+  actorUserId: string,
+  ctx: ServiceContext = {},
+): Promise<Business> {
+  return db.transaction(async (tx) => {
+    const found = await getBusinessForUserTx(tx, actorUserId, businessId);
+    if (!found) throw new NotFoundError("Business not found");
+    if (!roleHas(found.role, "settings:edit")) {
+      throw new ForbiddenError(
+        `Your role (${found.role}) cannot edit business settings`,
+      );
+    }
+
     const updated = await updateBusinessRow(tx, businessId, input);
 
     await writeAuditEntry(tx, {

@@ -10,7 +10,8 @@
 | [log.md](log.md) | log | Chronological record of all wiki operations |
 | **Decisions** | | |
 | [decision/market-validation.md](decision/market-validation.md) | decision | Is AstraBill worth building? Yes. Full case with market size, risks, timing |
-| [decision/payment-gateway.md](decision/payment-gateway.md) | decision | Razorpay (Smart Collect + Payment Links). Abstract via PaymentProvider interface. |
+| [decision/upi-deep-links.md](decision/upi-deep-links.md) | decision | **V1 payments** — UPI deep links to the shop's own VPA; manual reconciliation via existing `Record payment` flow. No gateway, no webhook, no provider abstraction. |
+| [decision/payment-gateway.md](decision/payment-gateway.md) | decision | _(Superseded for V1)_ Razorpay reasoning, kept as background for the V1.x reintroduction. |
 | [decision/onboarding-flow.md](decision/onboarding-flow.md) | decision | No signup first → phone OTP → paid. Feature gating at service layer. |
 | [decision/drafts-and-multi-device.md](decision/drafts-and-multi-device.md) | decision | Drafts = `invoices.status='draft'` rows; localStorage only for the pre-auth window. Multi-device + AI features fall out for free. |
 | [decision/pdf-generation.md](decision/pdf-generation.md) | decision | Dedicated PDF microservice with Puppeteer. Not serverless. Maximum control. |

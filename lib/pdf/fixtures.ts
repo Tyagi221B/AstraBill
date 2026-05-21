@@ -45,6 +45,9 @@ const OM_GLASS = {
     ifsc: "SBIN0001703",
     accountHolder: "Om Glass Enterprises",
     upiId: "omglass@sbi",
+    // QR is rendered only for real invoices (where there's an actual
+    // outstanding amount + invoice number); fixtures stay text-only.
+    upiQrDataUrl: null,
   },
 } as const;
 

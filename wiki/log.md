@@ -937,3 +937,69 @@ After this deploy the only V1 piece left is **Razorpay** — the UPI
 payment link that closes the loop the WhatsApp send opened. The "Pay
 Now" button arrives into a polished visual language and inherits the
 discipline instead of layering on top of unrefined UI.
+
+## [2026-05-21] decision | UPI deep links replace Razorpay for V1
+
+Sitting down to build the Razorpay leg surfaced the flaw in our own
+plan. Two questions broke it:
+
+**1. Whose Razorpay account holds the money during pilot?**
+
+   - *Platform-shared* (one AstraBill key for everyone): money flows
+     through Opryon's Razorpay → Opryon's bank → manually transferred to
+     the shop. That makes Opryon the merchant of record. PA/PG license
+     territory. Books absorb the shop's revenue. Doesn't scale past
+     customer #1. DECISIONS.md already had `"never become a payment
+     gateway / route money"` — platform-shared violates it.
+   - *Per-merchant connected*: architecturally correct, but every shop
+     onboards with Razorpay (KYC + business proof + bank linking)
+     **before they can take their first payment**. That's the exact
+     friction we set out to remove.
+
+**2. What does the gateway actually buy us?**
+
+   UPI MDR is 0% (NPCI mandate). 95% of Indian SME collections are UPI
+   today. Cards are vanishingly rare in our segment. The gateway's real
+   value is *auto-reconciliation*, not the rails. And we can ship that
+   as a V1.x upsell once the loop is real.
+
+**Pivot.** Ship UPI deep links to the shop's own VPA. The schema already
+has `businesses.upi_id`. The deep link is a single NPCI-defined string:
+
+```
+upi://pay?pa=<vpa>&pn=<name>&am=<total>&tn=<inv-no>&cu=INR
+```
+
+Render it as a "Pay ₹X via UPI" button + QR code on the public share
+page and the invoice PDF. Customer taps → their UPI app opens
+pre-filled → pays → money goes peer-to-peer customer's bank → shop's
+bank. AstraBill never touches the funds. The shop sees a bank SMS and
+records the payment via the existing `Record payment` flow that
+[[decision/payment-recording]] already built.
+
+What we give up: auto-reconciliation. The shop reconciles manually
+from bank SMS — exactly what they did before AstraBill, except now
+there's a place to record it with full history. V1.x value, not V1
+blocker.
+
+What we keep: the schema (`payments.razorpay_payment_id`,
+`razorpay_order_id` sit unused, ready for V1.x), the payment-recording
+machinery, and the explicit "never become a gateway" stance — UPI deep
+links *reinforce* it (money never flows through us).
+
+`IPaymentProvider` interface is **not written speculatively**. It
+arrives the day a real provider is needed.
+
+**Files touched:**
+
+- `DECISIONS.md` — replaced the single "Payments | Razorpay" row with
+  two rows: `Payments (V1)` = UPI deep links, `Payments (V1.x)` =
+  per-merchant Razorpay (never platform-shared).
+- `wiki/decision/upi-deep-links.md` — new, full rationale.
+- `wiki/decision/payment-gateway.md` — banner at the top marking it
+  superseded for V1; reasoning preserved as background for the V1.x
+  reintroduction.
+- `wiki/index.md` — new entry, old entry annotated.
+
+Code work starts next: VPA validation in settings, share-page Pay
+button + QR, PDF QR. Schema is already in place; no migration needed.

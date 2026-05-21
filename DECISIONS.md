@@ -63,8 +63,8 @@ Last reconciled: 2026-05-17
 
 | Area | Decision | Never | Rationale |
 |------|----------|-------|-----------|
-| Payments | Razorpay — Smart Collect + Payment Links | becoming a payment gateway / routing money | [[decision/payment-gateway]] |
-| Payment abstraction | `IPaymentProvider` interface | calling Razorpay SDK directly from services | [[decision/payment-gateway]] |
+| Payments (V1) | **UPI deep links** — `upi://pay?pa=<business.upi_id>&pn=...&am=<total>&tn=<inv-no>&cu=INR` rendered as a "Pay ₹X via UPI" button + QR code on the public share page (`/i/[shareToken]`) and on the invoice PDF. Money goes peer-to-peer (customer's bank → shop's bank); AstraBill never touches it. Reconciliation is manual — the shop owner sees the bank SMS and uses the existing "Record payment" flow. Zero fees (UPI MDR is 0%), zero KYC, zero gateway onboarding | a payment-gateway integration for V1; AstraBill VPAs; routing money through us; touching customer funds in any form | [[decision/upi-deep-links]] |
+| Payments (V1.x) | **Razorpay deferred** — added when a customer needs cards / auto-reconciliation or when public launch demands it. Per-merchant credentials (each business connects their own Razorpay) — never platform-shared, never AstraBill-as-merchant. The `IPaymentProvider` interface is introduced at that point, not before; V1 has no provider abstraction because there is no provider | platform-shared Razorpay (turns AstraBill into the merchant of record — PA license territory + your books absorb their revenue); writing the `IPaymentProvider` interface speculatively without a provider behind it | [[decision/upi-deep-links]] |
 | WhatsApp API | Meta Cloud API, direct (existing Opryon Labs WABA) | BSP middleman | [[decision/whatsapp-meta-api]] |
 | WhatsApp abstraction | `IWhatsAppProvider` interface | — | [[decision/whatsapp-meta-api]] |
 | WhatsApp sender identity | AstraBill's own number (not the shop owner's) | — | [[decision/v1-scope]] |

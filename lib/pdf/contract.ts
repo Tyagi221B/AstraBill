@@ -83,6 +83,15 @@ export interface BusinessOnInvoice {
     ifsc: string | null;
     accountHolder: string | null;
     upiId: string | null;
+    /**
+     * Pre-rendered QR code (base64 PNG data URL) of the `upi://pay?...`
+     * deep link for this invoice. Built on the Next.js side from
+     * `business.upi_id` + the invoice total + number. The template renders
+     * it as `<img src>` next to the UPI ID text so a customer can scan and
+     * pay directly from a printed/forwarded copy. Null when the business
+     * has no VPA set, or the invoice is already paid / a draft.
+     */
+    upiQrDataUrl: string | null;
   } | null;
 }
 

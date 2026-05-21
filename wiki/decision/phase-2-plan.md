@@ -110,20 +110,22 @@ While Meta reviews, the prerequisites land:
    var sanitisation), thin POST route, and a `WhatsAppPanel` card on
    the invoice detail page with send/resend + send history. The hero
    loop is now end-to-end. See [[decision/whatsapp-invoice-send]].
-3. **Razorpay** — `IPaymentProvider` interface + `RazorpayProvider`. Payment
-   Link per invoice; webhook → mark invoice paid → send receipt. The webhook
-   is the first genuinely server-only event, so this is where server-side
-   PostHog (`posthog-node`) gets introduced — see [[decision/infrastructure]].
+3. **UPI deep link (V1)** *(shipping)* — `upi://pay?...` "Pay ₹X via UPI"
+   button + QR code on the public share page and the invoice PDF, pointed at
+   the shop's own VPA (`businesses.upi_id`). Manual reconciliation via the
+   existing payment-recording flow. Razorpay deferred to V1.x —
+   see [[decision/upi-deep-links]].
 
 **The hero loop:** create invoice → finalise → "Send on WhatsApp" → PDF
-generated → WhatsApp delivered with PDF + UPI link → customer pays → webhook
-→ invoice `paid` → receipt sent. This is the demo that sells AstraBill.
+generated → WhatsApp delivered with share-link + UPI deep link → customer
+pays via their UPI app → shop owner sees bank SMS → records payment in
+AstraBill → invoice `paid`. This is the demo that sells AstraBill.
 
 ## Sequencing & parallel work
 
 1. **Submit Meta templates now (parallel):** `astrabill_otp_v1` +
-   `astrabill_invoice_v1`. Submit Razorpay KYC alongside. Both take
-   weeks — start the clock so they're not the bottleneck.
+   `astrabill_invoice_v1`. (Razorpay KYC is not on the V1 critical path
+   anymore — see [[decision/upi-deep-links]].)
 2. **Phase 2A** — done.
 3. **Phase 2C** *(shipped)* — template engine + 2 templates + branding
    model + Cloudinary logo upload + `/settings/branding` UI.
@@ -131,9 +133,10 @@ generated → WhatsApp delivered with PDF + UPI link → customer pays → webho
    2026-05-19; Steps 2–4 are the page migrations, real KPIs, and
    mobile. 2D was inserted between 2C and 2B because every 2B feature
    wants 2D's URL shape and chrome to live in.
-5. **Phase 2B** — build once Meta + Razorpay are verified AND 2D Step 2
+5. **Phase 2B** — build once Meta templates are verified AND 2D Step 2
    has migrated the invoice page (where the Send-on-WhatsApp button
-   lives). The PDF the loop sends is the one 2C made worth sending.
+   lives). The PDF the loop sends is the one 2C made worth sending. (Razorpay
+   no longer on the 2B critical path — V1 ships the UPI deep link instead.)
 6. **Festive/themed templates + column toggles (2C.5)** — interleaved
    with 2B once the core 2C lands.
 
@@ -147,6 +150,7 @@ generated → WhatsApp delivered with PDF + UPI link → customer pays → webho
 - [[decision/v1-scope]] — the four V1 features
 - [[decision/database-and-rbac]] — the flat-select rule for numeric tables
 - [[decision/pdf-generation]] — the PDF microservice 2C extends
-- [[decision/payment-gateway]] — Razorpay
+- [[decision/upi-deep-links]] — V1 payment mechanism (UPI deep links)
+- [[decision/payment-gateway]] — Razorpay rationale (superseded for V1; V1.x background)
 - [[decision/whatsapp-meta-api]] — the Meta send path
 - [[decision/infrastructure]] — where server-side PostHog enters in 2B

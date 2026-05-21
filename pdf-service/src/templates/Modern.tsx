@@ -392,6 +392,19 @@ export function Modern({ invoice, branding }: RenderRequest) {
                     </div>
                   )}
                 </div>
+                {bank.upiQrDataUrl && (
+                  <div className="upi-qr">
+                    <img
+                      src={bank.upiQrDataUrl}
+                      alt="Scan to pay via UPI"
+                      width={96}
+                      height={96}
+                    />
+                    <div className="upi-qr-caption">
+                      Scan to pay via any UPI app
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

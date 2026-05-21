@@ -87,18 +87,23 @@ own. Reconstructing them from nothing here would be guesswork; `sent` is
 honest and safe. (In practice a full void only happens after a record +
 void, an edge case.)
 
-## Relationship to Razorpay
+## Relationship to UPI deep links (V1) and Razorpay (V1.x)
 
-`DECISIONS.md` (Integrations) commits to Razorpay — Smart Collect + Payment
-Links — for online collection. That is not this. This is *manual* recording:
-the shop owner marks "Ramesh paid ₹5,000 cash today." It is the V1 path and
-the only path until Razorpay KYC clears.
+This is the *manual* recording path: the shop owner sees a bank SMS — from a
+UPI deep-link payment, a cash collection, or a cheque — and marks "Ramesh
+paid ₹5,000 today." It is the V1 reconciliation flow for **every** payment
+method.
 
-When Razorpay lands, its webhook becomes just another writer of `payments`
-rows — it inserts a row (with `razorpay_payment_id` set), then runs the exact
-same re-sum + status recompute. The payment primitive built here is provider-
-agnostic on purpose; the gateway is one more source of payment rows, not a
-parallel system.
+For V1, the customer-facing collection mechanism is a UPI deep link to the
+shop's own VPA ([[decision/upi-deep-links]]). The money moves peer-to-peer,
+customer's bank → shop's bank, and the shop owner reconciles it here. AstraBill
+never sees the transaction.
+
+When per-merchant Razorpay lands in V1.x, its webhook becomes just another
+writer of `payments` rows — it inserts a row (with `razorpay_payment_id` set),
+then runs the exact same re-sum + status recompute. The payment primitive
+built here is provider-agnostic on purpose; a gateway is one more source of
+payment rows, not a parallel system.
 
 ## Status
 
@@ -117,8 +122,10 @@ What it unblocked, both now shipped 2026-05-19:
 
 - [[decision/database-and-rbac]] — soft-delete rule, the money-as-`numeric`
   discipline, the no-existence-leak 404 pattern this reuses
-- [[decision/payment-gateway]] — Razorpay, the future automated writer of
-  payment rows
+- [[decision/upi-deep-links]] — the V1 customer-facing collection mechanism
+  whose reconciliation lands here
+- [[decision/payment-gateway]] — superseded for V1; rationale preserved for
+  the V1.x reintroduction (per-merchant Razorpay)
 - [[decision/phase-2-plan]] — where this slots against 2B / 2D
 - [[decision/white-label-app-shell]] — 2D, whose Step 3 (dashboard KPIs) this
   unblocks

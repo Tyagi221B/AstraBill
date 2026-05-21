@@ -419,6 +419,17 @@ export function Classic({ invoice, branding }: RenderRequest) {
                     </div>
                   )}
                 </div>
+                {bank.upiQrDataUrl && (
+                  <div className="upi-qr">
+                    <img
+                      src={bank.upiQrDataUrl}
+                      alt="Scan to pay via UPI"
+                      width={88}
+                      height={88}
+                    />
+                    <div className="upi-qr-caption">Scan to pay</div>
+                  </div>
+                )}
               </div>
               <div className="foot-sign">{signature}</div>
             </div>

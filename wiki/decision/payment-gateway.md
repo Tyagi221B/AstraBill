@@ -1,8 +1,16 @@
 ---
 type: decision
-updated: 2026-05-17
+updated: 2026-05-21
 sources: 3
+status: superseded
 ---
+
+> **Superseded for V1 by [[decision/upi-deep-links]] on 2026-05-21.**
+> V1 ships UPI deep links to the shop's own VPA — no gateway, no webhook, no
+> `IPaymentProvider` abstraction. Razorpay is deferred to V1.x and, when it
+> lands, will be **per-merchant credentials** (each business connects their
+> own Razorpay), not platform-shared. The reasoning below remains valid
+> *for the V1.x reintroduction* — read it as background, not current plan.
 
 # Payment Gateway — Razorpay vs Alternatives
 

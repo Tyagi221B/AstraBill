@@ -87,3 +87,40 @@ export const updateBrandingSchema = z
   });
 
 export type UpdateBrandingInput = z.infer<typeof updateBrandingSchema>;
+
+// ---- payment settings (UPI deep-link V1) -------------------------------
+
+/**
+ * UPI Virtual Payment Address (VPA): `<identifier>@<handle>`.
+ *
+ *   - identifier: 2–256 chars, alphanumeric + dot/hyphen/underscore
+ *   - handle:     2–64 alpha chars (the bank/PSP code: `oksbi`, `paytm`,
+ *                 `ybl`, `axl`, `apl`, etc.) — letters only by spec
+ *
+ * Validation is structural — we can't prove the VPA *resolves* to a real
+ * account without a paid lookup API. The "Test your UPI link" UX in
+ * settings is the runtime confirmation.
+ */
+const upiVpa = z
+  .string()
+  .regex(
+    /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/,
+    "UPI ID looks like name@bank (e.g. ramesh@oksbi)",
+  );
+
+/**
+ * Payment-settings patch — V1 carries only `upiId`. Sent as null to clear,
+ * a valid VPA to set. Empty body is rejected so the route can't no-op.
+ */
+export const updatePaymentSettingsSchema = z
+  .object({
+    upiId: upiVpa.nullable(),
+  })
+  .partial()
+  .refine((o) => Object.keys(o).length > 0, {
+    message: "Provide at least one payment setting to update",
+  });
+
+export type UpdatePaymentSettingsInput = z.infer<
+  typeof updatePaymentSettingsSchema
+>;

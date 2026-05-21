@@ -218,6 +218,21 @@ export const MODERN_CSS = `
     font-size: 0.95rem; color: #0f172a; font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
+  /* UPI QR — pinned to the right of the bank grid on the modern template
+     so the bank fields and the QR sit side-by-side, like a real-bank
+     payment slip. The QR scales with rem so the fit-to-page pass keeps
+     it crisp. */
+  .upi-qr {
+    margin-top: 0.8rem; display: flex; gap: 0.7rem; align-items: center;
+  }
+  .upi-qr img {
+    width: 5.4rem; height: 5.4rem; flex: none;
+    border: 1px solid #e7ecf2; border-radius: 0.5rem; padding: 0.2rem;
+    background: #fff;
+  }
+  .upi-qr-caption {
+    font-size: 0.78rem; color: #64748b; line-height: 1.35; max-width: 9rem;
+  }
 
   /* ---- terms ---- */
   .terms { margin-top: 1.2rem; }
@@ -449,6 +464,17 @@ export const CLASSIC_CSS = `
   .bank-item .bv {
     font-size: 0.95rem; color: #0f172a; font-weight: 600;
     font-variant-numeric: tabular-nums;
+  }
+  /* UPI QR — sits beneath the bank grid inside the foot-bank cell. */
+  .upi-qr {
+    margin-top: 0.7rem; display: flex; gap: 0.6rem; align-items: center;
+  }
+  .upi-qr img {
+    width: 4.8rem; height: 4.8rem; flex: none;
+    border: 1px solid #b4bcc8; padding: 0.15rem; background: #fff;
+  }
+  .upi-qr-caption {
+    font-size: 0.78rem; color: #4b5563; line-height: 1.35;
   }
 
   /* signature — in .foot-sign, or a standalone .sign section if no bank */

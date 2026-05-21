@@ -46,6 +46,7 @@ export const routes = {
         `${base}/products/${productId}/edit`,
       settings: {
         branding: `${base}/settings/branding`,
+        payments: `${base}/settings/payments`,
       },
     };
   },

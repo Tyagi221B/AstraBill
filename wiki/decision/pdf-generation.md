@@ -141,4 +141,4 @@ As we add features (new line item types, template customization), old PDFs shoul
 
 - [[decision/whatsapp-meta-api]] — PDF URL gets sent via WhatsApp
 - [[customer/hardware-shop-owner]] — the complex invoice requirements driving this choice
-- [[decision/payment-gateway]] — UPI QR on invoice from Razorpay
+- [[decision/upi-deep-links]] — the UPI QR rendered into the PDF footer (V1)

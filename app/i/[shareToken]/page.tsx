@@ -23,6 +23,7 @@ import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Invoice } from "@/lib/db/schema";
 import { getPublicInvoiceView } from "@/lib/services/public-invoice";
+import { buildUpiPayUrl, renderUpiQrSvg } from "@/lib/upi";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -124,6 +125,30 @@ export default async function PublicInvoicePage({
   const brandStyle = {
     "--brand-accent": business.brandColor,
   } as CSSProperties;
+
+  // ---- UPI deep link (V1 payment mechanism) ------------------------------
+  // Render Pay button + QR when the business has set a VPA AND there's
+  // money still due. Drafts have no number and are intentionally hidden.
+  // `outstanding` = total − amount_paid, so a partially-paid invoice asks
+  // for the *remainder*, not the original total.
+  const outstanding = Math.max(
+    Number(invoice.total) - Number(invoice.amountPaid),
+    0,
+  ).toFixed(2);
+  const payable =
+    business.upiId &&
+    invoice.status !== "draft" &&
+    invoice.status !== "paid" &&
+    Number(outstanding) > 0;
+  const upiUrl = payable
+    ? buildUpiPayUrl({
+        vpa: business.upiId!,
+        payeeName: business.name,
+        amount: outstanding,
+        invoiceNumber: invoice.number,
+      })
+    : null;
+  const upiQrSvg = upiUrl ? await renderUpiQrSvg(upiUrl) : null;
 
   return (
     <div
@@ -347,16 +372,54 @@ export default async function PublicInvoicePage({
               </div>
             )}
 
+            {/* UPI Pay button + QR — V1 payment mechanism. Hidden when
+                the business has no VPA, the invoice is a draft, or it's
+                already fully paid. See wiki/decision/upi-deep-links.md. */}
+            {payable && upiUrl && upiQrSvg && (
+              <div className="mb-3 rounded-xl border border-border bg-card p-4">
+                <a
+                  href={upiUrl}
+                  className={cn(buttonClasses("primary", "lg"), "w-full")}
+                  style={{
+                    backgroundColor: business.brandColor,
+                    borderColor: business.brandColor,
+                  }}
+                >
+                  Pay {fmt(outstanding)} via UPI
+                </a>
+                <div className="mt-4 flex flex-col items-center gap-2">
+                  <div
+                    aria-label="UPI payment QR code"
+                    className="rounded-lg border border-border bg-white p-2"
+                    // Inline SVG, generated server-side from the same
+                    // upi:// URL the button targets. Safe — the SVG comes
+                    // from our own `qrcode` library, not user input.
+                    dangerouslySetInnerHTML={{ __html: upiQrSvg }}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Or scan with any UPI app
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Download PDF */}
             <a
               href={`/api/i/${shareToken}/pdf`}
               target="_blank"
               rel="noopener noreferrer"
-              className={cn(buttonClasses("primary", "lg"), "w-full")}
-              style={{
-                backgroundColor: business.brandColor,
-                borderColor: business.brandColor,
-              }}
+              className={cn(
+                buttonClasses(payable ? "outline" : "primary", "lg"),
+                "w-full",
+              )}
+              style={
+                payable
+                  ? undefined
+                  : {
+                      backgroundColor: business.brandColor,
+                      borderColor: business.brandColor,
+                    }
+              }
             >
               Download PDF
             </a>
