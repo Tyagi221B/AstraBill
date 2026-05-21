@@ -40,11 +40,17 @@ const ALL_PERMISSIONS = [
   "party:create",
   "party:edit",
   "party:delete",
-  // Products / inventory
+  // Products / inventory (legacy — old domain)
   "product:view",
   "product:create",
   "product:edit",
   "product:delete",
+  // Items (new domain — replaces product:* once PR2 demolition lands)
+  "item:view",
+  "item:create",
+  "item:edit",
+  "item:delete",
+  "item_category:manage",
   "stock:adjust",
   // WhatsApp
   "whatsapp:send",
@@ -82,6 +88,11 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     "product:create",
     "product:edit",
     "product:delete",
+    "item:view",
+    "item:create",
+    "item:edit",
+    "item:delete",
+    "item_category:manage",
     "stock:adjust",
     "whatsapp:send",
     "report:view_profit",
@@ -103,6 +114,8 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     "party:create",
     "party:edit",
     "product:view",
+    "item:view",
+    "item_category:manage",
     "whatsapp:send",
     "report:view_profit",
     "report:gst",
@@ -119,6 +132,7 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     "party:view",
     "party:create",
     "product:view",
+    "item:view",
     "whatsapp:send",
   ],
 
@@ -127,6 +141,7 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     "customer:view",
     "party:view",
     "product:view",
+    "item:view",
   ],
 } as const;
 

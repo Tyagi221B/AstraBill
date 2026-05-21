@@ -24,6 +24,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
+  Boxes,
   Check,
   ChevronsUpDown,
   Contact,
@@ -88,6 +89,7 @@ export function SidebarContent({
   const workspaceItems = [
     { label: "Dashboard", path: b.dashboard, icon: LayoutDashboard },
     { label: "Parties", path: b.parties, icon: Contact },
+    { label: "Items", path: b.items, icon: Boxes },
     { label: "Invoices", path: b.invoices, icon: ReceiptText },
     { label: "Customers", path: b.customers, icon: Users },
     { label: "Products", path: b.products, icon: Package },

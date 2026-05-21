@@ -50,9 +50,15 @@ export const routes = {
       // No product detail page yet — the only per-product page is edit.
       editProduct: (productId: string) =>
         `${base}/products/${productId}/edit`,
+      /** Items — new domain (full-ledger pivot). Replaces products in PR2. */
+      items: `${base}/items`,
+      newItem: `${base}/items/new`,
+      item: (itemId: string) => `${base}/items/${itemId}`,
+      editItem: (itemId: string) => `${base}/items/${itemId}/edit`,
       settings: {
         branding: `${base}/settings/branding`,
         payments: `${base}/settings/payments`,
+        itemCategories: `${base}/settings/item-categories`,
       },
     };
   },
