@@ -73,6 +73,31 @@ export async function getPartyForUser(
   return member ? party : null;
 }
 
+/** Transaction-bound variant — used by update/delete inside their own tx. */
+export async function getPartyForUserTx(
+  tx: Tx,
+  userId: string,
+  partyId: string,
+): Promise<Party | null> {
+  const [party] = await tx
+    .select()
+    .from(parties)
+    .where(and(eq(parties.id, partyId), isNull(parties.deletedAt)));
+  if (!party) return null;
+
+  const [member] = await tx
+    .select({ id: businessMembers.id })
+    .from(businessMembers)
+    .where(
+      and(
+        eq(businessMembers.businessId, party.businessId),
+        eq(businessMembers.userId, userId),
+        isNull(businessMembers.deletedAt),
+      ),
+    );
+  return member ? party : null;
+}
+
 export async function listPartiesForUser(opts: {
   userId: string;
   businessId?: string;

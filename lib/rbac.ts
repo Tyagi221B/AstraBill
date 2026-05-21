@@ -30,11 +30,16 @@ const ALL_PERMISSIONS = [
   // Payments
   "payment:record",
   "payment:delete",
-  // Customers
+  // Customers (legacy — old domain)
   "customer:view",
   "customer:create",
   "customer:edit",
   "customer:delete",
+  // Parties (new domain — replaces customer:* once PR2 demolition lands)
+  "party:view",
+  "party:create",
+  "party:edit",
+  "party:delete",
   // Products / inventory
   "product:view",
   "product:create",
@@ -69,6 +74,10 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     "customer:create",
     "customer:edit",
     "customer:delete",
+    "party:view",
+    "party:create",
+    "party:edit",
+    "party:delete",
     "product:view",
     "product:create",
     "product:edit",
@@ -90,6 +99,9 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     "customer:view",
     "customer:create",
     "customer:edit",
+    "party:view",
+    "party:create",
+    "party:edit",
     "product:view",
     "whatsapp:send",
     "report:view_profit",
@@ -104,11 +116,18 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     "invoice:create",
     "customer:view",
     "customer:create",
+    "party:view",
+    "party:create",
     "product:view",
     "whatsapp:send",
   ],
 
-  viewer: ["invoice:view", "customer:view", "product:view"],
+  viewer: [
+    "invoice:view",
+    "customer:view",
+    "party:view",
+    "product:view",
+  ],
 } as const;
 
 // ---- Pure helpers (no DB) ----------------------------------------------

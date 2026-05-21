@@ -26,6 +26,7 @@ import { useState } from "react";
 import {
   Check,
   ChevronsUpDown,
+  Contact,
   LayoutDashboard,
   LogOut,
   Package,
@@ -86,6 +87,7 @@ export function SidebarContent({
   // Inspired by GymPilot's PLATFORM / SETTINGS pattern.
   const workspaceItems = [
     { label: "Dashboard", path: b.dashboard, icon: LayoutDashboard },
+    { label: "Parties", path: b.parties, icon: Contact },
     { label: "Invoices", path: b.invoices, icon: ReceiptText },
     { label: "Customers", path: b.customers, icon: Users },
     { label: "Products", path: b.products, icon: Package },

@@ -39,6 +39,12 @@ export const routes = {
       customer: (customerId: string) => `${base}/customers/${customerId}`,
       editCustomer: (customerId: string) =>
         `${base}/customers/${customerId}/edit`,
+      /** Parties — new domain (full-ledger pivot). Replaces customers in PR2. */
+      parties: `${base}/parties`,
+      newParty: `${base}/parties/new`,
+      party: (partyId: string) => `${base}/parties/${partyId}`,
+      editParty: (partyId: string) =>
+        `${base}/parties/${partyId}/edit`,
       products: `${base}/products`,
       newProduct: `${base}/products/new`,
       // No product detail page yet — the only per-product page is edit.
