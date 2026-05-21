@@ -22,6 +22,7 @@
 | [decision/code-architecture.md](decision/code-architecture.md) | decision | LLD: thin routes → service → repo → DB. Interfaces for externals. Typed errors. |
 | [decision/v1-scope.md](decision/v1-scope.md) | decision | V1: GST invoice + PDF + WhatsApp + Udhaar + Inventory. English only. No shortcuts. |
 | [decision/phase-2-plan.md](decision/phase-2-plan.md) | decision | 2A + 2C + 2D (white-label shell, all 4 steps) + payment recording + udhaar all shipped; 2B (WhatsApp hero loop) next once Meta + Razorpay verifications clear. |
+| [decision/full-ledger-pivot.md](decision/full-ledger-pivot.md) | decision | **(2026-05-21)** AstraBill = full GST books, not billing loop. Parties (cust+supp), Sales+Purchases, Ledger, ITC. Supersedes `decision/v1-scope`. |
 | [decision/frontend-architecture.md](decision/frontend-architecture.md) | decision | Tailwind v4 + CSS-variable theming (light/dark via next-themes); marketing site as a route group; shadcn adopted in F3. |
 | [decision/invoice-design-system.md](decision/invoice-design-system.md) | decision | Phase 2C: template engine + brand customization (logo, color, font, columns). Lands *before* 2B — no external blockers, and 2B's hero artifact is the PDF this work makes worth sending. |
 | [decision/white-label-app-shell.md](decision/white-label-app-shell.md) | decision | Phase 2D: path-based `/b/[businessId]/...` routing, branded sidebar, smart `/dashboard` redirect. Makes the app feel like the owner's billing dashboard, the parallel of 2C on the chrome side. |
@@ -37,6 +38,7 @@
 | [competitor/refrens.md](competitor/refrens.md) | competitor | Best ratings (4.8★), WhatsApp-first, freelancer-focused — not our segment |
 | [competitor/odoo.md](competitor/odoo.md) | competitor | ERP for growing businesses. Too heavy for SMEs, but shows graduation path |
 | [competitor/mybillbook.md](competitor/mybillbook.md) | competitor | FloBiz-backed direct peer. "1 Crore+ businesses" claim. Leads with brand-customizable invoices — the gap AstraBill closes in 2C. |
+| [competitor/mybillbook-architecture.md](competitor/mybillbook-architecture.md) | competitor | **Architecture teardown** — sidebar, Create Party fields, doc taxonomy. The blueprint AstraBill copies under `decision/full-ledger-pivot`. |
 | **Customers** | | |
 | [customer/hardware-shop-owner.md](customer/hardware-shop-owner.md) | customer | Glass/hardware shop: multi-unit billing, udhaar tracking, kacha/pakka reality |
 | **Concepts** | | |

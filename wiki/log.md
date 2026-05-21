@@ -4,6 +4,54 @@ Append-only. Format: `## [YYYY-MM-DD] <operation> | <title>`
 
 ---
 
+## [2026-05-21] decisions | V1 scope locked (Option B) + DECISIONS.md reconciled to pivot
+
+User confirmed **Option B**: full V1 (21 must-haves), 4-month build, ship target ~21 Sep 2026. No shortcuts, senior-dev quality, system-design principles.
+
+`DECISIONS.md` updates:
+- New top section **"Product — V1 (Full-Ledger Pivot, 2026-05-21)"** with 29 binding rows covering: scope, party model, accounting model, doc model, numbering format + assignment + onboarding seed + FY reset, ITC fields, lineage, cancellation matrix, two-leg posting, UPI QR computed, signature scope, per-doc-type T&C, audit log, items units / inclusive pricing, party CSV import, GSTR exports, V1 reports, Indian formatting, currency scope, two-PR build sequence.
+- "Product — V1 Scope" section retitled **"(SUPERSEDED 2026-05-21)"** with a header banner explaining the relationship to the new pivot section.
+- Inline supersede markers on 5 rows: Invoice numbering · Custom invoice prefix · Invoice terms · Invoice types · V1 tables count. Drafts row updated (`invoices` → `documents` table).
+- "Last reconciled" bumped to 2026-05-21.
+
+Memory files added:
+- `mvp-scope-locked-option-b.md` — the 21-feature list, what's out, schema PR sequence
+- `doc-numbering-onboarding-seed.md` — owner-set starting number per doc type; FY-derivation from doc_date; lazy FY rollover
+
+**Status: ready for schema draft (PR1). Conversation compact point.**
+
+---
+
+## [2026-05-21] ingest | myBillBook Invoice Settings + Purchase Invoice + Quotation
+
+Source: 4 screenshots — Quick Invoice Settings modal (toggles OFF + ON states), Create Purchase Invoice form, Create Quotation form.
+
+Updates to `wiki/competitor/mybillbook-architecture.md`:
+- New section: **Quick Invoice Settings modal** — 4 toggles (Prefix, Show Purchase Price, Show Item Image, Price History) + Theme dropdown + Full Settings deep-link.
+- New section: **Purchase Invoice form** — terminology flips (Bill From, Amount Paid), **NEW field `Original Inv No.` required for ITC reconciliation**, sidebar map, V1/V2 scope.
+- New section: **Quotation / Estimate form** — `Valid For` / `Validity Date` semantic, no payment fields, signature still renders. **User insight: quotations are heavily used in Indian B2B — V1 priority, not V1.5.**
+- Schema addition: `documents.original_doc_number` + `original_doc_date` (purchase docs); `documents.source_doc_id` (Quotation → Invoice conversion).
+- Trimmed "what we still need to research" — research now functionally complete for V1 schema.
+
+Status: **research phase done. Moving to schema draft.**
+
+---
+
+## [2026-05-21] ingest | myBillBook saved Sales Invoice + Record Payment In
+
+Source: 4 screenshots — invoice form bottom (with bank + auto-QR), rendered Sales Invoice #1 (top + bottom), Record Payment In modal.
+
+Updates to `wiki/competitor/mybillbook-architecture.md`:
+- **Q8 CLOSED ✅** — Bill To uses `parties.name` (Party Name), Contact Person Name is internal CRM only, never on rendered invoice.
+- New section: **Saved Sales Invoice — rendered view** with 8 locked findings (UPI QR is computed at render, signature is business-level, due-date default = 30d, Total-in-words is GST-mandatory, GST classification end-to-end verified, column visibility is per-template setting, T&C placeholder rendered verbatim, TAX INVOICE / ORIGINAL FOR RECIPIENT GST labels).
+- New section: **Record Payment In modal** with full field map + schema sketch (`payment_entries`, `payment_entry_allocations`, two-leg ledger post, settlement-discount write-off as third leg).
+
+Memory: pending — UPI-QR-auto-generation insight worth saving since it's an AstraBill schema decision (never store QR images).
+
+Research status: Sales family research **done**. Remaining: Settings (red dot) on invoice form, then Purchase Bill (expected mirror of Sales).
+
+---
+
 ## [2026-05-17] init | Wiki initialized
 
 Wiki structure created. AstraBill defined as billing software for SMEs. Market research phase begins.
@@ -1078,3 +1126,69 @@ creation → DNS → SSH hardening → Docker install → repo clone →
 - Money flows peer-to-peer (customer's bank → shop's bank). AstraBill never touches it. Manual reconciliation via existing Record Payment flow.
 
 **All 4 V1 features are real on prod:** GST invoice + PDF · WhatsApp send · udhaar tracker · inventory. Razorpay deferred to V1.x (per-merchant connected, never platform-shared).
+
+## [2026-05-21] pivot | Full-ledger direction — AstraBill becomes GST books, not billing loop
+
+User's market research surfaced that Indian SMEs need Customer + Supplier (Party) tracking — primarily for **Input Tax Credit (ITC)** reconciliation, which is mandatory for GST businesses. Decision: copy myBillBook's architecture, then improve.
+
+Created:
+- `wiki/competitor/mybillbook-architecture.md` — teardown of their sidebar + Create Party form (from 4 screenshots, 2026-05-21)
+- `wiki/decision/full-ledger-pivot.md` — rationale + scope of the pivot
+
+Supersedes `decision/v1-scope.md` (billing-loop framing). DECISIONS.md V1-scope row will be updated once the 7 open architectural questions in the pivot doc are resolved.
+
+User framing: *"lets just fucking go and copy everything of billbook then we will make it better."* No real data in DB → no migration constraints, free to redesign the domain schema. Keep infrastructure (auth, multi-business, theming, PDF, WhatsApp, UPI, marketing site, deployment).
+
+## [2026-05-21] build | PR1 schema — full-ledger pivot
+
+`lib/db/schema.ts` drafted end-to-end; `drizzle/0005_cynical_ultimates.sql`
+generated and reviewed. 22 new tables, 10 new enums, 13 additive columns
+on `businesses`. Zero `DROP` statements — old domain (`customers` /
+`products` / `invoices` / `invoice_line_items` / `payments` / legacy
+`stock_movements`) untouched and still operable.
+
+New domain:
+- Parties: `parties`, `party_categories`, `party_addresses` (one billing
+  enforced by partial UQ; many shipping), `party_bank_accounts` (multiple
+  allowed per AstraBill deviation D1), `party_contact_persons`,
+  `party_custom_field_definitions` + `party_custom_field_values`.
+- Items: `items`, `item_categories`, `item_units` (seeded reference,
+  data seed deferred), `item_party_prices`, `item_custom_field_definitions`
+  + `item_custom_field_values`, `item_stock_movements` (renamed to
+  `stock_movements` in PR2).
+- Money + docs: `money_accounts`, `documents`, `document_line_items`
+  (item snapshot fields), `document_additional_charges`,
+  `document_counters` (per-business × doc_type × FY).
+- Payments + ledger: `payment_entries`, `payment_entry_allocations`,
+  `ledger_entries` (one table for party + money-account ledgers, with
+  CHECK invariants).
+
+Schema-level decisions locked during cross-questioning (rows added to
+DECISIONS.md, "Product — V1 (Full-Ledger Pivot)" section):
+- `stock_movements` rename plan — new table is `item_stock_movements`
+  in PR1; PR2 atomically drops legacy + renames.
+- GST rate semantics — `NULL = exempted`, `0 = nil-rated`, `> 0 = taxable`.
+- DB-level CHECK constraints on `ledger_entries` (one side, positive
+  amount, one ledger), `payment_entries` (amount > 0), `documents`
+  (grand_total ≥ 0, finalised rows must have a number),
+  `document_counters` (next_sequence ≥ 1),
+  `document_additional_charges` (taxable rows must carry a gst_rate),
+  `payment_entry_allocations` (allocated_amount > 0).
+
+`businesses` extensions (additive, all with sensible defaults):
+`pan_number`, `is_gst_registered`, `business_type` jsonb, `industry_type`,
+`business_registration_type`, `signature_url`, `signature_mode`,
+`signatory_name`, `additional_details` jsonb, `doc_type_defaults` jsonb,
+`fy_start_month`, `enable_tds`, `enable_tcs`.
+
+Deferred from this PR (intentional):
+- `item_units` data seed (system unit list) — separate seed migration.
+- "Cash Sale" party auto-creation — service layer at business creation.
+- `users.last_business_id` — DECISIONS marks as follow-up.
+- `relations.ts` update — flat reads are the V1 norm
+  (`database-and-rbac` rule); relations get added when the new domain
+  layer needs them.
+
+Migration applied: not yet — awaiting human review of the SQL before
+`npm run db:migrate` (which immediately reaches prod under the shared
+Supabase project).
