@@ -1,0 +1,71 @@
+# AstraBill droplet stack (Phase 2F).
+#
+# Runs on a single DigitalOcean droplet (BLR1, 2GB RAM). Two services
+# today; expected to grow into 4-ish over the V1.x window:
+#
+#   caddy        — reverse proxy + automatic Let's Encrypt TLS
+#   pdf-service  — invoice PDF renderer (Express + Puppeteer + Chromium)
+#   worker       — node-cron + BullMQ consumer  [future]
+#   redis        — BullMQ broker                [future]
+#
+# Operations (on the droplet):
+#
+#   cd /opt/astrabill/deploy
+#   docker compose pull && docker compose up -d           # restart cleanly
+#   docker compose up -d --build pdf-service              # redeploy code
+#   docker compose logs -f --tail=100 pdf-service         # tail logs
+#
+# Code redeploys: `git pull` first, then the second command above. The
+# pdf-service rebuilds from source inside the droplet — keeps the image
+# pinned to the commit that's checked out, no separate registry needed.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: astrabill-caddy
+    restart: unless-stopped
+    ports:
+      # Caddy needs both for HTTP-01 ACME challenge (TLS issuance) and
+      # for serving HTTPS traffic. Don't move these to the host firewall
+      # alone — Docker bypasses ufw via iptables, so the only port
+      # exposure that matters is here.
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Persists issued certs across container restarts. Without this,
+      # Caddy re-issues from Let's Encrypt on every redeploy and you
+      # hit the rate limit (5 certs / domain / week).
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - astrabill
+
+  pdf-service:
+    build:
+      # Compose lives in deploy/; the pdf-service source one level up.
+      context: ../pdf-service
+      dockerfile: Dockerfile
+    container_name: astrabill-pdf-service
+    restart: unless-stopped
+    # No `ports:` block — pdf-service is reachable only via Caddy on the
+    # docker network. The droplet's public surface is just :80 + :443.
+    expose:
+      - "4000"
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      # Shared-secret auth — the Next.js side sends this in the
+      # Authorization header. Set in .env (see .env.example).
+      PDF_SERVICE_TOKEN: ${PDF_SERVICE_TOKEN}
+    networks:
+      - astrabill
+
+networks:
+  astrabill:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

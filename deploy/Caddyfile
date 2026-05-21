@@ -1,0 +1,56 @@
+# Caddyfile — reverse proxy + automatic HTTPS for the AstraBill droplet.
+#
+# Caddy issues + renews Let's Encrypt certs automatically using the HTTP-01
+# challenge on :80. For that to work the DNS A record for the host below
+# MUST be resolvable to this droplet's public IP at the time Caddy starts,
+# and Cloudflare (if proxying) MUST be in DNS-only (grey-cloud) mode —
+# orange-cloud terminates TLS at Cloudflare's edge and Caddy never sees
+# the challenge.
+#
+# Add a new service by copying the block. The `import` is so we can split
+# per-service blocks later without juggling one giant file.
+
+{
+	# Global options. The email is the contact Let's Encrypt uses for
+	# cert-expiry warnings. CHANGE THIS to a real address before first
+	# boot, otherwise you'll never see renewal alerts.
+	email hello@astrabill.com
+}
+
+pdf.astrabill.com {
+	# Health-check probe — open, so we can confirm the proxy is wired
+	# without a token (the upstream /health is also open).
+	handle /health {
+		reverse_proxy pdf-service:4000
+	}
+
+	# Everything else proxies to the pdf-service container. Auth is the
+	# shared bearer token on the /render endpoint — enforced by the
+	# pdf-service itself, NOT by Caddy. Caddy is dumb here.
+	reverse_proxy pdf-service:4000 {
+		# Sensible timeouts for Puppeteer. A complex invoice can take
+		# ~3-5s; this leaves headroom without holding sockets forever.
+		transport http {
+			dial_timeout 5s
+			response_header_timeout 30s
+		}
+	}
+
+	# Log to stdout (the Docker log driver picks them up). Don't write
+	# to a file inside the container — it'd disappear on restart.
+	log {
+		output stdout
+		format json
+		level INFO
+	}
+
+	# A handful of standard security headers. None of these affect the
+	# PDF response itself (it's bytes); they're hygiene for any HTML
+	# error responses Caddy or the pdf-service might emit.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+}

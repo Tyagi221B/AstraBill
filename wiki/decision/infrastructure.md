@@ -206,12 +206,23 @@ event name from both client and server, or funnels double-count.
 | Service | Cost/month |
 |---------|-----------|
 | Vercel (Hobby/Pro) | $0-20 |
-| Digital Ocean Droplet (PDF + Worker co-located) | $6-12 |
+| Digital Ocean Droplet (PDF + Worker co-located) | $12 |
 | Supabase (Free → Pro) | $0-25 |
 | Redis (DO Managed or self-hosted on same droplet) | $0-15 |
 | **Total** | **~$6-52/month** |
 
-Start with a $6/month DO droplet. PDF service + Worker + Redis all on it. Scale up when needed.
+Start with a **$12/month DO droplet** (2GB RAM / 1 vCPU / 50GB) — the
+$6 plan (1GB RAM) OOMs under Puppeteer load. PDF service + Worker +
+Redis all on it (Docker Compose, one container per service). Scale up
+when one service genuinely needs its own box.
+
+**Operational pattern** — the droplet runs Docker + Docker Compose,
+orchestrated by `deploy/docker-compose.yml` checked into the repo.
+Caddy fronts everything on `:80` + `:443` and handles Let's Encrypt
+TLS automatically; the pdf-service (and future worker / Redis)
+containers stay on the docker network with no public ports. Redeploy
+= `git pull && docker compose up -d --build <service>` on the
+droplet. The runbook lives at `deploy/README.md`.
 
 ## What Goes Where — Decision Table
 

@@ -1003,3 +1003,54 @@ arrives the day a real provider is needed.
 
 Code work starts next: VPA validation in settings, share-page Pay
 button + QR, PDF QR. Schema is already in place; no migration needed.
+
+## [2026-05-21] ops | pdf-service droplet bring-up
+
+Wiring the UPI QR onto invoice PDFs exposed a quiet truth: the
+pdf-service has never been deployed to prod. Every PDF download on
+`astrabill.com` returns `SERVICE_UNAVAILABLE` because
+`PDF_SERVICE_URL` was never set on Vercel. Dev has it pointing at
+`localhost:4000`; prod has nothing. The 2C invoice templates have been
+"live" only in the sense that they exist in the repo.
+
+This is the moment to fix it properly. Decisions made:
+
+- **One dedicated droplet** ($12/mo, 2GB RAM, Ubuntu 24.04 LTS, BLR1).
+  The $6 plan (1GB) doesn't have headroom for Puppeteer — Chromium
+  alone wants ~500MB idle, and one concurrent render spike OOMs the
+  box. $6/mo extra for headroom is the right trade.
+
+- **One droplet, multiple containers via Docker Compose.** Today:
+  Caddy + pdf-service. The compose file leaves room for the future
+  BullMQ worker + Redis to land as additional services on the same
+  droplet — that's the trajectory `wiki/decision/infrastructure.md`
+  has had all along. Splitting microservices across droplets is the
+  textbook over-engineering trap at our scale; we co-locate until one
+  service genuinely needs its own box.
+
+- **Caddy, not nginx + certbot.** Auto-TLS via Let's Encrypt with
+  ~10 lines of config and zero renewal cron jobs. Nginx + certbot is
+  fine and traditional, but at MVP it's strictly more moving parts
+  for the same outcome. Cloudflare must stay in DNS-only (grey-cloud)
+  mode for `pdf.astrabill.com` — orange-cloud terminates TLS at
+  Cloudflare's edge and Caddy can't complete the HTTP-01 challenge.
+
+- **`deploy/` directory checked into the repo.** Contains
+  `docker-compose.yml`, `Caddyfile`, `.env.example`, and `README.md`
+  (the bring-up + redeploy runbook). Redeploy is one command on the
+  droplet — `git pull && docker compose up -d --build pdf-service`.
+  No image registry needed for now (build on the droplet from the
+  pinned commit); we add a registry the day build time on the droplet
+  becomes a bottleneck.
+
+- **Subdomain `pdf.astrabill.com`.** Vercel env gains
+  `PDF_SERVICE_URL=https://pdf.astrabill.com` and
+  `PDF_SERVICE_TOKEN=<shared secret>`. Future services that need
+  public endpoints get their own subdomain; internal-only services
+  (BullMQ workers, Redis) get no subdomain at all.
+
+`wiki/decision/infrastructure.md` updated to reflect the $12 plan
+choice + the Docker Compose pattern. The full operational runbook
+lives at `deploy/README.md`. Bring-up walks through DO droplet
+creation → DNS → SSH hardening → Docker install → repo clone →
+`docker compose up -d` → Vercel env wiring → end-to-end smoke test.
