@@ -14,6 +14,7 @@ import "server-only";
 import { db } from "../db";
 import { writeAuditEntry } from "../audit";
 import { isOurCloudinaryUrl } from "../cloudinary";
+import { SEEDED_DOC_TYPE_DEFAULTS } from "../constants/doc-type-defaults";
 import type { Business, BusinessMember } from "../db/schema";
 import { ForbiddenError, NotFoundError, ValidationError } from "../errors";
 import { roleHas } from "../rbac";
@@ -29,6 +30,8 @@ import {
   listBusinessesForUser,
   updateBusinessRow,
 } from "../repositories/businesses";
+import { ensureDefaultCashAccountTx } from "./money-accounts";
+import { ensureCashSalePartyTx } from "./parties";
 
 export interface ServiceContext {
   ipAddress?: string | null;
@@ -57,6 +60,7 @@ export async function createBusiness(
       city: input.city ?? null,
       state: input.state ?? null,
       pincode: input.pincode ?? null,
+      docTypeDefaults: SEEDED_DOC_TYPE_DEFAULTS,
     });
 
     const membership = await insertMember(tx, {
@@ -64,6 +68,12 @@ export async function createBusiness(
       userId: actorUserId,
       role: "owner",
     });
+
+    // Pivot foundation seeds — every business needs a cash drawer to record
+    // payments against, and a walk-in "Cash Sale" party for over-the-counter
+    // sales without a named buyer. Both are idempotent inside the tx.
+    await ensureDefaultCashAccountTx(tx, business.id);
+    await ensureCashSalePartyTx(tx, business.id);
 
     await writeAuditEntry(tx, {
       action: "business.create",

@@ -43,6 +43,13 @@
       "when": 1779377980102,
       "tag": "0005_cynical_ultimates",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779378473451,
+      "tag": "0006_seed_pivot_foundations",
+      "breakpoints": true
     }
   ]
 }
