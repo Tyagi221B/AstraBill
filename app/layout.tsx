@@ -7,6 +7,8 @@ import { PostHogIdentify } from "@/components/PostHogIdentify";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { Toaster } from "@/components/ui/Toaster";
 import {
+  KEYWORDS,
+  OG_IMAGE,
   SITE_DESCRIPTION,
   SITE_NAME,
   SITE_TAGLINE,
@@ -21,11 +23,29 @@ export const metadata: Metadata = {
     template: `%s · ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
+  keywords: KEYWORDS,
   applicationName: SITE_NAME,
-  authors: [{ name: "Opryon Labs" }],
+  authors: [{ name: "Opryon Labs", url: "https://www.opryon.com" }],
   creator: "Opryon Labs",
+  publisher: "Opryon Labs",
   // Icons come from app/icon.png + app/apple-icon.png (Next file convention).
-  robots: { index: true, follow: true },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_IN",
+    siteName: SITE_NAME,
+    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: SITE_NAME }],
+  },
 };
 
 export default async function RootLayout({

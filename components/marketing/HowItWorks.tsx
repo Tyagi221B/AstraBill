@@ -14,7 +14,7 @@ const STEPS: { step: string; title: string; body: string }[] = [
   {
     step: "03",
     title: "Get paid",
-    body: "The customer taps the link and pays. The invoice marks itself paid and the receipt goes back automatically.",
+    body: "The customer taps the link and pays via any UPI app. You mark the invoice paid — done. No chasing, no calls.",
   },
 ];
 

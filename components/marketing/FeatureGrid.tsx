@@ -28,7 +28,7 @@ const FEATURES: {
   },
   {
     title: "UPI payment links",
-    body: "Every invoice carries a UPI payment link. The customer taps, pays, and the invoice reconciles itself.",
+    body: "Every invoice carries a UPI deep link. The customer taps and pays via any UPI app. You mark it paid — one tap.",
     Icon: UpiIcon,
     brand: true,
   },

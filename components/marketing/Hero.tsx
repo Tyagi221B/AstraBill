@@ -33,7 +33,11 @@ export function Hero() {
           watch it get paid. No training, no desktop software.
         </p>
 
-        <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row">
+        <p className="mt-4 text-sm font-semibold text-foreground/70">
+          Tally for your CA. AstraBill for you.
+        </p>
+
+        <div className="mt-7 flex flex-col items-center gap-3 sm:flex-row">
           <Link href="/sign-in" className={buttonClasses("primary", "lg")}>
             Get started — it&apos;s free
           </Link>

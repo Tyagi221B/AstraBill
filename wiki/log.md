@@ -1054,3 +1054,27 @@ choice + the Docker Compose pattern. The full operational runbook
 lives at `deploy/README.md`. Bring-up walks through DO droplet
 creation → DNS → SSH hardening → Docker install → repo clone →
 `docker compose up -d` → Vercel env wiring → end-to-end smoke test.
+
+## [2026-05-21] build | Phase 2F complete — pdf-service live on prod + UPI deep links
+
+**pdf-service droplet brought up end-to-end.**
+
+- **Droplet:** `astrabill-prod`, DigitalOcean BLR1, Basic AMD, 1 vCPU / 1GB RAM / 25GB SSD, $7/mo, Ubuntu 24.04 LTS. Non-root user `asmit` with sudo; root SSH login disabled; password auth disabled (key-only).
+- **Firewall:** ufw — deny all incoming except 22/80/443. fail2ban installed. 2GB swap added (`/swapfile`) for Puppeteer headroom.
+- **Docker:** v29.5.2, Compose v5.1.4, installed via official Docker apt repo.
+- **Repo cloned to `/opt/astrabill`.** GitHub credentials cached via `git config --global credential.helper store`.
+- **Stack brought up:** `docker compose up -d --build` from `/opt/astrabill/deploy/`. Caddy + pdf-service both healthy.
+- **TLS cert issued** by Let's Encrypt for `pdf.astrabill.com` via HTTP-01 challenge (Cloudflare DNS-only / grey cloud).
+- **Smoke test passed:** `curl -i https://pdf.astrabill.com/health` → `{"ok":true,"service":"astrabill-pdf-service"}`.
+- **Vercel env wired:** `PDF_SERVICE_URL=https://pdf.astrabill.com` + `PDF_SERVICE_TOKEN` added to Production + Preview scope. Redeploy triggered.
+- **End-to-end verified:** PDF downloaded from `astrabill.com` — brand colour, logo, line items, GST breakdown, totals all correct. `SERVICE_UNAVAILABLE` is gone.
+
+**UPI deep links shipped (same deploy):**
+
+- `lib/upi.ts` — `buildUpiPayUrl` + `renderUpiQrSvg` + `renderUpiQrDataUrl` helpers.
+- `businesses.upi_id` exposed via `/settings/payments` (new page + SettingsNav).
+- Share page `/i/[shareToken]` — Pay button + QR block for unpaid invoices with a VPA set.
+- PDF footer — QR code rendered when `upiQrDataUrl` present in contract.
+- Money flows peer-to-peer (customer's bank → shop's bank). AstraBill never touches it. Manual reconciliation via existing Record Payment flow.
+
+**All 4 V1 features are real on prod:** GST invoice + PDF · WhatsApp send · udhaar tracker · inventory. Razorpay deferred to V1.x (per-merchant connected, never platform-shared).

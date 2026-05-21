@@ -14,7 +14,7 @@
 import Image from "next/image";
 
 import brandmark from "@/public/astrabill-brandmark.webp";
-import logoBlack from "@/public/astrabill-logo-black.webp";
+import logoPrimary from "@/public/astrabill-logo-primary.webp";
 import logoWhite from "@/public/astrabill-logo-white.webp";
 
 export function Logo({
@@ -40,7 +40,7 @@ export function Logo({
   return (
     <>
       <Image
-        src={logoBlack}
+        src={logoPrimary}
         alt="AstraBill"
         priority={priority}
         className={`${className} block dark:hidden`}
