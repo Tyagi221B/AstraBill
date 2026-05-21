@@ -608,7 +608,7 @@ export function BrandingEditor({
                 src={previewSrc}
                 title="Invoice preview"
                 onLoad={() => setPreviewStale(false)}
-                className="aspect-[210/297] w-full rounded-md border border-border bg-muted"
+                className="aspect-210/297 w-full rounded-md border border-border bg-muted"
               />
               <p className="mt-2 text-xs text-muted-foreground">
                 Your most-recent invoice, rendered with the settings above.
