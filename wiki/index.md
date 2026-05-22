@@ -17,6 +17,7 @@
 | [decision/pdf-generation.md](decision/pdf-generation.md) | decision | Dedicated PDF microservice with Puppeteer. Not serverless. Maximum control. |
 | [decision/whatsapp-meta-api.md](decision/whatsapp-meta-api.md) | decision | Use existing Opryon Labs WABA. Same creds for testing, new phone number for prod. |
 | [decision/infrastructure.md](decision/infrastructure.md) | decision | Vercel (Next.js) + Digital Ocean (PDF + cron worker) + Supabase + Razorpay |
+| [decision/droplet-operations.md](decision/droplet-operations.md) | decision | **(2026-05-22)** DO droplet identity, deploy flow, SSH hardening, and the rescue-ISO recovery runbook we wrote in blood. |
 | [decision/database-and-rbac.md](decision/database-and-rbac.md) | decision | PostgreSQL + Drizzle ORM. Multi-business from day 1. RBAC in TypeScript not SQL. |
 | [decision/auth-strategy.md](decision/auth-strategy.md) | decision | NextAuth v5 + JWT sessions. Two equal entry doors: Google OAuth + WhatsApp OTP. Never Supabase Auth. |
 | [decision/code-architecture.md](decision/code-architecture.md) | decision | LLD: thin routes → service → repo → DB. Interfaces for externals. Typed errors. |

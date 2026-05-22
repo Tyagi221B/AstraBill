@@ -8,7 +8,7 @@ The single source of truth for every binding technical and product decision.
 - Changing a decision = edit the row here, then grep the wiki for stale copies.
 - `wiki/decision/*.md` pages carry rationale only — they must never restate a fact, only link here.
 
-Last reconciled: 2026-05-22 (PR3a + PR3b naming hygiene — PDF contract `Invoice*` types renamed to `Document*`; `businesses.invoice_template_id` → `document_template_id`, `invoice_settings` → `document_settings`; dead `invoice_terms` + `invoice_number_prefix` dropped)
+Last reconciled: 2026-05-22 (PR3a + PR3b naming hygiene shipped + pdf-service droplet redeployed; recovery runbook captured at [[decision/droplet-operations]] after the 2026-05-22 SSH lockout)
 
 ---
 
@@ -23,6 +23,8 @@ Last reconciled: 2026-05-22 (PR3a + PR3b naming hygiene — PDF contract `Invoic
 | Migrations | Drizzle Kit | manual SQL | [[decision/database-and-rbac]] |
 | Environments | Single Supabase project shared by **all three** origins — dev (`localhost:3000` / `.env.local`), preprod (`test.astrabill.com`), and prod (`www.astrabill.com` on Vercel). `npm run db:migrate` applies once and is visible to all three. Will split into a separate staging project before V1 GA | running an experimental migration against `.env.local` thinking it's a sandbox; treating local writes as throwaway test data (they ARE prod data right now) | [[decision/infrastructure]] |
 | PDF generation | Puppeteer microservice on Digital Ocean | `@react-pdf/renderer`, serverless Puppeteer | [[decision/pdf-generation]] |
+| Droplet identity | One DO droplet (`astrabill-prod`, BLR1, 2 GB RAM) runs Caddy + pdf-service via Docker Compose. Public hostname `pdf.astrabill.com` (Cloudflare DNS-only — orange-cloud breaks ACME). Repo at `/opt/astrabill/`, compose at `/opt/astrabill/deploy/`. Deploy = `git pull && docker compose up -d --build pdf-service`. Caddy + Let's Encrypt own TLS automatically | publishing pdf-service ports to the host (only `:80`/`:443` public); orange-cloud proxying through Cloudflare (HTTP-01 challenge fails); a separate container registry (image builds from local source, pinned to checked-out commit) | [[decision/droplet-operations]] |
+| Droplet SSH | Key-only root via `PermitRootLogin prohibit-password` + `PasswordAuthentication no`; fail2ban active. Owner's `~/.ssh/id_ed25519` in `/root/.ssh/authorized_keys`. Laptop must use `IdentitiesOnly yes` (else multiple key offerings trip fail2ban). Recovery from a lockout = boot DO Recovery ISO, mount `/dev/vda1` at `/mnt`, edit `/mnt/etc/ssh/sshd_config`, clear `/mnt/var/lib/fail2ban/fail2ban.sqlite3` | `PermitRootLogin no` (also blocks key auth — was the 2026-05-22 lockout); SSHing without `IdentitiesOnly yes` (offers every key, trips fail2ban); leaving the droplet in Recovery ISO boot mode after recovery (every boot starts the rescue env) | [[decision/droplet-operations]] |
 | Job scheduling | node-cron on the DO worker | DB-polling jobs table, pg_cron | [[decision/notifications-and-crons]] |
 | WhatsApp send queue | BullMQ + Redis on DO | — | [[decision/notifications-and-crons]] |
 | Analytics + error tracking | PostHog — product analytics, funnels, session replay AND exception capture. V1 is client-only: `posthog-js`, initialised in `instrumentation-client.ts`, reverse-proxied via `/ingest` to dodge ad-blockers. Server-side `posthog-node` is deferred until a genuinely server-only event exists (the 2B Razorpay webhook) | a second error tracker in parallel; firing one event name from both client and server; silent failures | [[decision/infrastructure]] |

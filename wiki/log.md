@@ -4,6 +4,71 @@ Append-only. Format: `## [YYYY-MM-DD] <operation> | <title>`
 
 ---
 
+## [2026-05-22] ops | Droplet recovery + redeploy + runbook capture
+
+Three things bundled into one entry because they all chain.
+
+**1) Droplet redeploy** — pulled main onto `/opt/astrabill/` (4 commits:
+PR2 Step 11 demolition + PR3c wiki + PR3a PDF contract + PR3b businesses
+columns) and ran `docker compose up -d --build pdf-service` to recreate
+the container against the new contract. The pdf-service now validates
+`body.document` (was `body.invoice`) + calls `renderDocumentPdf` and ships
+the full 8-doc-type TYPE_LABEL map. Caddy was untouched. Health verified
+in-container with `wget -qO- http://localhost:4000/health` →
+`{"ok":true,"service":"astrabill-pdf-service"}`.
+
+**2) SSH lockout recovery** — the redeploy was blocked for ~30 minutes by
+a stacked auth failure we'd previously added: `PermitRootLogin no` in
+`/etc/ssh/sshd_config` (blocks root login even via key) plus a fail2ban
+ban triggered by SSH offering multiple keys (`IdentitiesOnly` wasn't set
+on the laptop). DO Web Console was also dead (it goes through the
+droplet's `sshd`).
+
+Resolution path:
+- Powered the droplet down + flipped Recovery mode to "Boot from Recovery
+  ISO" via DO control panel
+- Powered back on → DO Recovery Console (rescue Ubuntu 24.04)
+- Menu option 1 (mount disk at `/mnt`) → option 6 (interactive bash)
+- `sed -i 's/^PermitRootLogin no/PermitRootLogin prohibit-password/' /mnt/etc/ssh/sshd_config`
+- `rm -f /mnt/var/lib/fail2ban/fail2ban.sqlite3` (clears all bans)
+- Confirmed `/mnt/root/.ssh/authorized_keys` still carries the owner's
+  ed25519 key
+- Switched Recovery mode back to "Boot from Hard Drive" → power-cycled
+
+Post-SSH a second trap: PAM forced password change (`chage -d 0 root`-style
+expiry) closed the session. Used DO Access → "Reset Root Password" to
+get a temp password emailed, completed the PAM password change, then
+`chage -d "$(date +%Y-%m-%d)" root && chage -M 99999 root` to remove the
+expiry policy entirely.
+
+**3) Runbook captured** — wrote [[decision/droplet-operations]] so this
+30-min recovery becomes a 5-min recovery next time, and so future agent
+sessions know the operational layout end to end:
+- Droplet identity (name, region, size, IPs, DNS)
+- Repo layout (`/opt/astrabill/` clone, `deploy/` subdir with
+  `docker-compose.yml` + Caddyfile + `.env`)
+- Deploy flow (`git pull` + `docker compose up -d --build pdf-service`)
+- SSH config (incl. mandatory `IdentitiesOnly yes` on the laptop and the
+  exact rescue-ISO procedure)
+- GitHub deploy-key setup (queued — current deploys still use a
+  short-lived PAT; lost ~10 min to a PAT-expired prompt mid-deploy)
+- Common operations (restart / rebuild / env-change / Caddy edit)
+
+**DECISIONS.md** — two new rows under Stack:
+- "Droplet identity" — public hostname, repo path, compose location,
+  deploy command, Cloudflare DNS-only requirement (orange-cloud breaks
+  ACME)
+- "Droplet SSH" — `PermitRootLogin prohibit-password`, fail2ban
+  posture, `IdentitiesOnly yes` requirement, recovery procedure summary
+
+**wiki/index.md** — new entry for `decision/droplet-operations.md`.
+
+**Memory candidates** — none added; everything in DECISIONS.md +
+droplet-operations.md is reachable from a fresh session via the
+existing resume pattern.
+
+---
+
 ## [2026-05-22] build | PR3b — businesses columns rename + dead-column drop
 
 Migration 0008 (`drizzle/0008_pr3b_businesses_rename.sql`) — applied
