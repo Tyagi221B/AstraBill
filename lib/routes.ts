@@ -64,6 +64,31 @@ export const routes = {
       salesInvoice: (id: string) => `${base}/sales/sales-invoices/${id}`,
       editSalesInvoice: (id: string) =>
         `${base}/sales/sales-invoices/${id}/edit`,
+      /** Quotations / estimates (sales side, non-financial). */
+      quotations: `${base}/sales/quotations`,
+      newQuotation: `${base}/sales/quotations/new`,
+      quotation: (id: string) => `${base}/sales/quotations/${id}`,
+      editQuotation: (id: string) =>
+        `${base}/sales/quotations/${id}/edit`,
+      /** Credit notes (sales returns). */
+      creditNotes: `${base}/sales/credit-notes`,
+      newCreditNote: `${base}/sales/credit-notes/new`,
+      creditNote: (id: string) => `${base}/sales/credit-notes/${id}`,
+      editCreditNote: (id: string) =>
+        `${base}/sales/credit-notes/${id}/edit`,
+      /** Purchase invoices (we owe a supplier). */
+      purchaseInvoices: `${base}/purchases/purchase-invoices`,
+      newPurchaseInvoice: `${base}/purchases/purchase-invoices/new`,
+      purchaseInvoice: (id: string) =>
+        `${base}/purchases/purchase-invoices/${id}`,
+      editPurchaseInvoice: (id: string) =>
+        `${base}/purchases/purchase-invoices/${id}/edit`,
+      /** Debit notes (purchase returns). */
+      debitNotes: `${base}/purchases/debit-notes`,
+      newDebitNote: `${base}/purchases/debit-notes/new`,
+      debitNote: (id: string) => `${base}/purchases/debit-notes/${id}`,
+      editDebitNote: (id: string) =>
+        `${base}/purchases/debit-notes/${id}/edit`,
       settings: {
         branding: `${base}/settings/branding`,
         payments: `${base}/settings/payments`,

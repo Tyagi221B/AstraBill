@@ -801,6 +801,148 @@ export async function getDocumentDetail(
 
 export { listDocumentsForUser };
 
+// ─── Convert flows ────────────────────────────────────────────────────────
+
+/**
+ * Convert a finalised quotation into a draft sales_invoice.
+ *
+ * Copies every line item + additional charge by value (snapshots preserved
+ * on both sides), wires `source_doc_id` on the new invoice so the lineage
+ * is queryable later. Returns the new draft for the user to review +
+ * finalise.
+ *
+ * Quotations don't post any ledger or stock — converting doesn't touch
+ * those either; the new sales_invoice will post when the user finalises it.
+ */
+export async function convertQuotationToInvoice(
+  quotationId: string,
+  actorUserId: string,
+  ctx: ServiceContext = {},
+): Promise<Document> {
+  return db.transaction(async (tx) => {
+    const quotation = await getDocumentForUserTx(tx, actorUserId, quotationId);
+    if (!quotation) throw new NotFoundError("Quotation not found");
+    if (quotation.docType !== "quotation") {
+      throw new ValidationError("Only quotations can be converted to invoices");
+    }
+    if (quotation.status === "draft") {
+      throw new ConflictError("Finalise the quotation first, then convert");
+    }
+    if (quotation.status === "cancelled") {
+      throw new ConflictError("Can't convert a cancelled quotation");
+    }
+    await requirePermission(
+      actorUserId,
+      quotation.businessId,
+      "document:create",
+    );
+
+    // Pull the quotation's line items + charges to copy.
+    const { documentLineItems, documentAdditionalCharges } = await import(
+      "../db/schema"
+    );
+    const [lines, charges] = await Promise.all([
+      tx
+        .select()
+        .from(documentLineItems)
+        .where(eq(documentLineItems.documentId, quotation.id))
+        .orderBy(documentLineItems.sortOrder),
+      tx
+        .select()
+        .from(documentAdditionalCharges)
+        .where(eq(documentAdditionalCharges.documentId, quotation.id))
+        .orderBy(documentAdditionalCharges.sortOrder),
+    ]);
+
+    // Create the new sales_invoice as a draft, source-linked back.
+    const invoice = await insertDocumentTx(tx, {
+      businessId: quotation.businessId,
+      docType: "sales_invoice",
+      docDate: new Date().toISOString().slice(0, 10),
+      partyId: quotation.partyId,
+      shipToAddressId: quotation.shipToAddressId,
+      sourceDocId: quotation.id,
+      paymentTermsDays: quotation.paymentTermsDays,
+      placeOfSupplyStateCode: quotation.placeOfSupplyStateCode,
+      termsConditions: quotation.termsConditions,
+      notes: quotation.notes,
+      autoRoundOffEnabled: quotation.autoRoundOffEnabled,
+      subtotal: quotation.subtotal,
+      totalLineDiscount: quotation.totalLineDiscount,
+      additionalChargesTaxable: quotation.additionalChargesTaxable,
+      additionalChargesNonTaxable: quotation.additionalChargesNonTaxable,
+      taxableAmount: quotation.taxableAmount,
+      cgstAmount: quotation.cgstAmount,
+      sgstAmount: quotation.sgstAmount,
+      igstAmount: quotation.igstAmount,
+      totalTaxAmount: quotation.totalTaxAmount,
+      billLevelDiscount: quotation.billLevelDiscount,
+      roundOff: quotation.roundOff,
+      grandTotal: quotation.grandTotal,
+      createdBy: actorUserId,
+    });
+
+    await insertDocumentLineItemsTx(
+      tx,
+      lines.map((l, idx) => ({
+        businessId: invoice.businessId,
+        documentId: invoice.id,
+        lineNo: idx + 1,
+        itemId: l.itemId,
+        itemNameSnapshot: l.itemNameSnapshot,
+        hsnSacCodeSnapshot: l.hsnSacCodeSnapshot,
+        unitCodeSnapshot: l.unitCodeSnapshot,
+        description: l.description,
+        quantity: l.quantity,
+        secondaryQuantity: l.secondaryQuantity,
+        secondaryUnitCode: l.secondaryUnitCode,
+        pricePerUnit: l.pricePerUnit,
+        priceIncludesTax: l.priceIncludesTax,
+        discountPercent: l.discountPercent,
+        discountAmount: l.discountAmount,
+        gstRate: l.gstRate,
+        taxableAmount: l.taxableAmount,
+        cgstAmount: l.cgstAmount,
+        sgstAmount: l.sgstAmount,
+        igstAmount: l.igstAmount,
+        taxAmount: l.taxAmount,
+        lineAmount: l.lineAmount,
+        sortOrder: l.sortOrder,
+      })),
+    );
+    if (charges.length > 0) {
+      await insertDocumentAdditionalChargesTx(
+        tx,
+        charges.map((c) => ({
+          businessId: invoice.businessId,
+          documentId: invoice.id,
+          label: c.label,
+          amount: c.amount,
+          taxable: c.taxable,
+          gstRate: c.gstRate,
+          sortOrder: c.sortOrder,
+        })),
+      );
+    }
+
+    await writeAuditEntry(tx, {
+      action: "document.convert",
+      businessId: quotation.businessId,
+      actorUserId,
+      entityType: "document",
+      entityId: invoice.id,
+      changes: {
+        from: { id: quotation.id, docType: quotation.docType },
+        to: { id: invoice.id, docType: invoice.docType },
+      },
+      ipAddress: ctx.ipAddress ?? null,
+      userAgent: ctx.userAgent ?? null,
+    });
+
+    return invoice;
+  });
+}
+
 function prettyDocType(docType: DocTypeValue): string {
   return docType.replace(/_/g, " ");
 }
