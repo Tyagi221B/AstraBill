@@ -57,6 +57,12 @@ const ALL_PERMISSIONS = [
   "money_account:manage", // create + edit + soft-delete
   "money_account:adjust", // Add / Reduce money (manual_adjustment ledger row)
   "money_account:transfer", // Transfer money (paired transfer_in/out rows)
+  // Documents (new domain — all 8 doc types share this permission ladder)
+  "document:view",
+  "document:create", // create + update drafts
+  "document:finalize", // draft → unpaid (locks number + ledger + stock)
+  "document:cancel", // finalised → cancelled (writes reversal entries)
+  "document:delete", // hard-delete a draft (finalised use cancel)
   // WhatsApp
   "whatsapp:send",
   // Reports
@@ -103,6 +109,11 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     "money_account:manage",
     "money_account:adjust",
     "money_account:transfer",
+    "document:view",
+    "document:create",
+    "document:finalize",
+    "document:cancel",
+    "document:delete",
     "whatsapp:send",
     "report:view_profit",
     "report:gst",
@@ -128,6 +139,9 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     "money_account:view",
     "money_account:adjust",
     "money_account:transfer",
+    "document:view",
+    "document:create",
+    "document:finalize",
     "whatsapp:send",
     "report:view_profit",
     "report:gst",
@@ -145,6 +159,8 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     "party:create",
     "product:view",
     "item:view",
+    "document:view",
+    "document:create",
     "whatsapp:send",
   ],
 
@@ -155,6 +171,7 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     "product:view",
     "item:view",
     "money_account:view",
+    "document:view",
   ],
 } as const;
 
