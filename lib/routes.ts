@@ -55,6 +55,9 @@ export const routes = {
       newItem: `${base}/items/new`,
       item: (itemId: string) => `${base}/items/${itemId}`,
       editItem: (itemId: string) => `${base}/items/${itemId}/edit`,
+      /** Cash & Bank — money_accounts surface. */
+      cashAndBank: `${base}/cash-and-bank`,
+      moneyAccount: (id: string) => `${base}/cash-and-bank/${id}`,
       settings: {
         branding: `${base}/settings/branding`,
         payments: `${base}/settings/payments`,

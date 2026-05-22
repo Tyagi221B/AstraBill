@@ -52,6 +52,11 @@ const ALL_PERMISSIONS = [
   "item:delete",
   "item_category:manage",
   "stock:adjust",
+  // Money accounts (Cash & Bank)
+  "money_account:view",
+  "money_account:manage", // create + edit + soft-delete
+  "money_account:adjust", // Add / Reduce money (manual_adjustment ledger row)
+  "money_account:transfer", // Transfer money (paired transfer_in/out rows)
   // WhatsApp
   "whatsapp:send",
   // Reports
@@ -94,6 +99,10 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     "item:delete",
     "item_category:manage",
     "stock:adjust",
+    "money_account:view",
+    "money_account:manage",
+    "money_account:adjust",
+    "money_account:transfer",
     "whatsapp:send",
     "report:view_profit",
     "report:gst",
@@ -116,6 +125,9 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     "product:view",
     "item:view",
     "item_category:manage",
+    "money_account:view",
+    "money_account:adjust",
+    "money_account:transfer",
     "whatsapp:send",
     "report:view_profit",
     "report:gst",
@@ -142,6 +154,7 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     "party:view",
     "product:view",
     "item:view",
+    "money_account:view",
   ],
 } as const;
 
