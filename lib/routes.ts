@@ -58,6 +58,12 @@ export const routes = {
       /** Cash & Bank — money_accounts surface. */
       cashAndBank: `${base}/cash-and-bank`,
       moneyAccount: (id: string) => `${base}/cash-and-bank/${id}`,
+      /** Sales documents (new domain — replaces invoices in PR2). */
+      salesInvoices: `${base}/sales/sales-invoices`,
+      newSalesInvoice: `${base}/sales/sales-invoices/new`,
+      salesInvoice: (id: string) => `${base}/sales/sales-invoices/${id}`,
+      editSalesInvoice: (id: string) =>
+        `${base}/sales/sales-invoices/${id}/edit`,
       settings: {
         branding: `${base}/settings/branding`,
         payments: `${base}/settings/payments`,

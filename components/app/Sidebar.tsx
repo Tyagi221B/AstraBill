@@ -92,6 +92,7 @@ export function SidebarContent({
     { label: "Parties", path: b.parties, icon: Contact },
     { label: "Items", path: b.items, icon: Boxes },
     { label: "Cash & Bank", path: b.cashAndBank, icon: Banknote },
+    { label: "Sales invoices", path: b.salesInvoices, icon: ReceiptText },
     { label: "Invoices", path: b.invoices, icon: ReceiptText },
     { label: "Customers", path: b.customers, icon: Users },
     { label: "Products", path: b.products, icon: Package },
