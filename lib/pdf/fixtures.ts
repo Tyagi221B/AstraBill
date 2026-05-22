@@ -1,5 +1,5 @@
 /**
- * Invoice fixtures — typed sample payloads for iterating on PDF templates
+ * Document fixtures — typed sample payloads for iterating on PDF templates
  * without touching the database.
  *
  * Each fixture is a full `RenderRequest`, so `tsc` validates it against the
@@ -8,7 +8,7 @@
  * and roughly GST-consistent — exact correctness is `lib/gst.ts`'s job in the
  * real flow; here it just needs to look right.
  *
- * The business across all three is Om Glass Enterprises (Roorkee, Uttarakhand)
+ * The business across all four is Om Glass Enterprises (Roorkee, Uttarakhand)
  * — the first customer, a glass + hardware trading shop. See
  * wiki/customer/hardware-shop-owner.md.
  */
@@ -58,7 +58,7 @@ const OM_GLASS = {
  */
 export const fixtureSmall: RenderRequest = {
   branding: MODERN_FREE,
-  invoice: {
+  document: {
     number: "CR/26-27/0043",
     type: "sales_invoice",
     status: "paid",
@@ -160,7 +160,7 @@ export const fixtureSmall: RenderRequest = {
  */
 export const fixtureMedium: RenderRequest = {
   branding: MODERN_FREE,
-  invoice: {
+  document: {
     number: "INV/26-27/0118",
     type: "sales_invoice",
     status: "unpaid",
@@ -309,7 +309,7 @@ export const fixtureMedium: RenderRequest = {
  */
 export const fixtureComplex: RenderRequest = {
   branding: MODERN_FREE,
-  invoice: {
+  document: {
     number: "INV/26-27/0119",
     type: "sales_invoice",
     status: "unpaid",
@@ -474,7 +474,7 @@ const LONG_ITEMS: ReadonlyArray<[string, string, string, string, string]> = [
 
 export const fixtureLong: RenderRequest = {
   branding: MODERN_FREE,
-  invoice: {
+  document: {
     number: "INV/26-27/0120",
     type: "sales_invoice",
     status: "unpaid",

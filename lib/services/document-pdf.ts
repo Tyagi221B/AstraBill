@@ -26,8 +26,8 @@ import { buildHsnSummary } from "../pdf/hsn-summary";
 import type {
   BrandFont,
   BrandingPayload,
+  DocumentPayload,
   HsnSummaryRow,
-  InvoicePayload,
   RenderRequest,
   TaxRateBreakdown,
   TemplateId,
@@ -228,7 +228,7 @@ async function buildRenderRequest(
     ? await partyBillingAddress(party.id)
     : { block: null, stateCode: null };
 
-  const payload: InvoicePayload = {
+  const payload: DocumentPayload = {
     number: document.docNumber,
     type: document.docType,
     status: document.status,
@@ -318,7 +318,7 @@ async function buildRenderRequest(
   };
 
   return {
-    invoice: payload,
+    document: payload,
     branding: {
       logoUrl: business.logoUrl,
       color: business.brandColor,
@@ -482,12 +482,12 @@ export async function renderBrandingPreviewPdf(
   });
   const recentDoc = recent[0];
 
-  let invoicePayload: InvoicePayload;
+  let documentPayload: DocumentPayload;
   if (recentDoc) {
     const view = await findDocumentWithLinesForUser(actorUserId, recentDoc.id);
     if (view) {
       const party = await findPartyById(view.document.partyId);
-      invoicePayload = (
+      documentPayload = (
         await buildRenderRequest(
           view.document,
           view.lines,
@@ -495,15 +495,15 @@ export async function renderBrandingPreviewPdf(
           business,
           party,
         )
-      ).invoice;
+      ).document;
     } else {
       // Membership-scoped read missed (race) — fall back to fixture.
       const { fixtures } = await import("../pdf/fixtures");
-      invoicePayload = fixtures.complex.invoice;
+      documentPayload = fixtures.complex.document;
     }
   } else {
     const { fixtures } = await import("../pdf/fixtures");
-    invoicePayload = fixtures.complex.invoice;
+    documentPayload = fixtures.complex.document;
   }
 
   const branding: BrandingPayload = {
@@ -515,5 +515,5 @@ export async function renderBrandingPreviewPdf(
     columns: override.columns,
   };
 
-  return postRender({ invoice: invoicePayload, branding });
+  return postRender({ document: documentPayload, branding });
 }

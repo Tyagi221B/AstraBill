@@ -13,7 +13,7 @@ import express from "express";
 import puppeteer, { type Browser } from "puppeteer";
 
 import type { RenderRequest } from "./contract.js";
-import { renderInvoicePdf, RenderError } from "./render.js";
+import { renderDocumentPdf, RenderError } from "./render.js";
 
 const PORT = Number(process.env.PORT ?? 4000);
 
@@ -54,17 +54,17 @@ app.post("/render", async (req, res) => {
   }
 
   const body = req.body as Partial<RenderRequest> | undefined;
-  if (!body?.invoice || !body?.branding) {
+  if (!body?.document || !body?.branding) {
     res
       .status(400)
-      .json({ error: "Body must include both `invoice` and `branding`." });
+      .json({ error: "Body must include both `document` and `branding`." });
     return;
   }
 
   const startedAt = Date.now();
   try {
     const browser = await getBrowser();
-    const pdf = await renderInvoicePdf(body as RenderRequest, browser);
+    const pdf = await renderDocumentPdf(body as RenderRequest, browser);
     res.status(200);
     res.type("application/pdf");
     res.setHeader("X-Render-Ms", String(Date.now() - startedAt));

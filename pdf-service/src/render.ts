@@ -5,9 +5,9 @@
  * │ The templates' CSS uses `rem` throughout, so one root font-size    │
  * │ drives the whole layout. After SSR we set the content, measure the │
  * │ rendered `.doc` height, and pick a root size that makes the        │
- * │ invoice fill the page nicely:                                      │
+ * │ document fill the page nicely:                                     │
  * │                                                                    │
- * │   - short invoice  → root size UP (capped) → bigger type, fills    │
+ * │   - short document → root size UP (capped) → bigger type, fills    │
  * │   - typical        → root size unchanged                           │
  * │   - slightly long  → root size DOWN (floored) → still one page     │
  * │   - genuinely long → root size unchanged → paginate normally       │
@@ -19,7 +19,7 @@
  *
  * The Puppeteer Browser is owned by index.ts (one shared instance, launched
  * once) and passed in — launching per request would add ~300ms of cold
- * Chromium start to every invoice.
+ * Chromium start to every render.
  *
  * Pagination is Puppeteer's: content flows, and `displayHeaderFooter` draws
  * the footer strip ("Made with AstraBill" + page numbers) on every physical
@@ -61,7 +61,7 @@ const MIN_BASE = 8.5;
 const EPSILON = 0.1;
 
 /**
- * Pick the root font-size that fits the invoice to one page. Content height
+ * Pick the root font-size that fits the document to one page. Content height
  * scales ~linearly with root font-size (modulo wrap-point reflow), so the
  * ideal root = current * targetHeight / measuredHeight.
  *
@@ -90,7 +90,7 @@ function footerTemplate(showMark: boolean): string {
   );
 }
 
-export async function renderInvoicePdf(
+export async function renderDocumentPdf(
   req: RenderRequest,
   browser: Browser,
 ): Promise<Buffer> {

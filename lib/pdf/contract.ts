@@ -28,7 +28,7 @@ export type BrandFont = "inter" | "poppins" | "noto_serif" | "noto_sans";
 export type TaxClass = "intrastate" | "interstate";
 
 /** Mirrors `lib/db/schema.ts` `docType` enum — the canonical doc taxonomy. */
-export type InvoiceType =
+export type DocumentType =
   | "sales_invoice"
   | "estimate"
   | "delivery_challan"
@@ -39,7 +39,7 @@ export type InvoiceType =
   | "proforma_invoice";
 
 /** Mirrors `lib/db/schema.ts` `docStatus` enum. */
-export type InvoiceStatus =
+export type DocumentStatus =
   | "draft"
   | "unpaid"
   | "partial_paid"
@@ -69,9 +69,9 @@ export interface BrandingPayload {
   };
 }
 
-// ---- Business / parties on the invoice --------------------------------
+// ---- Business / parties on the document -------------------------------
 
-export interface BusinessOnInvoice {
+export interface BusinessOnDocument {
   name: string;
   gstin: string | null;
   /** Full address as a multi-line string, already joined with newlines. */
@@ -88,18 +88,18 @@ export interface BusinessOnInvoice {
     upiId: string | null;
     /**
      * Pre-rendered QR code (base64 PNG data URL) of the `upi://pay?...`
-     * deep link for this invoice. Built on the Next.js side from
-     * `business.upi_id` + the invoice total + number. The template renders
+     * deep link for this document. Built on the Next.js side from
+     * `business.upi_id` + the document total + number. The template renders
      * it as `<img src>` next to the UPI ID text so a customer can scan and
      * pay directly from a printed/forwarded copy. Null when the business
-     * has no VPA set, or the invoice is already paid / a draft.
+     * has no VPA set, or the document is already paid / a draft.
      */
     upiQrDataUrl: string | null;
   } | null;
 }
 
-export interface BillToOnInvoice {
-  /** "Walk-in customer" if the invoice has no saved customer. */
+export interface BillToOnDocument {
+  /** "Walk-in customer" if the document has no saved party. */
   name: string;
   gstin: string | null;
   address: string | null;
@@ -107,14 +107,14 @@ export interface BillToOnInvoice {
   stateCode: string | null;
 }
 
-export interface ShipToOnInvoice {
+export interface ShipToOnDocument {
   name: string;
   address: string;
 }
 
 // ---- Line items --------------------------------------------------------
 
-export interface LineItemOnInvoice {
+export interface LineItemOnDocument {
   description: string;
   hsnCode: string | null;
   /** Rate-bearing quantity. The dual-unit secondary is informational only. */
@@ -137,7 +137,7 @@ export interface LineItemOnInvoice {
 
 // ---- Extra charges ----------------------------------------------------
 
-export interface ExtraChargeOnInvoice {
+export interface ExtraChargeOnDocument {
   label: string;
   amount: string;
   taxable: boolean;
@@ -151,8 +151,8 @@ export interface ExtraChargeOnInvoice {
  * One row of the per-rate tax aggregation. The summary box renders these as
  * separate `CGST @9% · ₹X / SGST @9% · ₹X` rows (intrastate) or
  * `IGST @18% · ₹X` rows (interstate), one per distinct GST rate on the
- * invoice. This is industry standard — every competitor SME invoice
- * (myBillBook, Vyapar, mybillbook) splits the tax summary by rate.
+ * document. This is industry standard — every competitor SME invoice
+ * (myBillBook, Vyapar) splits the tax summary by rate.
  */
 export interface TaxRateBreakdown {
   /** The customer-facing total GST rate, e.g. "18" for 18% (= CGST+SGST or = IGST). */
@@ -168,7 +168,7 @@ export interface TaxRateBreakdown {
   igstAmount: string;
 }
 
-export interface TotalsOnInvoice {
+export interface TotalsOnDocument {
   subtotal: string;
   discountAmount: string;
   /** Sum of taxable extra charges, folded into the taxable base pre-GST. */
@@ -181,7 +181,7 @@ export interface TotalsOnInvoice {
   sgstAmount: string;
   igstAmount: string;
   /**
-   * Per-rate breakdown — one entry per distinct GST rate on this invoice,
+   * Per-rate breakdown — one entry per distinct GST rate on this document,
    * sorted ascending. The templates render this as separate rate rows in
    * the summary; the aggregate cgst/sgst/igstAmount above stays for
    * backward compatibility and quick sums.
@@ -217,38 +217,39 @@ export interface TransportBlock {
   ewayBillNumber: string | null;
 }
 
-// ---- Top-level invoice payload ----------------------------------------
+// ---- Top-level document payload ---------------------------------------
 
-export interface InvoicePayload {
-  /** Null while in draft; assigned at finalise — see DECISIONS "Invoice numbering". */
+export interface DocumentPayload {
+  /** Null while in draft; assigned at finalise — see DECISIONS "Doc number assignment". */
   number: string | null;
-  type: InvoiceType;
-  status: InvoiceStatus;
+  type: DocumentType;
+  status: DocumentStatus;
   /** ISO date strings (YYYY-MM-DD). The renderer formats them for display. */
   issueDate: string;
   dueDate: string | null;
 
-  business: BusinessOnInvoice;
-  billTo: BillToOnInvoice;
-  shipTo: ShipToOnInvoice | null;
+  business: BusinessOnDocument;
+  billTo: BillToOnDocument;
+  shipTo: ShipToOnDocument | null;
 
-  lineItems: LineItemOnInvoice[];
-  extraCharges: ExtraChargeOnInvoice[];
+  lineItems: LineItemOnDocument[];
+  extraCharges: ExtraChargeOnDocument[];
   hsnSummary: HsnSummaryRow[];
 
-  totals: TotalsOnInvoice;
+  totals: TotalsOnDocument;
   transport: TransportBlock;
 
-  /** Per-invoice notes printed below the line items. */
+  /** Per-document notes printed below the line items. */
   notes: string | null;
-  /** Per-invoice T&C; falls back to business-level invoice_terms upstream. */
+  /** Per-document T&C; falls back to business-level `invoice_terms` upstream
+   *  (column rename to `document_terms` is queued for PR3b). */
   terms: string | null;
 }
 
 // ---- Render request / response ----------------------------------------
 
 export interface RenderRequest {
-  invoice: InvoicePayload;
+  document: DocumentPayload;
   branding: BrandingPayload;
 }
 

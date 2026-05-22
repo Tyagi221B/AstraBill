@@ -1,5 +1,5 @@
 /**
- * Classic invoice template — the second V1 template (DECISIONS "V1 template
+ * Classic document template — the second V1 template (DECISIONS "V1 template
  * set"). Where Modern is borderless and phone-first, Classic is the
  * traditional Indian tax-invoice look: a continuous ruled frame, a centred
  * masthead, a "TAX INVOICE" banner, a fully-gridded line-items table, and a
@@ -16,12 +16,12 @@
  */
 import type { CSSProperties } from "react";
 
-import type { InvoiceType, RenderRequest } from "../contract.js";
+import type { DocumentType, RenderRequest } from "../contract.js";
 import { fontFaceCss, fontStack } from "../fonts.js";
 import { formatDate, formatInr, trimNumber } from "../format.js";
 import { CLASSIC_CSS } from "../styles.js";
 
-const TYPE_LABEL: Record<InvoiceType, string> = {
+const TYPE_LABEL: Record<DocumentType, string> = {
   sales_invoice: "Tax Invoice",
   estimate: "Estimate",
   delivery_challan: "Delivery Challan",
@@ -32,17 +32,17 @@ const TYPE_LABEL: Record<InvoiceType, string> = {
   proforma_invoice: "Proforma Invoice",
 };
 
-export function Classic({ invoice, branding }: RenderRequest) {
+export function Classic({ document: doc, branding }: RenderRequest) {
   const { columns } = branding;
   const showHsn = columns.hsn;
   const showDiscount = columns.discount;
   const showTax = columns.tax;
   const showSecondary = columns.secondaryQty;
-  const intrastate = invoice.totals.taxClass === "intrastate";
-  const t = invoice.totals;
-  const biz = invoice.business;
+  const intrastate = doc.totals.taxClass === "intrastate";
+  const t = doc.totals;
+  const biz = doc.business;
   const bank = biz.bank;
-  const tr = invoice.transport;
+  const tr = doc.transport;
   const hasTransport = Boolean(tr.mode || tr.vehicleNumber || tr.ewayBillNumber);
   const hasBank = Boolean(
     bank &&
@@ -77,7 +77,7 @@ export function Classic({ invoice, branding }: RenderRequest) {
       <head>
         <meta charSet="utf-8" />
         <title>
-          {`${invoice.number ?? "Draft"} — ${biz.name}`}
+          {`${doc.number ?? "Draft"} — ${biz.name}`}
         </title>
         <style
           dangerouslySetInnerHTML={{
@@ -109,28 +109,28 @@ export function Classic({ invoice, branding }: RenderRequest) {
           </div>
 
           {/* ---- banner ---- */}
-          <div className="section banner">{TYPE_LABEL[invoice.type]}</div>
+          <div className="section banner">{TYPE_LABEL[doc.type]}</div>
 
-          {/* ---- invoice-info strip ---- */}
+          {/* ---- document-info strip ---- */}
           <div className="section info-strip">
             <div className="info-cell">
               <span className="k">Invoice No.</span>
-              <span className="v">{invoice.number ?? "Draft"}</span>
+              <span className="v">{doc.number ?? "Draft"}</span>
             </div>
             <div className="info-cell">
               <span className="k">Invoice Date</span>
-              <span className="v">{formatDate(invoice.issueDate)}</span>
+              <span className="v">{formatDate(doc.issueDate)}</span>
             </div>
-            {invoice.dueDate && (
+            {doc.dueDate && (
               <div className="info-cell">
                 <span className="k">Due Date</span>
-                <span className="v">{formatDate(invoice.dueDate)}</span>
+                <span className="v">{formatDate(doc.dueDate)}</span>
               </div>
             )}
             <div className="info-cell">
               <span className="k">Status</span>
               <span className="v" style={{ textTransform: "capitalize" }}>
-                {invoice.status.replace(/_/g, " ")}
+                {doc.status.replace(/_/g, " ")}
               </span>
             </div>
           </div>
@@ -139,18 +139,18 @@ export function Classic({ invoice, branding }: RenderRequest) {
           <div className="section parties">
             <div className="party">
               <span className="party-label">Billed to</span>
-              <div className="party-name">{invoice.billTo.name}</div>
+              <div className="party-name">{doc.billTo.name}</div>
               <div className="party-meta">
-                {invoice.billTo.gstin && `GSTIN ${invoice.billTo.gstin}\n`}
-                {invoice.billTo.address}
-                {invoice.billTo.phone && `\n${invoice.billTo.phone}`}
+                {doc.billTo.gstin && `GSTIN ${doc.billTo.gstin}\n`}
+                {doc.billTo.address}
+                {doc.billTo.phone && `\n${doc.billTo.phone}`}
               </div>
             </div>
-            {invoice.shipTo && (
+            {doc.shipTo && (
               <div className="party">
                 <span className="party-label">Shipped to</span>
-                <div className="party-name">{invoice.shipTo.name}</div>
-                <div className="party-meta">{invoice.shipTo.address}</div>
+                <div className="party-name">{doc.shipTo.name}</div>
+                <div className="party-meta">{doc.shipTo.address}</div>
               </div>
             )}
           </div>
@@ -170,7 +170,7 @@ export function Classic({ invoice, branding }: RenderRequest) {
               </tr>
             </thead>
             <tbody>
-              {invoice.lineItems.map((line, i) => (
+              {doc.lineItems.map((line, i) => (
                 <tr key={i}>
                   <td className="n idx">{i + 1}</td>
                   <td>
@@ -204,7 +204,7 @@ export function Classic({ invoice, branding }: RenderRequest) {
                   <td className="n desc-main">{formatInr(line.amount)}</td>
                 </tr>
               ))}
-              {invoice.extraCharges.map((charge, i) => (
+              {doc.extraCharges.map((charge, i) => (
                 <tr key={`x${i}`} className="charge-row">
                   <td className="n idx" />
                   <td>
@@ -314,7 +314,7 @@ export function Classic({ invoice, branding }: RenderRequest) {
           </div>
 
           {/* ---- HSN summary ---- */}
-          {showHsn && invoice.hsnSummary.length > 0 && (
+          {showHsn && doc.hsnSummary.length > 0 && (
             <table className="section hsn">
               <thead>
                 <tr>
@@ -331,7 +331,7 @@ export function Classic({ invoice, branding }: RenderRequest) {
                 </tr>
               </thead>
               <tbody>
-                {invoice.hsnSummary.map((row, i) => (
+                {doc.hsnSummary.map((row, i) => (
                   <tr key={i}>
                     <td>{row.hsnCode}</td>
                     <td>{formatInr(row.taxableValue)}</td>
@@ -356,7 +356,7 @@ export function Classic({ invoice, branding }: RenderRequest) {
           )}
 
           {/* ---- transport + notes ---- */}
-          {(hasTransport || invoice.notes) && (
+          {(hasTransport || doc.notes) && (
             <div className="section info">
               {hasTransport && (
                 <div className="info-card">
@@ -373,20 +373,20 @@ export function Classic({ invoice, branding }: RenderRequest) {
                   </div>
                 </div>
               )}
-              {invoice.notes && (
+              {doc.notes && (
                 <div className="info-card">
                   <span className="label">Notes</span>
-                  <div className="info-body">{invoice.notes}</div>
+                  <div className="info-body">{doc.notes}</div>
                 </div>
               )}
             </div>
           )}
 
           {/* ---- terms ---- */}
-          {invoice.terms && (
+          {doc.terms && (
             <div className="section terms">
               <span className="label">Terms &amp; conditions</span>
-              <div className="info-body">{invoice.terms}</div>
+              <div className="info-body">{doc.terms}</div>
             </div>
           )}
 

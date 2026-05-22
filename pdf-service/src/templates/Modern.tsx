@@ -1,5 +1,5 @@
 /**
- * Modern invoice template — the default (DECISIONS "Default template").
+ * Modern document template — the default (DECISIONS "Default template").
  *
  * A React component that receives the full RenderRequest and returns a
  * complete <html> document. renderToStaticMarkup turns it into the HTML
@@ -11,12 +11,12 @@
  */
 import type { CSSProperties } from "react";
 
-import type { InvoiceType, RenderRequest } from "../contract.js";
+import type { DocumentType, RenderRequest } from "../contract.js";
 import { fontFaceCss, fontStack } from "../fonts.js";
 import { formatDate, formatInr, trimNumber } from "../format.js";
 import { MODERN_CSS } from "../styles.js";
 
-const TYPE_LABEL: Record<InvoiceType, string> = {
+const TYPE_LABEL: Record<DocumentType, string> = {
   sales_invoice: "Tax Invoice",
   estimate: "Estimate",
   delivery_challan: "Delivery Challan",
@@ -27,16 +27,16 @@ const TYPE_LABEL: Record<InvoiceType, string> = {
   proforma_invoice: "Proforma Invoice",
 };
 
-export function Modern({ invoice, branding }: RenderRequest) {
+export function Modern({ document: doc, branding }: RenderRequest) {
   const { columns } = branding;
   const showHsn = columns.hsn;
   const showDiscount = columns.discount;
   const showTax = columns.tax;
   const showSecondary = columns.secondaryQty;
-  const intrastate = invoice.totals.taxClass === "intrastate";
-  const t = invoice.totals;
-  const bank = invoice.business.bank;
-  const tr = invoice.transport;
+  const intrastate = doc.totals.taxClass === "intrastate";
+  const t = doc.totals;
+  const bank = doc.business.bank;
+  const tr = doc.transport;
   const hasTransport = Boolean(tr.mode || tr.vehicleNumber || tr.ewayBillNumber);
   // Show the pre-GST math breakdown (Subtotal → Discount → Charges) only
   // when something modifies the taxable base; otherwise Subtotal equals
@@ -56,7 +56,7 @@ export function Modern({ invoice, branding }: RenderRequest) {
       <head>
         <meta charSet="utf-8" />
         <title>
-          {`${invoice.number ?? "Draft"} — ${invoice.business.name}`}
+          {`${doc.number ?? "Draft"} — ${doc.business.name}`}
         </title>
         <style
           dangerouslySetInnerHTML={{
@@ -75,38 +75,38 @@ export function Modern({ invoice, branding }: RenderRequest) {
                 <img
                   className="brand-logo"
                   src={branding.logoUrl}
-                  alt={invoice.business.name}
+                  alt={doc.business.name}
                 />
               )}
-              <div className="brand-name">{invoice.business.name}</div>
+              <div className="brand-name">{doc.business.name}</div>
               <div className="brand-meta">
-                {invoice.business.gstin && `GSTIN ${invoice.business.gstin}\n`}
-                {invoice.business.address}
-                {invoice.business.phone && `\n${invoice.business.phone}`}
-                {invoice.business.email &&
-                  `${invoice.business.phone ? "  ·  " : "\n"}${invoice.business.email}`}
+                {doc.business.gstin && `GSTIN ${doc.business.gstin}\n`}
+                {doc.business.address}
+                {doc.business.phone && `\n${doc.business.phone}`}
+                {doc.business.email &&
+                  `${doc.business.phone ? "  ·  " : "\n"}${doc.business.email}`}
               </div>
             </div>
             <div className="head-doc">
-              <div className="doc-title">{TYPE_LABEL[invoice.type]}</div>
+              <div className="doc-title">{TYPE_LABEL[doc.type]}</div>
               <div className="doc-rows">
                 <div className="doc-row">
                   <span className="k">Number</span>
-                  <span className="v">{invoice.number ?? "Draft"}</span>
+                  <span className="v">{doc.number ?? "Draft"}</span>
                 </div>
                 <div className="doc-row">
                   <span className="k">Issued</span>
-                  <span className="v">{formatDate(invoice.issueDate)}</span>
+                  <span className="v">{formatDate(doc.issueDate)}</span>
                 </div>
-                {invoice.dueDate && (
+                {doc.dueDate && (
                   <div className="doc-row">
                     <span className="k">Due</span>
-                    <span className="v">{formatDate(invoice.dueDate)}</span>
+                    <span className="v">{formatDate(doc.dueDate)}</span>
                   </div>
                 )}
               </div>
               <span className="status">
-                {invoice.status.replace(/_/g, " ")}
+                {doc.status.replace(/_/g, " ")}
               </span>
             </div>
           </div>
@@ -115,18 +115,18 @@ export function Modern({ invoice, branding }: RenderRequest) {
           <div className="parties">
             <div className="party">
               <span className="label">Bill to</span>
-              <div className="party-name">{invoice.billTo.name}</div>
+              <div className="party-name">{doc.billTo.name}</div>
               <div className="party-meta">
-                {invoice.billTo.gstin && `GSTIN ${invoice.billTo.gstin}\n`}
-                {invoice.billTo.address}
-                {invoice.billTo.phone && `\n${invoice.billTo.phone}`}
+                {doc.billTo.gstin && `GSTIN ${doc.billTo.gstin}\n`}
+                {doc.billTo.address}
+                {doc.billTo.phone && `\n${doc.billTo.phone}`}
               </div>
             </div>
-            {invoice.shipTo && (
+            {doc.shipTo && (
               <div className="party">
                 <span className="label">Ship to</span>
-                <div className="party-name">{invoice.shipTo.name}</div>
-                <div className="party-meta">{invoice.shipTo.address}</div>
+                <div className="party-name">{doc.shipTo.name}</div>
+                <div className="party-meta">{doc.shipTo.address}</div>
               </div>
             )}
           </div>
@@ -146,7 +146,7 @@ export function Modern({ invoice, branding }: RenderRequest) {
               </tr>
             </thead>
             <tbody>
-              {invoice.lineItems.map((line, i) => (
+              {doc.lineItems.map((line, i) => (
                 <tr key={i}>
                   <td className="n idx">{i + 1}</td>
                   <td>
@@ -180,7 +180,7 @@ export function Modern({ invoice, branding }: RenderRequest) {
                   <td className="n desc">{formatInr(line.amount)}</td>
                 </tr>
               ))}
-              {invoice.extraCharges.map((charge, i) => (
+              {doc.extraCharges.map((charge, i) => (
                 <tr key={`x${i}`} className="charge-row">
                   <td className="n idx" />
                   <td>
@@ -290,7 +290,7 @@ export function Modern({ invoice, branding }: RenderRequest) {
           </div>
 
           {/* ---- HSN summary ---- */}
-          {showHsn && invoice.hsnSummary.length > 0 && (
+          {showHsn && doc.hsnSummary.length > 0 && (
             <div className="hsn-wrap">
               <table className="hsn">
                 <thead>
@@ -308,7 +308,7 @@ export function Modern({ invoice, branding }: RenderRequest) {
                   </tr>
                 </thead>
                 <tbody>
-                  {invoice.hsnSummary.map((row, i) => (
+                  {doc.hsnSummary.map((row, i) => (
                     <tr key={i}>
                       <td>{row.hsnCode}</td>
                       <td>{formatInr(row.taxableValue)}</td>
@@ -334,7 +334,7 @@ export function Modern({ invoice, branding }: RenderRequest) {
           )}
 
           {/* ---- transport + notes ---- */}
-          {(hasTransport || invoice.notes) && (
+          {(hasTransport || doc.notes) && (
             <div className="info-grid">
               {hasTransport && (
                 <div className="info-card">
@@ -351,10 +351,10 @@ export function Modern({ invoice, branding }: RenderRequest) {
                   </div>
                 </div>
               )}
-              {invoice.notes && (
+              {doc.notes && (
                 <div className="info-card">
                   <span className="label">Notes</span>
-                  <div className="info-body">{invoice.notes}</div>
+                  <div className="info-body">{doc.notes}</div>
                 </div>
               )}
             </div>
@@ -411,11 +411,11 @@ export function Modern({ invoice, branding }: RenderRequest) {
             )}
 
           {/* ---- terms ---- */}
-          {invoice.terms && (
+          {doc.terms && (
             <div className="terms">
               <div className="info-card">
                 <span className="label">Terms &amp; conditions</span>
-                <div className="info-body">{invoice.terms}</div>
+                <div className="info-body">{doc.terms}</div>
               </div>
             </div>
           )}

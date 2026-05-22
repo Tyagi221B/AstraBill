@@ -1,8 +1,9 @@
 # astrabill-pdf-service
 
-Invoice PDF renderer. Express + Puppeteer + React SSR. Deploys to Digital
-Ocean, separate from the Next.js app — the app calls it over HTTP via
-`PDF_SERVICE_URL`.
+Document PDF renderer (sales invoices, purchase invoices, quotations,
+credit/debit notes, etc. — all 8 doc types share one render path).
+Express + Puppeteer + React SSR. Deploys to Digital Ocean, separate
+from the Next.js app — the app calls it over HTTP via `PDF_SERVICE_URL`.
 
 Phase 2C, Stage 1. See `wiki/decision/invoice-design-system.md`.
 
@@ -47,8 +48,8 @@ node --input-type=module -e '
     body: JSON.stringify(fixtureMedium),
   });
   const { writeFileSync } = await import("node:fs");
-  writeFileSync("/tmp/invoice.pdf", Buffer.from(await r.arrayBuffer()));
-  console.log("wrote /tmp/invoice.pdf", r.status);
+  writeFileSync("/tmp/document.pdf", Buffer.from(await r.arrayBuffer()));
+  console.log("wrote /tmp/document.pdf", r.status);
 '
 ```
 
