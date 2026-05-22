@@ -9,7 +9,7 @@
  * Totals on screen are a client-side preview; the server runs the
  * authoritative math on save (lib/gst.ts) and persists the result.
  */
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import Decimal from "decimal.js";
@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { INDIAN_STATES } from "@/lib/constants/indian-states";
-import type { Item, Party } from "@/lib/db/schema";
+import type { Item, Party, PartyAddress } from "@/lib/db/schema";
 import { routes } from "@/lib/routes";
 
 const SELECT_CLASS =
@@ -74,6 +74,9 @@ export interface SalesInvoiceFormInitial {
   notes: string;
   termsConditions: string;
   lines: LineDraft[];
+  /** When non-null, this is the `party_addresses.id` to use as ship-to.
+   *  Null means "ship-to == bill-to" (the V1 default; ~95% of invoices). */
+  shipToAddressId: string | null;
 }
 
 const blank = (defaults: {
@@ -89,7 +92,17 @@ const blank = (defaults: {
   notes: "",
   termsConditions: defaults.termsConditions,
   lines: [blankLine()],
+  shipToAddressId: null,
 });
+
+function formatAddressLine(a: PartyAddress): string {
+  return [
+    a.streetAddress,
+    [a.city, a.state, a.pincode].filter(Boolean).join(", ") || null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
 
 export function SalesInvoiceForm({
   businessId,
@@ -117,6 +130,40 @@ export function SalesInvoiceForm({
       }),
   );
   const [busy, setBusy] = useState(false);
+  const [partyAddrs, setPartyAddrs] = useState<{
+    billing: PartyAddress | null;
+    shipping: PartyAddress | null;
+  } | null>(null);
+
+  // Fetch the picked party's billing + default shipping addresses. The
+  // form starts with ship-to == bill-to; the toggle below lets the user
+  // override only when the party has a saved default shipping.
+  useEffect(() => {
+    if (!f.partyId) {
+      setPartyAddrs(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/parties/${f.partyId}/addresses`);
+        const json = (await res.json()) as
+          | {
+              ok: true;
+              data: { billing: PartyAddress | null; shipping: PartyAddress | null };
+            }
+          | { ok: false; error: { message: string } };
+        if (!cancelled && json.ok) {
+          setPartyAddrs(json.data);
+        }
+      } catch {
+        // Silent — block just doesn't render; saving still works.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [f.partyId]);
 
   function set<K extends keyof SalesInvoiceFormInitial>(
     key: K,
@@ -248,6 +295,7 @@ export function SalesInvoiceForm({
       placeOfSupplyStateCode: f.placeOfSupplyStateCode || null,
       termsConditions: f.termsConditions || null,
       notes: f.notes || null,
+      shipToAddressId: f.shipToAddressId,
       lines,
     };
   }
@@ -385,6 +433,64 @@ export function SalesInvoiceForm({
           </div>
         </CardContent>
       </Card>
+
+      {f.partyId && partyAddrs?.billing && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+              <div>
+                <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Bill to
+                </h2>
+                <address className="not-italic text-sm leading-relaxed text-foreground whitespace-pre-line">
+                  {formatAddressLine(partyAddrs.billing)}
+                </address>
+              </div>
+              <div>
+                <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Ship to
+                </h2>
+                {partyAddrs.shipping ? (
+                  f.shipToAddressId ? (
+                    <>
+                      <address className="not-italic text-sm leading-relaxed text-foreground whitespace-pre-line">
+                        {formatAddressLine(partyAddrs.shipping)}
+                      </address>
+                      <button
+                        type="button"
+                        onClick={() => set("shipToAddressId", null)}
+                        className="mt-2 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                      >
+                        Use billing instead
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-muted-foreground">
+                        Same as billing
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          partyAddrs.shipping &&
+                          set("shipToAddressId", partyAddrs.shipping.id)
+                        }
+                        className="mt-2 text-xs text-primary underline-offset-2 hover:underline"
+                      >
+                        Use saved shipping address
+                      </button>
+                    </>
+                  )
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Same as billing
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="pt-6">

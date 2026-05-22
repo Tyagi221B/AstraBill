@@ -13,6 +13,10 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  getBillingAddressForParty,
+  getDefaultShippingAddressForParty,
+} from "@/lib/repositories/party-addresses";
 import { CASH_SALE_PARTY_NAME, getParty } from "@/lib/services/parties";
 import { routes } from "@/lib/routes";
 import { requireUser } from "@/lib/session";
@@ -30,6 +34,11 @@ export default async function PartyDetailPage({
   const party = await getParty(id, user.id);
   if (!party || party.businessId !== businessId) notFound();
   const b = routes.b(businessId);
+
+  const [billing, shipping] = await Promise.all([
+    getBillingAddressForParty(party.id),
+    getDefaultShippingAddressForParty(party.id),
+  ]);
 
   const isCashSale = party.name === CASH_SALE_PARTY_NAME;
 
@@ -111,6 +120,26 @@ export default async function PartyDetailPage({
             </dl>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <h2 className="mb-3 text-base font-semibold">Billing address</h2>
+            <AddressBlock address={billing} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <h2 className="mb-3 text-base font-semibold">Shipping address</h2>
+            {shipping ? (
+              <AddressBlock address={shipping} />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Same as billing
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <Card className="mt-5">
@@ -126,6 +155,45 @@ export default async function PartyDetailPage({
         </CardContent>
       </Card>
     </>
+  );
+}
+
+function AddressBlock({
+  address,
+}: {
+  address: {
+    streetAddress: string | null;
+    city: string | null;
+    state: string | null;
+    stateCode: string | null;
+    pincode: string | null;
+  } | null;
+}) {
+  if (!address) {
+    return (
+      <p className="text-sm text-muted-foreground">No address on file</p>
+    );
+  }
+  const cityPin = [address.city, address.pincode].filter(Boolean).join(" ");
+  const stateLine = address.state
+    ? address.stateCode
+      ? `${address.state} (${address.stateCode})`
+      : address.state
+    : null;
+  const lines = [address.streetAddress, cityPin || null, stateLine].filter(
+    Boolean,
+  ) as string[];
+  if (lines.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">No address on file</p>
+    );
+  }
+  return (
+    <address className="not-italic text-sm leading-relaxed text-foreground">
+      {lines.map((line, idx) => (
+        <div key={idx}>{line}</div>
+      ))}
+    </address>
   );
 }
 

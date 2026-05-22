@@ -63,6 +63,7 @@ export default async function EditSalesInvoicePage({
     notes: detail.document.notes ?? "",
     termsConditions: detail.document.termsConditions ?? "",
     lines: lines.length ? lines : [],
+    shipToAddressId: detail.document.shipToAddressId ?? null,
   };
 
   return (

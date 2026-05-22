@@ -18,7 +18,9 @@ import { NotFoundError } from "../errors";
 import { requirePermission } from "../rbac";
 import { writeAuditEntry } from "../audit";
 import type {
+  AddressInputZ,
   CreatePartyInput,
+  ShippingPolicy,
   UpdatePartyInput,
 } from "../schemas/party";
 import {
@@ -31,6 +33,70 @@ import {
   softDeletePartyTx,
   updatePartyTx,
 } from "../repositories/parties";
+import {
+  type AddressInput,
+  clearDefaultShippingAddressTx,
+  isAddressFilled,
+  upsertBillingAddressTx,
+  upsertDefaultShippingAddressTx,
+} from "../repositories/party-addresses";
+
+/** Map the Zod-validated address payload (every field optional) to the
+ *  repository's nullable-everywhere shape. Empty strings become null so
+ *  the column never holds a meaningless blank. */
+function toAddressInput(addr: AddressInputZ): AddressInput {
+  return {
+    streetAddress: addr.streetAddress?.trim() || null,
+    city: addr.city?.trim() || null,
+    state: addr.state?.trim() || null,
+    stateCode: addr.stateCode?.trim() || null,
+    pincode: addr.pincode?.trim() || null,
+  };
+}
+
+/** Apply the address-related slice of a party create/update payload inside
+ *  the caller's transaction. Idempotent: omitted billing leaves rows
+ *  untouched; sameAsBilling=true soft-deletes any default shipping row. */
+async function applyAddressesTx(
+  tx: Tx,
+  opts: {
+    businessId: string;
+    partyId: string;
+    billingAddress?: AddressInputZ | null | undefined;
+    shipping?: ShippingPolicy | undefined;
+  },
+): Promise<void> {
+  if (opts.billingAddress) {
+    const billing = toAddressInput(opts.billingAddress);
+    if (isAddressFilled(billing)) {
+      await upsertBillingAddressTx(tx, {
+        businessId: opts.businessId,
+        partyId: opts.partyId,
+        address: billing,
+      });
+    }
+  }
+
+  if (opts.shipping) {
+    if (opts.shipping.sameAsBilling) {
+      await clearDefaultShippingAddressTx(tx, { partyId: opts.partyId });
+    } else {
+      const shipping = toAddressInput(opts.shipping.shippingAddress);
+      if (isAddressFilled(shipping)) {
+        await upsertDefaultShippingAddressTx(tx, {
+          businessId: opts.businessId,
+          partyId: opts.partyId,
+          address: shipping,
+        });
+      } else {
+        // Toggle was OFF but no fields filled → treat as "same as billing"
+        // for the moment; the row is cleared so we don't carry an empty
+        // shipping address on documents.
+        await clearDefaultShippingAddressTx(tx, { partyId: opts.partyId });
+      }
+    }
+  }
+}
 
 /** The walk-in customer that holds cash sales. Created once per business. */
 export const CASH_SALE_PARTY_NAME = "Cash Sale";
@@ -64,6 +130,13 @@ export async function createParty(
       notes: input.notes ?? null,
     });
 
+    await applyAddressesTx(tx, {
+      businessId: input.businessId,
+      partyId: row.id,
+      billingAddress: input.billingAddress ?? undefined,
+      shipping: input.shipping,
+    });
+
     await writeAuditEntry(tx, {
       action: "party.create",
       businessId: input.businessId,
@@ -74,6 +147,9 @@ export async function createParty(
         name: row.name,
         type: row.type,
         hasGstin: row.gstin !== null,
+        hasBillingAddress: input.billingAddress
+          ? isAddressFilled(toAddressInput(input.billingAddress))
+          : false,
       },
       ipAddress: ctx.ipAddress ?? null,
       userAgent: ctx.userAgent ?? null,
@@ -93,7 +169,18 @@ export async function updateParty(
     if (!existing) throw new NotFoundError("Party not found");
     await requirePermission(actorUserId, existing.businessId, "party:edit");
 
-    const updated = await updatePartyTx(tx, partyId, input);
+    // Strip address-shaped keys before passing the rest to updatePartyTx —
+    // those columns live on the `party_addresses` table, not on parties.
+    const { billingAddress, shipping, ...partyPatch } = input;
+
+    const updated = await updatePartyTx(tx, partyId, partyPatch);
+
+    await applyAddressesTx(tx, {
+      businessId: existing.businessId,
+      partyId,
+      billingAddress,
+      shipping,
+    });
 
     await writeAuditEntry(tx, {
       action: "party.update",

@@ -39,6 +39,46 @@ const isoDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 
+/**
+ * Address payload — every field nullable so the UI can capture a partial
+ * address (V1 shopkeepers often type only the line + state). State / state
+ * code together drive GST class (intra vs inter) on documents; both are
+ * persisted so the dropdown's `code` doesn't need re-lookup at read time.
+ * A 6-digit pincode is the only field with format validation, and only
+ * when non-empty.
+ */
+export const addressSchema = z.object({
+  streetAddress: z.string().trim().max(500).nullable().optional(),
+  city: z.string().trim().max(120).nullable().optional(),
+  state: z.string().trim().max(120).nullable().optional(),
+  stateCode: z
+    .string()
+    .regex(/^\d{2}$/, "State code must be 2 digits")
+    .nullable()
+    .optional(),
+  pincode: z
+    .string()
+    .regex(/^\d{6}$/, "Pincode must be 6 digits")
+    .nullable()
+    .optional(),
+});
+export type AddressInputZ = z.infer<typeof addressSchema>;
+
+/**
+ * Shipping toggle on PartyForm. When `sameAsBilling = true` the client
+ * sends no shippingAddress block at all (or null) and the service soft-
+ * deletes any existing default shipping row. When false, the
+ * shippingAddress block is required (even if every field is empty).
+ */
+export const shippingPolicySchema = z.discriminatedUnion("sameAsBilling", [
+  z.object({ sameAsBilling: z.literal(true) }),
+  z.object({
+    sameAsBilling: z.literal(false),
+    shippingAddress: addressSchema,
+  }),
+]);
+export type ShippingPolicy = z.infer<typeof shippingPolicySchema>;
+
 export const partyTypeSchema = z.enum(["customer", "supplier"]);
 
 export const createPartySchema = z.object({
@@ -55,6 +95,10 @@ export const createPartySchema = z.object({
   contactPersonName: z.string().trim().max(200).nullable().optional(),
   contactPersonDob: isoDate.nullable().optional(),
   notes: z.string().trim().max(2000).nullable().optional(),
+  /** Billing address — optional; when omitted, no billing row is created. */
+  billingAddress: addressSchema.nullable().optional(),
+  /** Shipping policy — defaults to `sameAsBilling: true` when omitted. */
+  shipping: shippingPolicySchema.optional(),
 });
 export type CreatePartyInput = z.infer<typeof createPartySchema>;
 

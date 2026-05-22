@@ -21,6 +21,7 @@ import {
   getDocumentByShareToken,
 } from "../repositories/documents";
 import { findPartyById } from "../repositories/parties";
+import { findAddressById } from "../repositories/party-addresses";
 import { amountInWords } from "../pdf/amount-in-words";
 import { buildHsnSummary } from "../pdf/hsn-summary";
 import type {
@@ -224,6 +225,29 @@ async function buildRenderRequest(
         }
       : null;
 
+  // Optional ship-to override — null when the document's ship-to is "same
+  // as bill-to" (the V1 default). Renderer falls back to billTo in that
+  // case. The lookup is unscoped because party_addresses tenant isolation
+  // is via the partyId path, and the document already vouches for the
+  // tenant.
+  const shipToAddr =
+    party && document.shipToAddressId
+      ? await findAddressById(document.shipToAddressId)
+      : null;
+  const shipToOverride =
+    shipToAddr && party
+      ? {
+          name: party.name,
+          address:
+            addressBlock([
+              shipToAddr.streetAddress,
+              [shipToAddr.city, shipToAddr.state, shipToAddr.pincode]
+                .filter(Boolean)
+                .join(", ") || null,
+            ]) ?? "",
+        }
+      : null;
+
   const partyAddr = party
     ? await partyBillingAddress(party.id)
     : { block: null, stateCode: null };
@@ -267,7 +291,7 @@ async function buildRenderRequest(
           stateCode: null,
         },
 
-    shipTo: null,
+    shipTo: shipToOverride,
 
     lineItems: sortedLines.map((l) => ({
       description: l.description ?? l.itemNameSnapshot,

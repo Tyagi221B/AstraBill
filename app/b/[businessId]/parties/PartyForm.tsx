@@ -3,8 +3,10 @@
  * Party create + edit form. Same component drives both flows — pass
  * `editingPartyId` to switch into edit mode (POST → PATCH).
  *
- * Step 2 ships the General Details + Party classification + Credit + Contact
- * sections. Address, Bank, Custom Fields modals land in Step 2.5.
+ * Sections: General · GST/PAN · Credit · Contact · Billing address ·
+ * Shipping address (same-as-billing toggle, default ON) · Notes. The
+ * Billing/Shipping rows persist into `party_addresses` via the service;
+ * leaving them blank skips the write entirely.
  */
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
@@ -14,9 +16,26 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { INDIAN_STATES } from "@/lib/constants/indian-states";
 import { routes } from "@/lib/routes";
 
 export type PartyTypeOption = "customer" | "supplier";
+
+export interface AddressFormFields {
+  streetAddress: string;
+  city: string;
+  /** Stored as the state code (e.g. "05" for Uttarakhand); display name is
+   *  looked up from INDIAN_STATES at render time. */
+  stateCode: string;
+  pincode: string;
+}
+
+const blankAddress: AddressFormFields = {
+  streetAddress: "",
+  city: "",
+  stateCode: "",
+  pincode: "",
+};
 
 export interface PartyFormInitial {
   type: PartyTypeOption;
@@ -30,6 +49,10 @@ export interface PartyFormInitial {
   contactPersonName: string;
   contactPersonDob: string;
   notes: string;
+  billing: AddressFormFields;
+  /** When true → shippingAddress fields are ignored on submit. */
+  shippingSameAsBilling: boolean;
+  shipping: AddressFormFields;
 }
 
 const blank: PartyFormInitial = {
@@ -44,7 +67,43 @@ const blank: PartyFormInitial = {
   contactPersonName: "",
   contactPersonDob: "",
   notes: "",
+  billing: { ...blankAddress },
+  shippingSameAsBilling: true,
+  shipping: { ...blankAddress },
 };
+
+const SELECT_CLASS =
+  "h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50";
+
+function lookupStateName(code: string): string | null {
+  return INDIAN_STATES.find((s) => s.code === code)?.name ?? null;
+}
+
+function addressFieldsToPayload(addr: AddressFormFields): {
+  streetAddress: string | null;
+  city: string | null;
+  state: string | null;
+  stateCode: string | null;
+  pincode: string | null;
+} {
+  const stateCode = addr.stateCode.trim() || null;
+  return {
+    streetAddress: addr.streetAddress.trim() || null,
+    city: addr.city.trim() || null,
+    state: stateCode ? lookupStateName(stateCode) : null,
+    stateCode,
+    pincode: addr.pincode.trim() || null,
+  };
+}
+
+function addressIsEmpty(addr: AddressFormFields): boolean {
+  return (
+    !addr.streetAddress.trim() &&
+    !addr.city.trim() &&
+    !addr.stateCode.trim() &&
+    !addr.pincode.trim()
+  );
+}
 
 export function PartyForm({
   businessId,
@@ -66,6 +125,20 @@ export function PartyForm({
     setF((prev) => ({ ...prev, [key]: value }));
   }
 
+  function setBilling<K extends keyof AddressFormFields>(
+    key: K,
+    value: AddressFormFields[K],
+  ) {
+    setF((prev) => ({ ...prev, billing: { ...prev.billing, [key]: value } }));
+  }
+
+  function setShipping<K extends keyof AddressFormFields>(
+    key: K,
+    value: AddressFormFields[K],
+  ) {
+    setF((prev) => ({ ...prev, shipping: { ...prev.shipping, [key]: value } }));
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -85,6 +158,21 @@ export function PartyForm({
         contactPersonDob: f.contactPersonDob.trim() || null,
         notes: f.notes.trim() || null,
       };
+
+      // Address slice — only included when at least one billing field is
+      // filled (avoids creating an empty `party_addresses` row). The
+      // shipping policy always rides along so the service can soft-delete
+      // a previously-saved shipping row when the user toggles back to
+      // same-as-billing.
+      if (!addressIsEmpty(f.billing)) {
+        payload.billingAddress = addressFieldsToPayload(f.billing);
+      }
+      payload.shipping = f.shippingSameAsBilling
+        ? { sameAsBilling: true }
+        : {
+            sameAsBilling: false,
+            shippingAddress: addressFieldsToPayload(f.shipping),
+          };
       const url = isEdit
         ? `/api/parties/${editingPartyId}`
         : "/api/parties";
@@ -232,6 +320,131 @@ export function PartyForm({
               />
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="pt-6">
+          <h2 className="mb-4 text-base font-semibold">Billing address</h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="flex flex-col gap-2 md:col-span-3">
+              <Label htmlFor="billing-street">Street address</Label>
+              <Textarea
+                id="billing-street"
+                rows={2}
+                value={f.billing.streetAddress}
+                onChange={(e) => setBilling("streetAddress", e.target.value)}
+                placeholder="Shop no. / building / area"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="billing-city">City</Label>
+              <Input
+                id="billing-city"
+                value={f.billing.city}
+                onChange={(e) => setBilling("city", e.target.value)}
+                placeholder="Roorkee"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="billing-state">State</Label>
+              <select
+                id="billing-state"
+                value={f.billing.stateCode}
+                onChange={(e) => setBilling("stateCode", e.target.value)}
+                className={SELECT_CLASS}
+              >
+                <option value="">— select state —</option>
+                {INDIAN_STATES.map((s) => (
+                  <option key={s.code} value={s.code}>
+                    {s.name} ({s.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="billing-pin">Pincode</Label>
+              <Input
+                id="billing-pin"
+                value={f.billing.pincode}
+                onChange={(e) => setBilling("pincode", e.target.value)}
+                placeholder="247667"
+                inputMode="numeric"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="pt-6">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <h2 className="text-base font-semibold">Shipping address</h2>
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={f.shippingSameAsBilling}
+                onChange={(e) =>
+                  set("shippingSameAsBilling", e.target.checked)
+                }
+              />
+              Same as billing
+            </label>
+          </div>
+          {f.shippingSameAsBilling ? (
+            <p className="text-sm text-muted-foreground">
+              The billing address above will be used for shipments. Uncheck
+              to enter a different shipping address.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="flex flex-col gap-2 md:col-span-3">
+                <Label htmlFor="ship-street">Street address</Label>
+                <Textarea
+                  id="ship-street"
+                  rows={2}
+                  value={f.shipping.streetAddress}
+                  onChange={(e) =>
+                    setShipping("streetAddress", e.target.value)
+                  }
+                  placeholder="Warehouse / branch / site"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="ship-city">City</Label>
+                <Input
+                  id="ship-city"
+                  value={f.shipping.city}
+                  onChange={(e) => setShipping("city", e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="ship-state">State</Label>
+                <select
+                  id="ship-state"
+                  value={f.shipping.stateCode}
+                  onChange={(e) => setShipping("stateCode", e.target.value)}
+                  className={SELECT_CLASS}
+                >
+                  <option value="">— select state —</option>
+                  {INDIAN_STATES.map((s) => (
+                    <option key={s.code} value={s.code}>
+                      {s.name} ({s.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="ship-pin">Pincode</Label>
+                <Input
+                  id="ship-pin"
+                  value={f.shipping.pincode}
+                  onChange={(e) => setShipping("pincode", e.target.value)}
+                  inputMode="numeric"
+                />
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

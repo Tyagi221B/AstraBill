@@ -3,13 +3,37 @@ import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/app/PageHeader";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
+import {
+  getBillingAddressForParty,
+  getDefaultShippingAddressForParty,
+} from "@/lib/repositories/party-addresses";
 import { getParty } from "@/lib/services/parties";
 import { requireUser } from "@/lib/session";
-import { PartyForm, type PartyFormInitial } from "../../PartyForm";
+import {
+  PartyForm,
+  type AddressFormFields,
+  type PartyFormInitial,
+} from "../../PartyForm";
 
 export const metadata: Metadata = {
   title: "Edit party · AstraBill",
 };
+
+function addressRowToFields(
+  row: {
+    streetAddress: string | null;
+    city: string | null;
+    stateCode: string | null;
+    pincode: string | null;
+  } | null,
+): AddressFormFields {
+  return {
+    streetAddress: row?.streetAddress ?? "",
+    city: row?.city ?? "",
+    stateCode: row?.stateCode ?? "",
+    pincode: row?.pincode ?? "",
+  };
+}
 
 export default async function EditPartyPage({
   params,
@@ -24,6 +48,11 @@ export default async function EditPartyPage({
   const party = await getParty(id, user.id);
   if (!party || party.businessId !== business.id) notFound();
 
+  const [billing, shipping] = await Promise.all([
+    getBillingAddressForParty(party.id),
+    getDefaultShippingAddressForParty(party.id),
+  ]);
+
   const initial: PartyFormInitial = {
     type: party.type,
     name: party.name,
@@ -36,6 +65,9 @@ export default async function EditPartyPage({
     contactPersonName: party.contactPersonName ?? "",
     contactPersonDob: party.contactPersonDob ?? "",
     notes: party.notes ?? "",
+    billing: addressRowToFields(billing),
+    shippingSameAsBilling: shipping === null,
+    shipping: addressRowToFields(shipping),
   };
 
   return (
