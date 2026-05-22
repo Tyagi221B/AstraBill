@@ -25,6 +25,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   Banknote,
+  BarChart3,
   Boxes,
   Check,
   ChevronsUpDown,
@@ -100,6 +101,7 @@ export function SidebarContent({
     { label: "Credit notes", path: b.creditNotes, icon: RotateCcw },
     { label: "Purchase invoices", path: b.purchaseInvoices, icon: FileInput },
     { label: "Debit notes", path: b.debitNotes, icon: RotateCcw },
+    { label: "Reports", path: b.reports, icon: BarChart3 },
     { label: "Invoices", path: b.invoices, icon: ReceiptText },
     { label: "Customers", path: b.customers, icon: Users },
     { label: "Products", path: b.products, icon: Package },

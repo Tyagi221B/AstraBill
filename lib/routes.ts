@@ -89,6 +89,17 @@ export const routes = {
       debitNote: (id: string) => `${base}/purchases/debit-notes/${id}`,
       editDebitNote: (id: string) =>
         `${base}/purchases/debit-notes/${id}/edit`,
+      /** Reports landing + individual reports. */
+      reports: `${base}/reports`,
+      salesRegister: `${base}/reports/sales-register`,
+      purchaseRegister: `${base}/reports/purchase-register`,
+      partyStatement: `${base}/reports/party-statement`,
+      receivablesAgeing: `${base}/reports/receivables-ageing`,
+      payablesAgeing: `${base}/reports/payables-ageing`,
+      hsnSummary: `${base}/reports/hsn-summary`,
+      stockSummary: `${base}/reports/stock-summary`,
+      gstr1: `${base}/reports/gstr-1`,
+      gstr3b: `${base}/reports/gstr-3b`,
       settings: {
         branding: `${base}/settings/branding`,
         payments: `${base}/settings/payments`,
