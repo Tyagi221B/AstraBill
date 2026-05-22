@@ -8,7 +8,7 @@ The single source of truth for every binding technical and product decision.
 - Changing a decision = edit the row here, then grep the wiki for stale copies.
 - `wiki/decision/*.md` pages carry rationale only — they must never restate a fact, only link here.
 
-Last reconciled: 2026-05-22 (PR3c — wiki SSOT cleanup; stale `invoices.*` / `customers.*` references replaced with current `documents.*` / `parties.*` field names)
+Last reconciled: 2026-05-22 (PR3a + PR3b naming hygiene — PDF contract `Invoice*` types renamed to `Document*`; `businesses.invoice_template_id` → `document_template_id`, `invoice_settings` → `document_settings`; dead `invoice_terms` + `invoice_number_prefix` dropped)
 
 ---
 

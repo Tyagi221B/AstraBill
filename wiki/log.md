@@ -4,6 +4,106 @@ Append-only. Format: `## [YYYY-MM-DD] <operation> | <title>`
 
 ---
 
+## [2026-05-22] build | PR3b — businesses columns rename + dead-column drop
+
+Migration 0008 (`drizzle/0008_pr3b_businesses_rename.sql`) — applied
+to the shared Supabase project.
+
+**Rename (live columns):**
+- `businesses.invoice_template_id` → `document_template_id`
+- `businesses.invoice_settings`    → `document_settings`
+- Schema type `InvoiceSettings` → `DocumentSettings`;
+  `DEFAULT_INVOICE_SETTINGS` → `DEFAULT_DOCUMENT_SETTINGS`
+
+**Drop (dead columns):**
+- `businesses.invoice_terms` — superseded by `businesses.doc_type_defaults`
+  jsonb (per-doc-type T&C defaults). Pre-flight grep showed zero callers.
+- `businesses.invoice_number_prefix` — superseded by the
+  `document_counters` table (per-doc-type, per-FY counters). Pre-flight
+  grep showed zero callers.
+
+**Consumer updates** (all in the same commit):
+- `lib/schemas/business.ts` — Zod `documentColumns` (was `invoiceColumns`);
+  `updateBrandingSchema` accepts `documentTemplateId` / `documentSettings`.
+- `lib/services/document-pdf.ts` — reads `business.documentTemplateId` /
+  `business.documentSettings.columns`.
+- `app/b/[businessId]/settings/branding/page.tsx` — initial-state mapper
+  + `DEFAULT_DOCUMENT_SETTINGS` import.
+- `app/b/[businessId]/settings/branding/BrandingEditor.tsx` — PATCH body
+  uses the renamed keys.
+- `lib/pdf/contract.ts` + `pdf-service/src/contract.ts` — `terms` field
+  comment now points readers at `businesses.doc_type_defaults` (was the
+  old `invoice_terms` fallback).
+
+**Out of scope** (intentionally deferred):
+- LEGACY bank fields on `businesses` (`bank_name`, `bank_account_number`,
+  `bank_ifsc`, `bank_account_holder`, `upi_id`) are still the live source
+  for PDF bank/UPI blocks. Migrating those readers to `money_accounts`
+  (default Bank account) is a separate PR (PR3d).
+
+**Verification**: `tsc --noEmit` clean (Next.js side). `npm test` 30/30.
+`npm run build` produces a Vercel-ready bundle.
+
+`drizzle/meta/_journal.json` carries entry idx 8.
+
+---
+
+## [2026-05-22] build | PR3a — PDF contract Invoice* → Document* rename
+
+The PDF render contract was the last surface still using "Invoice"
+type names after PR2's full-ledger pivot. With 8 doc types now sharing
+one render path the "Invoice" prefix on the contract types misled
+readers — none of these are tied to a specific doc type.
+
+**Symmetric rename on both sides of the HTTP boundary** (`lib/pdf/contract.ts`
++ `pdf-service/src/contract.ts`):
+- `InvoiceType` → `DocumentType`
+- `InvoiceStatus` → `DocumentStatus`
+- `BusinessOnInvoice` → `BusinessOnDocument`
+- `BillToOnInvoice` → `BillToOnDocument`
+- `ShipToOnInvoice` → `ShipToOnDocument`
+- `LineItemOnInvoice` → `LineItemOnDocument`
+- `ExtraChargeOnInvoice` → `ExtraChargeOnDocument`
+- `TotalsOnInvoice` → `TotalsOnDocument`
+- `InvoicePayload` → `DocumentPayload`
+- `RenderRequest.invoice` (field) → `RenderRequest.document`
+
+**pdf-service callers**:
+- `render.ts` — `renderInvoicePdf()` → `renderDocumentPdf()`.
+- `index.ts` — body shape validator + error message updated.
+- `templates/Modern.tsx` + `Classic.tsx` — destructure rebound to
+  `{ document: doc, branding }` (the `doc` alias avoids shadowing the
+  browser `document` global); all `invoice.X` accessors → `doc.X`;
+  TYPE_LABEL typed as `Record<DocumentType, string>`; comments tightened.
+
+**Next.js callers**:
+- `lib/services/document-pdf.ts` — payload typed as `DocumentPayload`;
+  RenderRequest uses `document:` instead of `invoice:`; internal locals
+  renamed; branding-preview fallback reads `fixtures.complex.document`.
+- `lib/pdf/fixtures.ts` — all four fixtures (small / medium / complex /
+  long) keyed by `document:` instead of `invoice:`.
+
+**What stays** (legitimate names):
+- `sales_invoice` / `purchase_invoice` / `proforma_invoice` doc_type literals.
+- TYPE_LABEL VALUES ("Tax Invoice", "Purchase Invoice", "Proforma
+  Invoice", …) — user-facing labels.
+- `INVOICE_TEMPLATE` constant in `lib/services/whatsapp-send.ts` — that
+  is the Meta-HSM template name; renaming would require re-provisioning
+  the external template with Meta.
+
+**Verification**: `tsc --noEmit` clean (Next + pdf-service both).
+`npm test` 30/30. `npm run build` produces a Vercel-ready bundle.
+pdf-service `npm run build` clean.
+
+**Mandatory follow-up**: pdf-service droplet redeploy — `git pull &&
+docker compose up -d --build pdf-service` on the DO droplet. The
+contract change is wire-incompatible until both sides redeploy; the
+deployed pdf-service still expects `body.invoice` and will 400 on
+every render call once Vercel ships the Next.js side. (Bundles with
+the still-pending PR2 redeploy for the doc-type label fix.)
+
+---
+
 ## [2026-05-22] lint | PR3c — wiki SSOT cleanup after PR2 demolition
 
 Full post-demolition audit surfaced eight stale references that

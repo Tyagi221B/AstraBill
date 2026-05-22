@@ -323,9 +323,9 @@ async function buildRenderRequest(
       logoUrl: business.logoUrl,
       color: business.brandColor,
       font: asBrandFont(business.brandFont),
-      template: asTemplateId(business.invoiceTemplateId),
+      template: asTemplateId(business.documentTemplateId),
       showFooterMark: business.plan === "free",
-      columns: business.invoiceSettings.columns,
+      columns: business.documentSettings.columns,
     },
   };
 }

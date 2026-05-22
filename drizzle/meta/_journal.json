@@ -57,6 +57,13 @@
       "when": 1779465600000,
       "tag": "0007_pr2_demolition",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779465610000,
+      "tag": "0008_pr3b_businesses_rename",
+      "breakpoints": true
     }
   ]
 }

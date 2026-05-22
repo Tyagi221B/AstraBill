@@ -241,8 +241,8 @@ export interface DocumentPayload {
 
   /** Per-document notes printed below the line items. */
   notes: string | null;
-  /** Per-document T&C; falls back to business-level `invoice_terms` upstream
-   *  (column rename to `document_terms` is queued for PR3b). */
+  /** Per-document T&C; falls back upstream to the per-doc-type entry in
+   *  `businesses.doc_type_defaults` (DECISIONS "Per-doc-type T&C defaults"). */
   terms: string | null;
 }
 

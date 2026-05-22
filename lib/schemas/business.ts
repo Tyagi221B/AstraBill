@@ -55,7 +55,7 @@ const hexColor = z
   .regex(/^#[0-9a-fA-F]{6}$/, "Brand colour must be a 6-digit hex like #2563eb");
 
 /** Line-items column visibility — all seven flags required as a set. */
-const invoiceColumns = z.object({
+const documentColumns = z.object({
   hsn: z.boolean(),
   batch: z.boolean(),
   mfg: z.boolean(),
@@ -77,8 +77,8 @@ export const updateBrandingSchema = z
   .object({
     brandColor: hexColor,
     brandFont: z.enum(["inter", "poppins", "noto_serif", "noto_sans"]),
-    invoiceTemplateId: z.enum(["modern", "classic"]),
-    invoiceSettings: z.object({ columns: invoiceColumns }),
+    documentTemplateId: z.enum(["modern", "classic"]),
+    documentSettings: z.object({ columns: documentColumns }),
     logoUrl: z.string().url().max(500).nullable(),
   })
   .partial()

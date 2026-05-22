@@ -11,7 +11,7 @@ import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/app/PageHeader";
 import { SettingsNav } from "@/components/app/SettingsNav";
-import { DEFAULT_INVOICE_SETTINGS } from "@/lib/db/schema";
+import { DEFAULT_DOCUMENT_SETTINGS } from "@/lib/db/schema";
 import { getMembership, roleHas } from "@/lib/rbac";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
 import { requireUser } from "@/lib/session";
@@ -44,13 +44,13 @@ export default async function BrandingSettingsPage({
         canEdit={roleHas(membership.role, "settings:edit")}
         isFreePlan={business.plan === "free"}
         initial={{
-          template: business.invoiceTemplateId,
+          template: business.documentTemplateId,
           color: business.brandColor,
           font: business.brandFont,
           logoUrl: business.logoUrl,
           columns:
-            business.invoiceSettings?.columns ??
-            DEFAULT_INVOICE_SETTINGS.columns,
+            business.documentSettings?.columns ??
+            DEFAULT_DOCUMENT_SETTINGS.columns,
         }}
       />
     </>

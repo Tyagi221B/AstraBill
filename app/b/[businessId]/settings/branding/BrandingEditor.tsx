@@ -263,8 +263,8 @@ export function BrandingEditor({
         body: JSON.stringify({
           brandColor: s.color,
           brandFont: s.font,
-          invoiceTemplateId: s.template,
-          invoiceSettings: { columns: s.columns },
+          documentTemplateId: s.template,
+          documentSettings: { columns: s.columns },
           logoUrl: s.logoUrl,
         }),
       });

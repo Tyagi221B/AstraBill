@@ -235,11 +235,12 @@ export const accounts = pgTable(
 // =========================================================================
 
 /**
- * Per-business invoice display settings — line-items column visibility.
+ * Per-business document display settings — line-items column visibility.
+ * Applies across every doc type (sales_invoice, purchase_invoice, etc.).
  * Carries the 2C.5 column toggles. Defaults shown / hidden tuned for the
  * general trading shop (pharma columns batch / MFG / EXP off by default).
  */
-export type InvoiceSettings = {
+export type DocumentSettings = {
   columns: {
     hsn: boolean;
     batch: boolean;
@@ -251,7 +252,7 @@ export type InvoiceSettings = {
   };
 };
 
-export const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
+export const DEFAULT_DOCUMENT_SETTINGS: DocumentSettings = {
   columns: {
     hsn: true,
     batch: false,
@@ -305,18 +306,14 @@ export const businesses = pgTable("businesses", {
   bankIfsc: text("bank_ifsc"),
   bankAccountHolder: text("bank_account_holder"),
   upiId: text("upi_id"),
-  // LEGACY single-default T&C — superseded by `docTypeDefaults` jsonb below.
-  // Kept so old `invoices` PDF rendering doesn't break before PR2.
-  invoiceTerms: text("invoice_terms"),
-  invoiceNumberPrefix: text("invoice_number_prefix"),
   // --- Branding (Phase 2C, existing) ---
   brandColor: text("brand_color").notNull().default("#2563eb"),
   brandFont: text("brand_font").notNull().default("inter"),
-  invoiceTemplateId: text("invoice_template_id").notNull().default("modern"),
-  invoiceSettings: jsonb("invoice_settings")
-    .$type<InvoiceSettings>()
+  documentTemplateId: text("document_template_id").notNull().default("modern"),
+  documentSettings: jsonb("document_settings")
+    .$type<DocumentSettings>()
     .notNull()
-    .default(DEFAULT_INVOICE_SETTINGS),
+    .default(DEFAULT_DOCUMENT_SETTINGS),
   // --- NEW: Full-ledger profile fields (myBillBook parity) ---
   /**
    * Multi-select tags (retailer / wholesaler / distributor / manufacturer /
