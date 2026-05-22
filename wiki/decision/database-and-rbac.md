@@ -247,6 +247,43 @@ For billing: money must be exact. An invoice total that's wrong by ₹0.01 due t
 - **RLS**: None — isolation enforced in the repository/service layer (see above)
 - **RBAC**: Application layer in TypeScript (`lib/rbac.ts`)
 
+## Seed Data — three flavours, three homes
+
+Reference data lives in the DB but isn't authored through the app. We
+discovered in PR4 (2026-05-22) that stuffing it inside one-shot migrations
+is brittle: Drizzle records a migration's hash after first run and never
+replays it, so a TRUNCATE leaves the seed table empty forever. The fix
+sorts seed into three buckets with three deliberately different lifecycles:
+
+1. **System reference data** — global, platform-owned (UQC `item_units`
+   today; future: state codes, currency catalogue, GST rate catalogue).
+   Source of truth lives in `lib/db/seed/*.ts` as a typed array + an
+   idempotent `seed<X>(db)` function backed by `ON CONFLICT DO NOTHING`.
+   `seedSystem(db)` aggregates every system seeder.
+   - `npm run db:seed` runs `seedSystem` against the configured DB.
+   - `npm run db:migrate` chains it: `drizzle-kit migrate && db:seed`. New
+     environments come up populated in one command.
+   - `npm run db:reset -- --yes` truncates the user-data tables (denylist
+     in `scripts/db-reset.ts` covers `__drizzle_migrations` + every system
+     seed table) and re-runs `seedSystem`. The original 0006 migration
+     stays frozen as historical truth; new system rows go in the TS
+     module, never a new migration.
+
+2. **Per-business seed data** — born at the moment a business is created
+   (default Cash money_account, walk-in "Cash Sale" party, per-doc-type
+   T&C defaults). Owned by `lib/services/businesses.ts.createBusiness`.
+   Self-healing: every new signup re-creates these, so a wipe doesn't
+   need a separate restore path.
+
+3. **User-authored data** — everything else. Parties, items, documents,
+   payments, ledger entries. Survives nothing — `db:reset` wipes the lot.
+
+Adding a 42nd UQC unit = append one row to `SYSTEM_UNITS` in
+`lib/db/seed/system-units.ts`, run `db:seed`. No migration. No drift
+between dev / preprod / prod (single Supabase project today, but the
+pattern holds when we split — `db:seed` is idempotent against any of
+them).
+
 Auth is NOT part of this page — see [[decision/auth-strategy]]. AstraBill does
 not use Supabase Auth. Supabase is a database, nothing more.
 

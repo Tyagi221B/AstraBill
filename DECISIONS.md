@@ -8,7 +8,7 @@ The single source of truth for every binding technical and product decision.
 - Changing a decision = edit the row here, then grep the wiki for stale copies.
 - `wiki/decision/*.md` pages carry rationale only — they must never restate a fact, only link here.
 
-Last reconciled: 2026-05-22 (PR3a + PR3b naming hygiene shipped + pdf-service droplet redeployed; recovery runbook captured at [[decision/droplet-operations]] after the 2026-05-22 SSH lockout)
+Last reconciled: 2026-05-22 (PR3a + PR3b naming hygiene shipped + pdf-service droplet redeployed; recovery runbook captured at [[decision/droplet-operations]] after the 2026-05-22 SSH lockout; PR4 — `lib/db/seed/` + `db:seed` + `db:reset` CLI + `db:migrate` chains seed — landed same day after a wipe revealed migration-only seeds don't survive TRUNCATE)
 
 ---
 
@@ -60,6 +60,7 @@ Last reconciled: 2026-05-22 (PR3a + PR3b naming hygiene shipped + pdf-service dr
 | Deletes | Soft delete (`deleted_at` timestamptz) on mutable business tables; repositories filter `deleted_at IS NULL` by default | hard delete of business data; deleting a finalized invoice (issue a credit note instead) | [[decision/database-and-rbac]] |
 | Timestamps | `timestamptz` (UTC) for instants; Postgres `date` for calendar dates (`issue_date`, `due_date`); convert to IST at the display edge | `timestamp` without zone | [[decision/database-and-rbac]] |
 | Drafts | Stored as `status='draft'` rows in `documents` (table renamed from `invoices` per the full-ledger pivot; multi-device follows because they're in Postgres). localStorage holds in-session form state during the pre-auth anonymous drive-by only. Drafts have `number = NULL` until finalised | a separate `drafts` table; Redis-held drafts; persistent anonymous storage; cross-device anonymous drafts | [[decision/drafts-and-multi-device]] |
+| System seed data | Lives in `lib/db/seed/` as idempotent TS modules (one file per logical seed). `seedSystem(db)` is the single entry point; `npm run db:seed` runs it; `db:migrate` chains it (`drizzle-kit migrate && db:seed`); `db:reset -- --yes` truncates user tables and re-seeds. Migrations carry the *initial* SQL copy for new-environment bootstraps; from then on, evolution happens in the TS module. Adding a 42nd UQC unit = append to `SYSTEM_UNITS`, run `db:seed`. Per-business seeds (default Cash account, Cash Sale party) stay in `lib/services/businesses.ts.createBusiness` — they self-heal at signup | duplicating system data into a new migration when it could go in the seed module; mutating system rows from user-facing services; truncating system tables in `db:reset` (preserve list in `scripts/db-reset.ts`) | [[decision/database-and-rbac]] |
 
 ## Integrations
 

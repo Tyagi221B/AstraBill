@@ -4,6 +4,59 @@ Append-only. Format: `## [YYYY-MM-DD] <operation> | <title>`
 
 ---
 
+## [2026-05-22] build | PR4 — system seed module + db:seed / db:reset CLI
+
+A bug surfaced after the morning's DB nuke: item-creation dropdowns went
+empty because the TRUNCATE wiped `item_units` (41 system UQC rows) and
+nothing replayed them — Drizzle won't re-run migration 0006 once its hash
+is recorded. The throwaway fix would have been "paste the INSERT back into
+the SQL editor". The proper fix is what landed:
+
+**New seed module — `lib/db/seed/`**
+- `system-units.ts` — `SYSTEM_UNITS` typed array + idempotent
+  `seedSystemUnits(db)` (`ON CONFLICT DO NOTHING` on the `code` PK).
+  Structural `DbLike` type (PgDatabase with permissive schema generics) so
+  the module accepts both the Next.js runtime singleton and the CLI
+  client without dragging `server-only` into Node scripts.
+- `index.ts` — `seedSystem(db)` aggregator. Single entry point for all
+  future system seeders.
+
+**New CLI scripts — `scripts/`**
+- `db-client.ts` — standalone Drizzle client for CLI lifecycle (open →
+  run → close). Prefers `DIRECT_DATABASE_URL` (session pooler).
+- `db-seed.ts` → `npm run db:seed`. Prints inserted vs pre-existing
+  counts for a sanity check.
+- `db-reset.ts` → `npm run db:reset -- --yes`. Enumerates `public`
+  tables, truncates everything outside a preserve denylist
+  (`__drizzle_migrations`, `item_units`), re-runs `seedSystem`. The
+  `--yes` flag is mandatory because dev/preprod/prod still share one
+  Supabase project — no env heuristic to fall back on.
+
+**Wiring**
+- `npm run db:migrate` chains the seed: `drizzle-kit migrate && tsx
+  scripts/db-seed.ts`. New environments come up populated in one command.
+- `tsx` added as a devDependency (path-alias support, esm-native).
+
+**Docs**
+- DECISIONS.md → new Data Model row: "System seed data" — three buckets
+  (system / per-business / user-authored), three homes, one rule:
+  evolution happens in the TS module, not in new migrations.
+- `wiki/decision/database-and-rbac.md` → new "Seed Data" section with
+  the three-bucket model + decision rationale.
+- Last-reconciled bumped.
+
+**Validation**
+- `npm run db:seed` (first run): 41 inserted, 0 pre-existing.
+- `npm run db:seed` (second run): 0 inserted, 41 pre-existing. Idempotent.
+- `npm run db:reset` (dry run, no `--yes`): correctly listed 27 user
+  tables for truncate, 1 (`item_units`) preserved.
+- `npm run typecheck`, `npm test` (30/30): green.
+
+Item-creation dropdowns now populated. The bug that surfaced this is
+fixed; the class of bug is gone.
+
+---
+
 ## [2026-05-22] ops | Droplet recovery + redeploy + runbook capture
 
 Three things bundled into one entry because they all chain.
