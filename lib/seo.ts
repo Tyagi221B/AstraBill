@@ -13,6 +13,10 @@ export const SITE_URL = "https://www.astrabill.com";
 export const SITE_NAME = "AstraBill";
 export const SITE_TAGLINE = "GST billing for Indian businesses";
 export const COMPANY = "Opryon Labs";
+/** Parent-company URL — declared in JSON-LD `sameAs` and linked from the
+ *  header pill. Single source of truth so Meta's crawler / a reviewer sees
+ *  the same destination everywhere. */
+export const COMPANY_URL = "https://www.opryon.com";
 
 export const SITE_DESCRIPTION =
   "AstraBill is GST invoicing for Indian SMEs — raise a bill, send it on " +
@@ -86,9 +90,7 @@ export function landingPageJsonLd() {
         logo: OG_IMAGE,
         parentOrganization: { "@type": "Organization", name: COMPANY },
         areaServed: "IN",
-        sameAs: [
-          "https://www.opryon.com",
-        ],
+        sameAs: [COMPANY_URL],
       },
       {
         "@type": "SoftwareApplication",
