@@ -66,12 +66,19 @@ export async function insertStockMovementWithLockTx(
   //    so all arithmetic stays on the DB side (one source of truth). The
   //    inner aggregate runs under the lock acquired above, so concurrent
   //    writes on the same item can't double-count.
+  //
+  //    Type-discipline note: do NOT wrap this in `::text`. The codebase
+  //    convention is `::text` casts only at READ time (SELECT projections),
+  //    so postgres-js surfaces numerics as strings at the TS boundary.
+  //    Casting on the WRITE side breaks the insert because the column is
+  //    numeric(12,3). The `sql<string>` generic below is a TS type hint
+  //    only — it does not emit a SQL cast.
   const newClosing = sql<string>`(
     (select coalesce(sum(${stockMovements.qty}), 0)
      from ${stockMovements}
      where ${stockMovements.itemId} = ${opts.itemId})
     + ${opts.qty}::numeric
-  )::text`;
+  )`;
 
   const [movement] = await tx
     .insert(stockMovements)
