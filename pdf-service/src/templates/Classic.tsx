@@ -22,12 +22,14 @@ import { formatDate, formatInr, trimNumber } from "../format.js";
 import { CLASSIC_CSS } from "../styles.js";
 
 const TYPE_LABEL: Record<InvoiceType, string> = {
-  tax_invoice: "Tax Invoice",
+  sales_invoice: "Tax Invoice",
   estimate: "Estimate",
-  cash_receipt: "Cash Receipt",
-  credit_note: "Credit Note",
-  debit_note: "Debit Note",
   delivery_challan: "Delivery Challan",
+  credit_note: "Credit Note",
+  purchase_invoice: "Purchase Invoice",
+  debit_note: "Debit Note",
+  quotation: "Quotation",
+  proforma_invoice: "Proforma Invoice",
 };
 
 export function Classic({ invoice, branding }: RenderRequest) {

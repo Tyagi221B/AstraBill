@@ -27,21 +27,24 @@ export type BrandFont = "inter" | "poppins" | "noto_serif" | "noto_sans";
 
 export type TaxClass = "intrastate" | "interstate";
 
+/** Mirrors `lib/db/schema.ts` `docType` enum — the canonical doc taxonomy. */
 export type InvoiceType =
-  | "tax_invoice"
+  | "sales_invoice"
   | "estimate"
-  | "cash_receipt"
+  | "delivery_challan"
   | "credit_note"
+  | "purchase_invoice"
   | "debit_note"
-  | "delivery_challan";
+  | "quotation"
+  | "proforma_invoice";
 
+/** Mirrors `lib/db/schema.ts` `docStatus` enum. */
 export type InvoiceStatus =
   | "draft"
-  | "sent"
-  | "seen"
-  | "partially_paid"
+  | "unpaid"
+  | "partial_paid"
   | "paid"
-  | "overdue";
+  | "cancelled";
 
 // ---- Branding payload --------------------------------------------------
 

@@ -1,12 +1,12 @@
 "use client";
 /**
- * WhatsAppPanel — send the `astrabill_invoice_v1` template to the invoice's
- * customer and show the send history.
+ * WhatsAppPanel — send the `astrabill_invoice_v1` template to the document's
+ * party and show the send history.
  *
- * Shown only on finalised invoices (the server gates that). Sends post to
- * POST /api/invoices/[id]/send-whatsapp. After a successful send the page
+ * Shown only on finalised sales invoices (the server gates that). Sends POST
+ * to /api/documents/[id]/send-whatsapp. After a successful send the page
  * reloads so the server re-derives the history list — the panel never
- * mutates its own state list (the rows are owned by the service).
+ * mutates its own state list (rows are owned by the service).
  */
 import { useState } from "react";
 import posthog from "posthog-js";
@@ -55,7 +55,7 @@ function fmtDateTime(iso: string): string {
   });
 }
 
-/** Mask phone for display: keep country code + last 4. "+919876543210" → "+91 ••••••6543". */
+/** Mask phone for display: keep country code + last 4. */
 function maskPhone(phone: string): string {
   if (phone.length < 6) return phone;
   const cc = phone.startsWith("+91") ? "+91" : phone.slice(0, 3);
@@ -64,27 +64,25 @@ function maskPhone(phone: string): string {
 }
 
 export function WhatsAppPanel({
-  invoiceId,
-  customerPhone,
-  customerName,
+  documentId,
+  partyPhone,
+  partyName,
   canSend,
   sends,
 }: {
-  invoiceId: string;
-  customerPhone: string | null;
-  customerName: string | null;
+  documentId: string;
+  partyPhone: string | null;
+  partyName: string | null;
   canSend: boolean;
   sends: SendRow[];
 }) {
   const [busy, setBusy] = useState(false);
 
-  // The most recent send (non-deleted), regardless of status. Drives the
-  // primary CTA label ("Send" vs "Resend") and the headline indicator.
   const lastSend = sends[0] ?? null;
   const hasSentBefore = sends.some((s) => s.status !== "failed");
-  const noCustomer = customerName === null;
-  const noPhone = !noCustomer && !customerPhone;
-  const blocked = noCustomer || noPhone || !canSend;
+  const noParty = partyName === null;
+  const noPhone = !noParty && !partyPhone;
+  const blocked = noParty || noPhone || !canSend;
 
   async function send() {
     if (busy) return;
@@ -98,7 +96,7 @@ export function WhatsAppPanel({
     }
     setBusy(true);
     try {
-      const res = await fetch(`/api/invoices/${invoiceId}/send-whatsapp`, {
+      const res = await fetch(`/api/documents/${documentId}/send-whatsapp`, {
         method: "POST",
       });
       const json = (await res.json()) as
@@ -106,7 +104,7 @@ export function WhatsAppPanel({
         | { ok: false; error: { message: string } };
       if (!json.ok) throw new Error(json.error.message);
       posthog.capture("invoice_sent_whatsapp", {
-        invoice_id: invoiceId,
+        document_id: documentId,
         resend: hasSentBefore,
       });
       window.location.reload();
@@ -149,16 +147,14 @@ export function WhatsAppPanel({
 
         {/* ---- state line ---- */}
         <div className="mb-3 text-sm">
-          {noCustomer ? (
+          {noParty ? (
             <p className="text-muted-foreground">
-              Add a customer to this invoice to send it on WhatsApp.
+              Attach a party to this invoice to send it on WhatsApp.
             </p>
           ) : noPhone ? (
             <p className="text-muted-foreground">
-              <span className="font-medium text-foreground">
-                {customerName}
-              </span>{" "}
-              has no phone number. Add one on the customer to enable WhatsApp.
+              <span className="font-medium text-foreground">{partyName}</span>{" "}
+              has no mobile number. Add one on the party to enable WhatsApp.
             </p>
           ) : !canSend ? (
             <p className="text-muted-foreground">
@@ -167,10 +163,10 @@ export function WhatsAppPanel({
           ) : (
             <p className="text-muted-foreground">
               Will deliver to{" "}
-              <span className="font-medium text-foreground">{customerName}</span>{" "}
+              <span className="font-medium text-foreground">{partyName}</span>{" "}
               at{" "}
               <span className="font-mono text-foreground/90">
-                {maskPhone(customerPhone!)}
+                {maskPhone(partyPhone!)}
               </span>
               .
             </p>

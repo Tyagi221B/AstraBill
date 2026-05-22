@@ -19,7 +19,7 @@ import { parseQuery, route } from "@/lib/http";
 import {
   renderBrandingPreviewPdf,
   type PreviewBranding,
-} from "@/lib/services/invoice-pdf";
+} from "@/lib/services/document-pdf";
 import { requireUser } from "@/lib/session";
 
 const COLUMN_KEYS = [

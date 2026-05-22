@@ -20,7 +20,7 @@ import {
   businessMembers,
   documentLineItems,
   documents,
-  itemStockMovements,
+  stockMovements,
   items,
   ledgerEntries,
   parties,
@@ -396,12 +396,12 @@ export async function getStockSummary(opts: {
   const rows = await db
     .select({
       item: items,
-      total: sql<string>`coalesce(sum(${itemStockMovements.qty}), 0)::text`,
+      total: sql<string>`coalesce(sum(${stockMovements.qty}), 0)::text`,
     })
     .from(items)
     .leftJoin(
-      itemStockMovements,
-      eq(itemStockMovements.itemId, items.id),
+      stockMovements,
+      eq(stockMovements.itemId, items.id),
     )
     .where(
       and(

@@ -4,6 +4,31 @@ Append-only. Format: `## [YYYY-MM-DD] <operation> | <title>`
 
 ---
 
+## [2026-05-22] build | PR2 Step 11 — atomic demolition
+
+Three pre-demolition refactors first, then the destructive cut.
+
+**Pre-demolition refactors** (the cross-domain surfaces that were still on legacy tables):
+- **Dashboard KPIs** → new domain. `lib/services/dashboard.ts` rewritten on `sumSalesOutstandingForBusiness` / `sumSalesRevenueForBusinessSince` / `sumPaymentsInForBusinessSince` (new repo helpers on `documents` + `payment_entries`) and `listLowStockItems` (a join of `items` with `stock_movements` summed inline). Dashboard page renders Document rows, not Invoice rows.
+- **Public share `/i/[shareToken]`** → new domain. `lib/services/public-document.ts` reads `documents.share_token`; page rewritten to render the new doc shape; PDF generation rewritten as `lib/services/document-pdf.ts` (maps Document + DocumentLineItem + DocumentAdditionalCharge → InvoicePayload), with `renderPublicDocumentPdfByToken` behind `/api/i/[shareToken]/pdf`. The PDF contract's `InvoiceType` enum updated on both sides (Next + pdf-service) to mirror the new `doc_type` enum; Modern + Classic templates' `TYPE_LABEL` maps updated; `lib/pdf/fixtures.ts` swapped to the new enum values.
+- **WhatsApp send for documents.** New `sendDocumentOnWhatsApp(documentId, actorUserId)` service (sales-invoice-only — template variables are tuned for that artifact), new `POST /api/documents/[id]/send-whatsapp` route, new `WhatsAppPanel` wired onto the sales-invoice detail page next to a new `Download PDF` button. `whatsapp_messages.invoice_id` swapped to `whatsapp_messages.document_id`.
+
+**Demolition itself** (one atomic migration + the code that goes with it):
+- `drizzle/0007_pr2_demolition.sql`: ADD whatsapp_messages.document_id + DROP invoice_id; DROP legacy tables (`payments` → `stock_movements` (legacy product-bound) → `invoice_line_items` → `invoices` → `products` → `customers`); RENAME item_stock_movements → stock_movements (table + indexes + FK constraints); DROP TYPE invoice_type / invoice_status / unit / stock_movement_type.
+- `lib/db/schema.ts` lost ~200 LOC of legacy tables + enums + type exports; `lib/db/relations.ts` rewritten in the new domain shape.
+- Deleted: `lib/repositories/{customers,products,invoices,payments,stock-movements}.ts` · `lib/services/{customers,invoices,payments,invoice-pdf,public-invoice,products}.ts` · `lib/schemas/{invoice,customer,product,payment}.ts` · `lib/invoice-number.{ts,test.ts}` · `app/api/{customers,invoices,products,payments}/` · `app/b/[businessId]/{customers,invoices,products}/`.
+- Renamed: `lib/repositories/item-stock-movements.ts` → `lib/repositories/stock-movements.ts`; schema export `itemStockMovements` → `stockMovements`; type `ItemStockMovement` → `StockMovement`.
+- `lib/rbac.ts` scrubbed of `customer:*` / `product:*` / `invoice:*` rows (only `party:*` / `item:*` / `document:*` ladders remain).
+- `lib/routes.ts` lost the legacy URL helpers; `components/app/Sidebar.tsx` dropped its "Legacy" nav group.
+
+**Verification**: `tsc --noEmit` clean. `npm test` 30/30. `npm run build` produces a Vercel-ready bundle (the route table no longer carries `/invoices` or `/customers` or `/products`).
+
+**One follow-up**: the pdf-service droplet needs `git pull && docker compose up -d --build pdf-service` so the templates pick up the new `TYPE_LABEL` map. Until then, doc-type labels render as the JavaScript string "undefined" — cosmetic, fully functional otherwise.
+
+Memory: no new memories — every fact landed in DECISIONS.md or the [[overview]] log entry.
+
+---
+
 ## [2026-05-21] decisions | V1 scope locked (Option B) + DECISIONS.md reconciled to pivot
 
 User confirmed **Option B**: full V1 (21 must-haves), 4-month build, ship target ~21 Sep 2026. No shortcuts, senior-dev quality, system-design principles.

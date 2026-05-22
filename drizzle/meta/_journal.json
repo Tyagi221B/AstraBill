@@ -50,6 +50,13 @@
       "when": 1779378473451,
       "tag": "0006_seed_pivot_foundations",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779465600000,
+      "tag": "0007_pr2_demolition",
+      "breakpoints": true
     }
   ]
 }

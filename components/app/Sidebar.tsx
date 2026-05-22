@@ -34,12 +34,10 @@ import {
   FileText,
   LayoutDashboard,
   LogOut,
-  Package,
   Plus,
   ReceiptText,
   RotateCcw,
   Settings,
-  Users,
 } from "lucide-react";
 import posthog from "posthog-js";
 import { signOut } from "next-auth/react";
@@ -87,12 +85,11 @@ export function SidebarContent({
   const pathname = usePathname();
   const b = routes.b(business.id);
 
-  // Phase 2E + PR2: nav structured into IA groups matching the books model.
+  // Nav structured into IA groups matching the books model.
   //   General  — daily-use pages (dashboard, parties, items, cash & bank).
   //   Sales    — outward documents.
   //   Purchases — inward documents.
   //   Insights — reports.
-  //   Legacy   — surfaces leaving in PR2 demolition.
   //   Settings — knobs.
   const generalItems = [
     { label: "Dashboard", path: b.dashboard, icon: LayoutDashboard },
@@ -112,11 +109,6 @@ export function SidebarContent({
   const insightsItems = [
     { label: "Reports", path: b.reports, icon: BarChart3 },
   ] as const;
-  const legacyItems = [
-    { label: "Invoices (legacy)", path: b.invoices, icon: ReceiptText },
-    { label: "Customers (legacy)", path: b.customers, icon: Users },
-    { label: "Products (legacy)", path: b.products, icon: Package },
-  ] as const;
   const settingsItems = [
     { label: "Settings", path: b.settings.branding, icon: Settings },
   ] as const;
@@ -126,7 +118,6 @@ export function SidebarContent({
     | (typeof salesItems)[number]
     | (typeof purchaseItems)[number]
     | (typeof insightsItems)[number]
-    | (typeof legacyItems)[number]
     | (typeof settingsItems)[number];
 
   const renderNavLink = (item: NavItem) => {
@@ -179,7 +170,6 @@ export function SidebarContent({
         <NavGroup label="Insights">
           {insightsItems.map(renderNavLink)}
         </NavGroup>
-        <NavGroup label="Legacy">{legacyItems.map(renderNavLink)}</NavGroup>
         <NavGroup label="Settings">
           {settingsItems.map(renderNavLink)}
         </NavGroup>

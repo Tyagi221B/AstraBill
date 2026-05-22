@@ -28,7 +28,7 @@ import {
   softDeleteItemTx,
   updateItemTx,
 } from "../repositories/items";
-import { insertStockMovementWithLockTx } from "../repositories/item-stock-movements";
+import { insertStockMovementWithLockTx } from "../repositories/stock-movements";
 
 export interface ServiceContext {
   ipAddress?: string | null;

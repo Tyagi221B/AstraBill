@@ -4,7 +4,7 @@
  * it settles.
  */
 import "server-only";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 
 import { db, type Tx } from "../db";
 import {
@@ -131,6 +131,35 @@ export async function listPaymentEntriesForUser(opts: {
     .where(and(...where))
     .orderBy(desc(paymentEntries.entryDate), desc(paymentEntries.createdAt))
     .limit(opts.limit ?? 200);
+}
+
+/**
+ * Sum of money received this period — SUM(amount) over recorded (non-
+ * cancelled, non-deleted) payment_in entries with entry_date >= since.
+ * `since` is a YYYY-MM-DD string. Powers the dashboard "paid this month" KPI.
+ *
+ * Note: `entryDate` is a `date` column; the boundary is whole-day, IST-implicit
+ * (the small overlap with the UTC day is an accepted V1 imprecision).
+ */
+export async function sumPaymentsInForBusinessSince(
+  businessId: string,
+  since: string,
+): Promise<string> {
+  const [row] = await db
+    .select({
+      total: sql<string>`coalesce(sum(${paymentEntries.amount}), 0)::text`,
+    })
+    .from(paymentEntries)
+    .where(
+      and(
+        eq(paymentEntries.businessId, businessId),
+        eq(paymentEntries.entryType, "payment_in"),
+        eq(paymentEntries.status, "recorded"),
+        isNull(paymentEntries.deletedAt),
+        gte(paymentEntries.entryDate, since),
+      ),
+    );
+  return row?.total ?? "0";
 }
 
 /**

@@ -7,13 +7,14 @@
  * `repositories/item-stock-movements.ts`.
  */
 import "server-only";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db, type Tx } from "../db";
 import {
   type Item,
   type NewItem,
   businessMembers,
+  stockMovements,
   items,
 } from "../db/schema";
 
@@ -152,4 +153,44 @@ export async function softDeleteItemTx(
     .update(items)
     .set({ deletedAt: new Date() })
     .where(eq(items.id, itemId));
+}
+
+/**
+ * Active product items at or below their low-stock threshold. Stock-on-hand is
+ * `SUM(qty)` over the item's movement rows (the only ledger of truth) — done
+ * inline with a correlated subquery so a 200-item catalog still resolves in
+ * one round-trip. Services that don't track stock (no movements at all) sum
+ * to 0 and surface only when their threshold is > 0.
+ *
+ * Returns the items with their resolved current stock attached.
+ */
+export async function listLowStockItems(
+  businessId: string,
+): Promise<Array<Item & { currentStock: string }>> {
+  const stockExpr = sql<string>`(
+    select coalesce(sum(${stockMovements.qty}), 0)::text
+    from ${stockMovements}
+    where ${stockMovements.itemId} = ${items.id}
+  )`;
+
+  const rows = await db
+    .select({ item: items, stock: stockExpr.as("current_stock") })
+    .from(items)
+    .where(
+      and(
+        eq(items.businessId, businessId),
+        eq(items.type, "product"),
+        eq(items.isActive, true),
+        isNull(items.deletedAt),
+        eq(items.enableLowStockWarning, true),
+        sql`${items.lowStockThreshold} is not null`,
+        sql`(
+          select coalesce(sum(${stockMovements.qty}), 0)
+          from ${stockMovements}
+          where ${stockMovements.itemId} = ${items.id}
+        ) <= ${items.lowStockThreshold}`,
+      ),
+    )
+    .orderBy(asc(stockExpr));
+  return rows.map((r) => ({ ...r.item, currentStock: r.stock }));
 }

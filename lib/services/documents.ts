@@ -85,7 +85,7 @@ import {
 } from "../repositories/ledger-entries";
 import { ledgerEntries } from "../db/schema";
 import { eq } from "drizzle-orm";
-import { insertStockMovementWithLockTx } from "../repositories/item-stock-movements";
+import { insertStockMovementWithLockTx } from "../repositories/stock-movements";
 import { getPartyForUserTx } from "../repositories/parties";
 
 // ─── Posting policy ────────────────────────────────────────────────────────

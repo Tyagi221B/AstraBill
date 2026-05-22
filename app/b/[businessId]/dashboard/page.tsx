@@ -1,12 +1,10 @@
 /**
  * Dashboard — the home page for a business.
  *
- * Phase 2D Step 3: the placeholder "Coming soon" cards are replaced with
- * real figures. Three KPIs (outstanding ₹, paid this month, revenue this
- * month), the six most recent invoices, and a low-stock alert list — all
- * from `getBusinessDashboard`. Every money figure was impossible to show
- * truthfully before payment recording landed; it's the keystone this page
- * stands on.
+ * Reads the new-domain aggregates: outstanding (sales-invoice receivables),
+ * revenue this month (sales-invoice grand_total), paid this month (recorded
+ * payment_entries), and low-stock items. The "Recent" list shows the six
+ * most recent sales invoices.
  *
  * The business is resolved by the parent layout; this page re-fetches its
  * own copy of the row for the title (a uuid-indexed, deduped SELECT).
@@ -20,7 +18,7 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
-import type { Invoice } from "@/lib/db/schema";
+import type { Document } from "@/lib/db/schema";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
 import { getBusinessDashboard } from "@/lib/services/dashboard";
 import { routes } from "@/lib/routes";
@@ -28,25 +26,15 @@ import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
-const TYPE_LABEL: Record<Invoice["type"], string> = {
-  tax_invoice: "Tax Invoice",
-  estimate: "Estimate",
-  cash_receipt: "Cash Receipt",
-  credit_note: "Credit Note",
-  debit_note: "Debit Note",
-  delivery_challan: "Delivery Challan",
-};
-
 const STATUS_TONE: Record<
-  Invoice["status"],
+  Document["status"],
   "neutral" | "info" | "success" | "warning" | "destructive"
 > = {
   draft: "neutral",
-  sent: "info",
-  seen: "info",
-  partially_paid: "warning",
+  unpaid: "info",
+  partial_paid: "warning",
   paid: "success",
-  overdue: "destructive",
+  cancelled: "destructive",
 };
 
 /** Indian-grouped rupees, no paise — headline figures read cleaner whole. */
@@ -73,7 +61,10 @@ export default async function BusinessDashboardPage({
         title={business.name}
         description="Welcome back"
         action={
-          <Link href={b.newInvoice} className={buttonClasses("primary", "sm")}>
+          <Link
+            href={b.newSalesInvoice}
+            className={buttonClasses("primary", "sm")}
+          >
             + New invoice
           </Link>
         }
@@ -105,19 +96,19 @@ export default async function BusinessDashboardPage({
           <div className="flex items-center justify-between px-5 pb-3 pt-5">
             <h2 className="text-base font-semibold">Recent invoices</h2>
             <Link
-              href={b.invoices}
+              href={b.salesInvoices}
               className="text-sm text-primary hover:underline"
             >
               View all →
             </Link>
           </div>
-          {data.recentInvoices.length === 0 ? (
+          {data.recentSalesInvoices.length === 0 ? (
             <div className="flex flex-col items-center gap-3 px-5 pb-8 pt-4 text-center">
               <p className="text-sm text-muted-foreground">
                 No invoices yet.
               </p>
               <Link
-                href={b.newInvoice}
+                href={b.newSalesInvoice}
                 className={buttonClasses("primary", "sm")}
               >
                 Create your first invoice
@@ -128,39 +119,36 @@ export default async function BusinessDashboardPage({
               <thead>
                 <tr className="text-left text-muted-foreground">
                   <th className="px-5 py-2 font-medium">Number</th>
-                  <th className="px-5 py-2 font-medium">Issued</th>
+                  <th className="px-5 py-2 font-medium">Date</th>
                   <th className="px-5 py-2 font-medium">Status</th>
                   <th className="px-5 py-2 text-right font-medium">Total</th>
                 </tr>
               </thead>
               <tbody>
-                {data.recentInvoices.map((inv) => (
-                  <tr key={inv.id} className="border-t border-border">
+                {data.recentSalesInvoices.map((doc) => (
+                  <tr key={doc.id} className="border-t border-border">
                     <td className="px-5 py-3">
                       <Link
-                        href={b.invoice(inv.id)}
+                        href={b.salesInvoice(doc.id)}
                         className="font-medium hover:underline"
                       >
-                        {inv.number ?? (
+                        {doc.docNumber ?? (
                           <span className="italic text-muted-foreground">
                             Draft
                           </span>
                         )}
                       </Link>
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {TYPE_LABEL[inv.type]}
-                      </span>
                     </td>
                     <td className="px-5 py-3 text-muted-foreground tabular-nums">
-                      {inv.issueDate}
+                      {doc.docDate}
                     </td>
                     <td className="px-5 py-3">
-                      <Badge tone={STATUS_TONE[inv.status]}>
-                        {inv.status.replace("_", " ")}
+                      <Badge tone={STATUS_TONE[doc.status]}>
+                        {doc.status.replace("_", " ")}
                       </Badge>
                     </td>
                     <td className="px-5 py-3 text-right font-medium tabular-nums">
-                      ₹ {inv.total}
+                      ₹ {doc.grandTotal}
                     </td>
                   </tr>
                 ))}
@@ -183,22 +171,23 @@ export default async function BusinessDashboardPage({
               </span>
             </h2>
             <ul className="flex flex-col">
-              {data.lowStock.map((p) => (
+              {data.lowStock.map((item) => (
                 <li
-                  key={p.id}
+                  key={item.id}
                   className="flex items-center justify-between border-t border-border py-2.5 text-sm first:border-t-0"
                 >
                   <Link
-                    href={b.editProduct(p.id)}
+                    href={b.item(item.id)}
                     className="font-medium hover:underline"
                   >
-                    {p.name}
+                    {item.name}
                   </Link>
                   <span className="tabular-nums text-muted-foreground">
                     <span className="font-semibold text-destructive">
-                      {p.stock}
+                      {item.currentStock}
                     </span>{" "}
-                    {p.unit} left · alerts at {p.lowStockThreshold}
+                    {item.measuringUnitCode ?? ""} left · alerts at{" "}
+                    {item.lowStockThreshold}
                   </span>
                 </li>
               ))}
@@ -209,4 +198,3 @@ export default async function BusinessDashboardPage({
     </>
   );
 }
-

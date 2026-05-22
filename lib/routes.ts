@@ -28,29 +28,13 @@ export const routes = {
     return {
       base,
       dashboard: `${base}/dashboard`,
-      invoices: `${base}/invoices`,
-      newInvoice: `${base}/invoices/new`,
-      invoice: (invoiceId: string) => `${base}/invoices/${invoiceId}`,
-      editInvoice: (invoiceId: string) =>
-        `${base}/invoices/${invoiceId}/edit`,
-      customers: `${base}/customers`,
-      newCustomer: `${base}/customers/new`,
-      /** Customer detail — contact, udhaar stats, invoice history. */
-      customer: (customerId: string) => `${base}/customers/${customerId}`,
-      editCustomer: (customerId: string) =>
-        `${base}/customers/${customerId}/edit`,
-      /** Parties — new domain (full-ledger pivot). Replaces customers in PR2. */
+      /** Parties — customers + suppliers in one table. */
       parties: `${base}/parties`,
       newParty: `${base}/parties/new`,
       party: (partyId: string) => `${base}/parties/${partyId}`,
       editParty: (partyId: string) =>
         `${base}/parties/${partyId}/edit`,
-      products: `${base}/products`,
-      newProduct: `${base}/products/new`,
-      // No product detail page yet — the only per-product page is edit.
-      editProduct: (productId: string) =>
-        `${base}/products/${productId}/edit`,
-      /** Items — new domain (full-ledger pivot). Replaces products in PR2. */
+      /** Items — products + services. */
       items: `${base}/items`,
       newItem: `${base}/items/new`,
       item: (itemId: string) => `${base}/items/${itemId}`,
@@ -58,7 +42,7 @@ export const routes = {
       /** Cash & Bank — money_accounts surface. */
       cashAndBank: `${base}/cash-and-bank`,
       moneyAccount: (id: string) => `${base}/cash-and-bank/${id}`,
-      /** Sales documents (new domain — replaces invoices in PR2). */
+      /** Sales invoices. */
       salesInvoices: `${base}/sales/sales-invoices`,
       newSalesInvoice: `${base}/sales/sales-invoices/new`,
       salesInvoice: (id: string) => `${base}/sales/sales-invoices/${id}`,

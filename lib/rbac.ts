@@ -21,31 +21,15 @@ import { ForbiddenError } from "./errors";
 // Owner is the superset; every other role is a subset of owner's permissions.
 
 const ALL_PERMISSIONS = [
-  // Invoices
-  "invoice:view",
-  "invoice:create",
-  "invoice:edit",
-  "invoice:delete", // service layer enforces: drafts only (GST immutability)
-  "invoice:finalize",
-  // Payments
+  // Payments (Payment In / Payment Out — entries on payment_entries)
   "payment:record",
   "payment:delete",
-  // Customers (legacy — old domain)
-  "customer:view",
-  "customer:create",
-  "customer:edit",
-  "customer:delete",
-  // Parties (new domain — replaces customer:* once PR2 demolition lands)
+  // Parties (customers + suppliers in one table)
   "party:view",
   "party:create",
   "party:edit",
   "party:delete",
-  // Products / inventory (legacy — old domain)
-  "product:view",
-  "product:create",
-  "product:edit",
-  "product:delete",
-  // Items (new domain — replaces product:* once PR2 demolition lands)
+  // Items (products + services)
   "item:view",
   "item:create",
   "item:edit",
@@ -57,7 +41,7 @@ const ALL_PERMISSIONS = [
   "money_account:manage", // create + edit + soft-delete
   "money_account:adjust", // Add / Reduce money (manual_adjustment ledger row)
   "money_account:transfer", // Transfer money (paired transfer_in/out rows)
-  // Documents (new domain — all 8 doc types share this permission ladder)
+  // Documents (all 8 doc types share this permission ladder)
   "document:view",
   "document:create", // create + update drafts
   "document:finalize", // draft → unpaid (locks number + ledger + stock)
@@ -80,25 +64,12 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
   owner: ALL_PERMISSIONS,
 
   admin: [
-    "invoice:view",
-    "invoice:create",
-    "invoice:edit",
-    "invoice:delete",
-    "invoice:finalize",
     "payment:record",
     "payment:delete",
-    "customer:view",
-    "customer:create",
-    "customer:edit",
-    "customer:delete",
     "party:view",
     "party:create",
     "party:edit",
     "party:delete",
-    "product:view",
-    "product:create",
-    "product:edit",
-    "product:delete",
     "item:view",
     "item:create",
     "item:edit",
@@ -122,18 +93,10 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
   ],
 
   accountant: [
-    "invoice:view",
-    "invoice:create",
-    "invoice:edit",
-    "invoice:finalize",
     "payment:record",
-    "customer:view",
-    "customer:create",
-    "customer:edit",
     "party:view",
     "party:create",
     "party:edit",
-    "product:view",
     "item:view",
     "item_category:manage",
     "money_account:view",
@@ -148,16 +111,11 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
   ],
 
   // Critical invariant: salesman has NO profit visibility. Even though they
-  // can view products to bill, the service layer strips purchase_price from
+  // can view items to bill, the service layer strips purchase_price from
   // responses for roles that lack `report:view_profit`. See `redactForRole`.
   salesman: [
-    "invoice:view",
-    "invoice:create",
-    "customer:view",
-    "customer:create",
     "party:view",
     "party:create",
-    "product:view",
     "item:view",
     "document:view",
     "document:create",
@@ -165,10 +123,7 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
   ],
 
   viewer: [
-    "invoice:view",
-    "customer:view",
     "party:view",
-    "product:view",
     "item:view",
     "money_account:view",
     "document:view",

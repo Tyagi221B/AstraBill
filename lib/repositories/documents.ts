@@ -8,7 +8,7 @@
  * `findDocumentWithLinesForUser` helper.
  */
 import "server-only";
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import { db, type Tx } from "../db";
 import {
@@ -308,4 +308,80 @@ export async function listDocumentsForParty(
     )
     .orderBy(desc(documents.docDate), desc(documents.createdAt))
     .limit(limit);
+}
+
+/**
+ * Auth-free lookup by share_token — for the public `/i/[shareToken]` view.
+ * The token IS the auth; callers must understand that. Drafts have no token
+ * (NULL) so they are structurally excluded. Cancelled / soft-deleted docs
+ * are skipped so a revoked share returns 404, not stale content.
+ */
+export async function getDocumentByShareToken(
+  shareToken: string,
+): Promise<Document | null> {
+  const [doc] = await db
+    .select()
+    .from(documents)
+    .where(
+      and(
+        eq(documents.shareToken, shareToken),
+        isNull(documents.deletedAt),
+        ne(documents.status, "cancelled"),
+      ),
+    );
+  return doc ?? null;
+}
+
+/**
+ * Sum of outstanding balance across all finalised, non-cancelled sales
+ * documents for one business. Outstanding = grand_total − amount_received.
+ * Excludes drafts (no number) and cancelled (reversed in the ledger).
+ *
+ * Sales-side only — purchase docs sit in the parallel "payables" report.
+ * The dashboard's "outstanding" KPI is the udhaar (receivables) headline.
+ */
+export async function sumSalesOutstandingForBusiness(
+  businessId: string,
+): Promise<string> {
+  const [row] = await db
+    .select({
+      total: sql<string>`coalesce(sum(${documents.grandTotal} - ${documents.amountReceived}), 0)::text`,
+    })
+    .from(documents)
+    .where(
+      and(
+        eq(documents.businessId, businessId),
+        eq(documents.docType, "sales_invoice"),
+        isNull(documents.deletedAt),
+        ne(documents.status, "draft"),
+        ne(documents.status, "cancelled"),
+      ),
+    );
+  return row?.total ?? "0";
+}
+
+/**
+ * Sales revenue since a calendar date — SUM(grand_total) over finalised,
+ * non-cancelled sales invoices with doc_date >= since. `since` is YYYY-MM-DD.
+ */
+export async function sumSalesRevenueForBusinessSince(
+  businessId: string,
+  since: string,
+): Promise<string> {
+  const [row] = await db
+    .select({
+      total: sql<string>`coalesce(sum(${documents.grandTotal}), 0)::text`,
+    })
+    .from(documents)
+    .where(
+      and(
+        eq(documents.businessId, businessId),
+        eq(documents.docType, "sales_invoice"),
+        isNull(documents.deletedAt),
+        ne(documents.status, "draft"),
+        ne(documents.status, "cancelled"),
+        gte(documents.docDate, since),
+      ),
+    );
+  return row?.total ?? "0";
 }

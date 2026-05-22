@@ -60,7 +60,7 @@ export const fixtureSmall: RenderRequest = {
   branding: MODERN_FREE,
   invoice: {
     number: "CR/26-27/0043",
-    type: "cash_receipt",
+    type: "sales_invoice",
     status: "paid",
     issueDate: "2026-05-12",
     dueDate: null,
@@ -162,8 +162,8 @@ export const fixtureMedium: RenderRequest = {
   branding: MODERN_FREE,
   invoice: {
     number: "INV/26-27/0118",
-    type: "tax_invoice",
-    status: "sent",
+    type: "sales_invoice",
+    status: "unpaid",
     issueDate: "2026-05-14",
     dueDate: "2026-05-29",
     business: OM_GLASS,
@@ -311,8 +311,8 @@ export const fixtureComplex: RenderRequest = {
   branding: MODERN_FREE,
   invoice: {
     number: "INV/26-27/0119",
-    type: "tax_invoice",
-    status: "sent",
+    type: "sales_invoice",
+    status: "unpaid",
     issueDate: "2026-05-15",
     dueDate: "2026-06-14",
     business: OM_GLASS,
@@ -476,8 +476,8 @@ export const fixtureLong: RenderRequest = {
   branding: MODERN_FREE,
   invoice: {
     number: "INV/26-27/0120",
-    type: "tax_invoice",
-    status: "sent",
+    type: "sales_invoice",
+    status: "unpaid",
     issueDate: "2026-05-16",
     dueDate: "2026-05-31",
     business: OM_GLASS,

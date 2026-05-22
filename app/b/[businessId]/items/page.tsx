@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
 import { listItemsForUser } from "@/lib/services/items";
-import { getCurrentStockForItems } from "@/lib/repositories/item-stock-movements";
+import { getCurrentStockForItems } from "@/lib/repositories/stock-movements";
 import { routes } from "@/lib/routes";
 import { requireUser } from "@/lib/session";
 

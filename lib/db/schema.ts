@@ -91,38 +91,6 @@ export const planTier = pgEnum("plan_tier", [
   "business",
 ]);
 
-/** LEGACY — drives `invoices.type`. PR2 drops the column and this enum. */
-export const invoiceType = pgEnum("invoice_type", [
-  "tax_invoice",
-  "estimate",
-  "cash_receipt",
-  "credit_note",
-  "debit_note",
-  "delivery_challan",
-]);
-
-/** LEGACY — drives `invoices.status`. PR2 drops the column and this enum. */
-export const invoiceStatus = pgEnum("invoice_status", [
-  "draft",
-  "sent",
-  "seen",
-  "partially_paid",
-  "paid",
-  "overdue",
-]);
-
-/** LEGACY — `products.unit` and `invoice_line_items.unit`. PR2 drops these. */
-export const unit = pgEnum("unit", [
-  "sqft",
-  "kg",
-  "pcs",
-  "linear_ft",
-  "box",
-  "dozen",
-  "sqm",
-  "set",
-]);
-
 export const paymentMethod = pgEnum("payment_method", [
   "upi",
   "cash",
@@ -131,9 +99,6 @@ export const paymentMethod = pgEnum("payment_method", [
   "cheque",
   "other",
 ]);
-
-/** LEGACY — drives the old product-bound `stock_movements.type`. */
-export const stockMovementType = pgEnum("stock_movement_type", ["in", "out"]);
 
 export const whatsappStatus = pgEnum("whatsapp_status", [
   "queued",
@@ -438,219 +403,7 @@ export const businessMembers = pgTable(
 );
 
 // =========================================================================
-// LEGACY — customers / products / invoices / invoice_line_items / payments /
-// stock_movements. PR2 demolishes these atomically with the domain rebuild.
-// Kept untouched in PR1 so the old domain continues running.
-// =========================================================================
-
-export const customers = pgTable(
-  "customers",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    businessId: uuid("business_id")
-      .notNull()
-      .references(() => businesses.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    phone: text("phone"),
-    email: text("email"),
-    gstin: text("gstin"),
-    addressLine1: text("address_line1"),
-    addressLine2: text("address_line2"),
-    city: text("city"),
-    state: text("state"),
-    stateCode: text("state_code"),
-    pincode: text("pincode"),
-    notes: text("notes"),
-    ...lifecycle,
-    ...softDelete,
-  },
-  (t) => [index("customers_business_idx").on(t.businessId)],
-);
-
-export const products = pgTable(
-  "products",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    businessId: uuid("business_id")
-      .notNull()
-      .references(() => businesses.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    hsnCode: text("hsn_code"),
-    unit: unit("unit").notNull().default("pcs"),
-    gstRate: rate("gst_rate").notNull().default("0"),
-    purchasePrice: money("purchase_price"),
-    sellingPrice: money("selling_price").notNull(),
-    stock: quantity("stock").notNull().default("0"),
-    lowStockThreshold: quantity("low_stock_threshold"),
-    isActive: boolean("is_active").notNull().default(true),
-    ...lifecycle,
-    ...softDelete,
-  },
-  (t) => [index("products_business_idx").on(t.businessId)],
-);
-
-export type ExtraCharge = {
-  label: string;
-  amount: string;
-  taxable: boolean;
-  gstRate?: string;
-};
-
-export const invoices = pgTable(
-  "invoices",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    businessId: uuid("business_id")
-      .notNull()
-      .references(() => businesses.id, { onDelete: "cascade" }),
-    customerId: uuid("customer_id").references(() => customers.id, {
-      onDelete: "set null",
-    }),
-    type: invoiceType("type").notNull().default("tax_invoice"),
-    number: text("number"),
-    shareToken: text("share_token").unique(),
-    status: invoiceStatus("status").notNull().default("draft"),
-    originalInvoiceId: uuid("original_invoice_id").references(
-      (): AnyPgColumn => invoices.id,
-      { onDelete: "set null" },
-    ),
-    placeOfSupplyStateCode: text("place_of_supply_state_code"),
-    subtotal: money("subtotal").notNull().default("0"),
-    discountAmount: money("discount_amount").notNull().default("0"),
-    taxableAmount: money("taxable_amount").notNull().default("0"),
-    cgstAmount: money("cgst_amount").notNull().default("0"),
-    sgstAmount: money("sgst_amount").notNull().default("0"),
-    igstAmount: money("igst_amount").notNull().default("0"),
-    taxAmount: money("tax_amount").notNull().default("0"),
-    roundOff: money("round_off").notNull().default("0"),
-    total: money("total").notNull().default("0"),
-    amountPaid: money("amount_paid").notNull().default("0"),
-    notes: text("notes"),
-    shipToName: text("ship_to_name"),
-    shipToAddress: text("ship_to_address"),
-    extraCharges: jsonb("extra_charges")
-      .$type<ExtraCharge[]>()
-      .notNull()
-      .default([]),
-    transportMode: text("transport_mode"),
-    vehicleNumber: text("vehicle_number"),
-    ewayBillNumber: text("eway_bill_number"),
-    issueDate: date("issue_date").notNull().defaultNow(),
-    dueDate: date("due_date"),
-    paidAt: timestamp("paid_at", { withTimezone: true }),
-    createdBy: uuid("created_by").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    ...lifecycle,
-    ...softDelete,
-  },
-  (t) => [
-    uniqueIndex("invoices_business_number_uq")
-      .on(t.businessId, t.number)
-      .where(sql`${t.deletedAt} is null`),
-    index("invoices_business_status_idx").on(t.businessId, t.status),
-    index("invoices_customer_idx").on(t.customerId),
-  ],
-);
-
-export const invoiceLineItems = pgTable(
-  "invoice_line_items",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    businessId: uuid("business_id")
-      .notNull()
-      .references(() => businesses.id, { onDelete: "cascade" }),
-    invoiceId: uuid("invoice_id")
-      .notNull()
-      .references(() => invoices.id, { onDelete: "cascade" }),
-    productId: uuid("product_id").references(() => products.id, {
-      onDelete: "set null",
-    }),
-    description: text("description").notNull(),
-    hsnCode: text("hsn_code"),
-    quantity: quantity("quantity").notNull(),
-    unit: unit("unit").notNull(),
-    secondaryQuantity: quantity("secondary_quantity"),
-    secondaryUnit: unit("secondary_unit"),
-    unitPrice: money("unit_price").notNull(),
-    discountAmount: money("discount_amount").notNull().default("0"),
-    gstRate: rate("gst_rate").notNull().default("0"),
-    taxableAmount: money("taxable_amount").notNull(),
-    cgstAmount: money("cgst_amount").notNull().default("0"),
-    sgstAmount: money("sgst_amount").notNull().default("0"),
-    igstAmount: money("igst_amount").notNull().default("0"),
-    amount: money("amount").notNull(),
-    sortOrder: integer("sort_order").notNull().default(0),
-    createdAt: lifecycle.createdAt,
-  },
-  (t) => [index("invoice_line_items_invoice_idx").on(t.invoiceId)],
-);
-
-export const payments = pgTable(
-  "payments",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    businessId: uuid("business_id")
-      .notNull()
-      .references(() => businesses.id, { onDelete: "cascade" }),
-    invoiceId: uuid("invoice_id")
-      .notNull()
-      .references(() => invoices.id, { onDelete: "cascade" }),
-    amount: money("amount").notNull(),
-    method: paymentMethod("method").notNull(),
-    razorpayPaymentId: text("razorpay_payment_id"),
-    razorpayOrderId: text("razorpay_order_id"),
-    reference: text("reference"),
-    notes: text("notes"),
-    paidAt: timestamp("paid_at", { withTimezone: true })
-      .defaultNow()
-      .notNull(),
-    createdBy: uuid("created_by").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    ...lifecycle,
-    ...softDelete,
-  },
-  (t) => [
-    index("payments_invoice_idx").on(t.invoiceId),
-    index("payments_razorpay_payment_idx").on(t.razorpayPaymentId),
-  ],
-);
-
-/**
- * LEGACY product-bound stock ledger. Renamed and replaced by
- * `item_stock_movements` in PR1; PR2 atomically drops this table and renames
- * `item_stock_movements` → `stock_movements`.
- */
-export const stockMovements = pgTable(
-  "stock_movements",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    businessId: uuid("business_id")
-      .notNull()
-      .references(() => businesses.id, { onDelete: "cascade" }),
-    productId: uuid("product_id")
-      .notNull()
-      .references(() => products.id, { onDelete: "cascade" }),
-    type: stockMovementType("type").notNull(),
-    quantity: quantity("quantity").notNull(),
-    invoiceId: uuid("invoice_id").references(() => invoices.id, {
-      onDelete: "set null",
-    }),
-    note: text("note"),
-    createdBy: uuid("created_by").references(() => users.id, {
-      onDelete: "set null",
-    }),
-    createdAt: lifecycle.createdAt,
-  },
-  (t) => [
-    index("stock_movements_product_idx").on(t.productId),
-    index("stock_movements_invoice_idx").on(t.invoiceId),
-  ],
-);
-
-// =========================================================================
-// whatsapp_messages — unchanged (used by both old + new domains)
+// whatsapp_messages — used by the document send service
 // =========================================================================
 
 export const whatsappMessages = pgTable(
@@ -660,7 +413,8 @@ export const whatsappMessages = pgTable(
     businessId: uuid("business_id")
       .notNull()
       .references(() => businesses.id, { onDelete: "cascade" }),
-    invoiceId: uuid("invoice_id").references(() => invoices.id, {
+    /** Document this send was for. Nullable to support free-form sends later. */
+    documentId: uuid("document_id").references(() => documents.id, {
       onDelete: "cascade",
     }),
     toPhone: text("to_phone").notNull(),
@@ -674,7 +428,7 @@ export const whatsappMessages = pgTable(
     ...lifecycle,
   },
   (t) => [
-    index("whatsapp_messages_invoice_idx").on(t.invoiceId),
+    index("whatsapp_messages_document_idx").on(t.documentId),
     index("whatsapp_messages_message_idx").on(t.messageId),
   ],
 );
@@ -1591,15 +1345,15 @@ export const ledgerEntries = pgTable(
 );
 
 // =========================================================================
-// NEW — item_stock_movements
+// stock_movements (item-bound; renamed from item_stock_movements in PR2)
 //
 // Append-only per-item stock ledger. Corrections are new rows, never edits.
 // Renamed to `stock_movements` in PR2 (after the legacy product-bound table
 // is dropped).
 // =========================================================================
 
-export const itemStockMovements = pgTable(
-  "item_stock_movements",
+export const stockMovements = pgTable(
+  "stock_movements",
   {
     id: uuid("id").defaultRandom().primaryKey(),
     businessId: uuid("business_id")
@@ -1628,12 +1382,9 @@ export const itemStockMovements = pgTable(
     createdAt: lifecycle.createdAt,
   },
   (t) => [
-    index("item_stock_movements_item_idx").on(t.itemId),
-    index("item_stock_movements_related_doc_idx").on(t.relatedDocId),
-    index("item_stock_movements_business_date_idx").on(
-      t.businessId,
-      t.txnDate,
-    ),
+    index("stock_movements_item_idx").on(t.itemId),
+    index("stock_movements_related_doc_idx").on(t.relatedDocId),
+    index("stock_movements_business_date_idx").on(t.businessId, t.txnDate),
   ],
 );
 
@@ -1650,20 +1401,6 @@ export type Business = typeof businesses.$inferSelect;
 export type NewBusiness = typeof businesses.$inferInsert;
 export type BusinessMember = typeof businessMembers.$inferSelect;
 export type NewBusinessMember = typeof businessMembers.$inferInsert;
-
-// Legacy (drop in PR2)
-export type Customer = typeof customers.$inferSelect;
-export type NewCustomer = typeof customers.$inferInsert;
-export type Product = typeof products.$inferSelect;
-export type NewProduct = typeof products.$inferInsert;
-export type Invoice = typeof invoices.$inferSelect;
-export type NewInvoice = typeof invoices.$inferInsert;
-export type InvoiceLineItem = typeof invoiceLineItems.$inferSelect;
-export type NewInvoiceLineItem = typeof invoiceLineItems.$inferInsert;
-export type Payment = typeof payments.$inferSelect;
-export type NewPayment = typeof payments.$inferInsert;
-export type StockMovement = typeof stockMovements.$inferSelect;
-export type NewStockMovement = typeof stockMovements.$inferInsert;
 
 // Cross-domain
 export type WhatsappMessage = typeof whatsappMessages.$inferSelect;
@@ -1707,8 +1444,8 @@ export type NewItemCustomFieldDefinition =
 export type ItemCustomFieldValue = typeof itemCustomFieldValues.$inferSelect;
 export type NewItemCustomFieldValue =
   typeof itemCustomFieldValues.$inferInsert;
-export type ItemStockMovement = typeof itemStockMovements.$inferSelect;
-export type NewItemStockMovement = typeof itemStockMovements.$inferInsert;
+export type StockMovement = typeof stockMovements.$inferSelect;
+export type NewStockMovement = typeof stockMovements.$inferInsert;
 
 // New — money + documents + ledger
 export type MoneyAccount = typeof moneyAccounts.$inferSelect;

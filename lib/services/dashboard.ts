@@ -1,35 +1,36 @@
 /**
  * Dashboard service — the read-only aggregates behind `/b/[businessId]/
- * dashboard`. One call, `getBusinessDashboard`, fans out to the repository
- * aggregates and returns everything the page renders.
+ * dashboard`. One call, `getBusinessDashboard`, fans out to the new-domain
+ * repository aggregates (documents · payment_entries · items) and returns
+ * everything the page renders.
  *
  * All money figures come back as decimal strings (the money discipline);
  * the page formats them for display.
  */
 import "server-only";
 
-import type { Invoice, Product } from "../db/schema";
+import type { Document, Item } from "../db/schema";
 import { NotFoundError } from "../errors";
 import { getMembership } from "../rbac";
 import {
-  listInvoicesForUser,
-  sumOutstandingForBusiness,
-  sumRevenueForBusinessSince,
-} from "../repositories/invoices";
-import { sumPaymentsForBusinessSince } from "../repositories/payments";
-import { listLowStockProducts } from "../repositories/products";
+  listDocumentsForUser,
+  sumSalesOutstandingForBusiness,
+  sumSalesRevenueForBusinessSince,
+} from "../repositories/documents";
+import { sumPaymentsInForBusinessSince } from "../repositories/payment-entries";
+import { listLowStockItems } from "../repositories/items";
 
 export interface BusinessDashboard {
-  /** Total still owed across all non-draft invoices — the udhaar headline. */
+  /** Total still owed across all finalised sales invoices — the udhaar headline. */
   outstanding: string;
-  /** Money received this calendar month (by payment `paid_at`). */
+  /** Money received this calendar month (by `payment_entries.entry_date`). */
   paidThisMonth: string;
-  /** Invoice value booked this calendar month (by `issue_date`). */
+  /** Sales-invoice value booked this calendar month (by `doc_date`). */
   revenueThisMonth: string;
-  /** The six most recent invoices, newest first. */
-  recentInvoices: Invoice[];
-  /** Active products at or below their low-stock threshold. */
-  lowStock: Product[];
+  /** The six most recent sales invoices, newest first. */
+  recentSalesInvoices: Document[];
+  /** Active product items at or below their low-stock threshold. */
+  lowStock: Array<Item & { currentStock: string }>;
 }
 
 /**
@@ -37,10 +38,10 @@ export interface BusinessDashboard {
  *
  * Self-guarding: throws NotFoundError if the caller isn't an active member
  * (the page's layout already verifies this, but a service must not trust
- * its caller). "This month" is bounded at the 1st of the current month —
- * UTC midnight; the IST/UTC skew at the boundary is an accepted V1
- * imprecision (a payment in the small hours of the 1st could land in the
- * neighbouring month).
+ * its caller). "This month" is bounded at the 1st of the current month in
+ * UTC — the IST/UTC skew at the boundary is an accepted V1 imprecision (a
+ * payment in the small hours of the 1st could land in the neighbouring
+ * month).
  */
 export async function getBusinessDashboard(
   businessId: string,
@@ -50,30 +51,36 @@ export async function getBusinessDashboard(
   if (!membership) throw new NotFoundError("Business not found");
 
   const now = new Date();
-  const monthStart = new Date(
+  const monthStartDate = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
-  );
-  const monthStartDate = monthStart.toISOString().slice(0, 10);
+  )
+    .toISOString()
+    .slice(0, 10);
 
   const [
     outstanding,
     revenueThisMonth,
     paidThisMonth,
     lowStock,
-    recentInvoices,
+    recentSalesInvoices,
   ] = await Promise.all([
-    sumOutstandingForBusiness(businessId),
-    sumRevenueForBusinessSince(businessId, monthStartDate),
-    sumPaymentsForBusinessSince(businessId, monthStart),
-    listLowStockProducts(businessId),
-    listInvoicesForUser({ userId: actorUserId, businessId, limit: 6 }),
+    sumSalesOutstandingForBusiness(businessId),
+    sumSalesRevenueForBusinessSince(businessId, monthStartDate),
+    sumPaymentsInForBusinessSince(businessId, monthStartDate),
+    listLowStockItems(businessId),
+    listDocumentsForUser({
+      userId: actorUserId,
+      businessId,
+      docType: "sales_invoice",
+      limit: 6,
+    }),
   ]);
 
   return {
     outstanding,
     paidThisMonth,
     revenueThisMonth,
-    recentInvoices,
+    recentSalesInvoices,
     lowStock,
   };
 }

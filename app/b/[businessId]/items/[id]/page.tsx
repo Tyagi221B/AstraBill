@@ -16,12 +16,12 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
-import type { ItemStockMovement } from "@/lib/db/schema";
+import type { StockMovement } from "@/lib/db/schema";
 import { getItem } from "@/lib/services/items";
 import {
   getCurrentStockForItem,
   listMovementsForItem,
-} from "@/lib/repositories/item-stock-movements";
+} from "@/lib/repositories/stock-movements";
 import { routes } from "@/lib/routes";
 import { requireUser } from "@/lib/session";
 import { AdjustStockModal } from "./AdjustStockModal";
@@ -29,7 +29,7 @@ import { DeleteItemButton } from "./DeleteItemButton";
 
 export const metadata: Metadata = { title: "Item · AstraBill" };
 
-const TXN_LABEL: Record<ItemStockMovement["txnType"], string> = {
+const TXN_LABEL: Record<StockMovement["txnType"], string> = {
   opening_stock: "Opening stock",
   sale: "Sale",
   purchase: "Purchase",

@@ -1,64 +1,63 @@
 /**
- * Public invoice view at `/i/[shareToken]` — what the customer sees when
+ * Public document view at `/i/[shareToken]` — what the customer sees when
  * they tap the WhatsApp button. Auth-free; the token IS the auth.
  *
- * Mobile-first: 90% of WhatsApped invoices open on phones. Compact card
- * layout, generous touch targets, a single primary CTA ("Download PDF").
- * The brand colour shows on a thin top stripe + the primary button, so
- * the customer sees a recognisably-branded invoice without overwhelm.
+ * Reads the new-domain `documents` row (PR2 demolition cut over from the
+ * legacy `invoices` table). Mobile-first: 90% of WhatsApped invoices open
+ * on phones. Compact card layout, generous touch targets, a single primary
+ * CTA ("Download PDF"). Brand colour shows on a thin top stripe + the
+ * primary button.
  *
- * Status badge is the only non-decorative ornament — it tells the customer
- * whether they still owe money at a glance.
- *
- * SEO: explicit `noindex, nofollow` per page so public invoices never make
- * it into search engines, regardless of what `robots.txt` does.
+ * SEO: explicit `noindex, nofollow` per page — public shares never make it
+ * into search engines, regardless of robots.txt.
  */
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { CSSProperties } from "react";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
-import type { Invoice } from "@/lib/db/schema";
-import { getPublicInvoiceView } from "@/lib/services/public-invoice";
+import { db } from "@/lib/db";
+import { partyAddresses, type Document } from "@/lib/db/schema";
+import { getPublicDocumentView } from "@/lib/services/public-document";
 import { buildUpiPayUrl, renderUpiQrSvg } from "@/lib/upi";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-const TYPE_LABEL: Record<Invoice["type"], string> = {
-  tax_invoice: "Tax Invoice",
+const TYPE_LABEL: Record<Document["docType"], string> = {
+  sales_invoice: "Tax Invoice",
   estimate: "Estimate",
-  cash_receipt: "Cash Receipt",
-  credit_note: "Credit Note",
-  debit_note: "Debit Note",
   delivery_challan: "Delivery Challan",
+  credit_note: "Credit Note",
+  purchase_invoice: "Purchase Invoice",
+  debit_note: "Debit Note",
+  quotation: "Quotation",
+  proforma_invoice: "Proforma Invoice",
 };
 
 const STATUS_TONE: Record<
-  Invoice["status"],
+  Document["status"],
   "neutral" | "info" | "success" | "warning" | "destructive"
 > = {
   draft: "neutral",
-  sent: "info",
-  seen: "info",
-  partially_paid: "warning",
+  unpaid: "info",
+  partial_paid: "warning",
   paid: "success",
-  overdue: "destructive",
+  cancelled: "destructive",
 };
 
-const STATUS_LABEL: Record<Invoice["status"], string> = {
+const STATUS_LABEL: Record<Document["status"], string> = {
   draft: "Draft",
-  sent: "Sent",
-  seen: "Viewed",
-  partially_paid: "Partially paid",
+  unpaid: "Unpaid",
+  partial_paid: "Partially paid",
   paid: "Paid",
-  overdue: "Overdue",
+  cancelled: "Cancelled",
 };
 
-/** Money: 2dp, Indian grouping. The customer-facing form. */
 const fmt = (n: string) =>
   `₹${Number(n).toLocaleString("en-IN", {
     minimumFractionDigits: 2,
@@ -69,37 +68,56 @@ function addressLines(parts: Array<string | null>): string[] {
   return parts.map((p) => p?.trim()).filter((p): p is string => !!p);
 }
 
+/**
+ * Fetch the party's default billing address (or first available). Inlined
+ * here as a small query rather than a repo helper — used by exactly one
+ * caller, the public page, and shape matches the rendered block 1:1.
+ */
+async function fetchBillingAddress(partyId: string): Promise<string[]> {
+  const rows = await db
+    .select()
+    .from(partyAddresses)
+    .where(and(eq(partyAddresses.partyId, partyId), isNull(partyAddresses.deletedAt)));
+  const billing =
+    rows.find((r) => r.kind === "billing" && r.isDefault) ??
+    rows.find((r) => r.kind === "billing") ??
+    rows[0] ??
+    null;
+  if (!billing) return [];
+  return addressLines([
+    billing.streetAddress,
+    [billing.city, billing.state, billing.pincode].filter(Boolean).join(", ") ||
+      null,
+  ]);
+}
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ shareToken: string }>;
 }): Promise<Metadata> {
   const { shareToken } = await params;
-  const view = await getPublicInvoiceView(shareToken);
-  // Always set noindex — these are private documents shared by link, not
-  // pages we want search engines to crawl.
+  const view = await getPublicDocumentView(shareToken);
   const base: Metadata = { robots: { index: false, follow: false } };
   if (!view) return { ...base, title: "Invoice not found · AstraBill" };
   return {
     ...base,
-    title: `Invoice ${view.invoice.number ?? "Draft"} · ${view.business.name}`,
-    description: `Invoice from ${view.business.name}`,
+    title: `${TYPE_LABEL[view.document.docType]} ${view.document.docNumber ?? "Draft"} · ${view.business.name}`,
+    description: `${TYPE_LABEL[view.document.docType]} from ${view.business.name}`,
   };
 }
 
-export default async function PublicInvoicePage({
+export default async function PublicDocumentPage({
   params,
 }: {
   params: Promise<{ shareToken: string }>;
 }) {
   const { shareToken } = await params;
-  const view = await getPublicInvoiceView(shareToken);
+  const view = await getPublicDocumentView(shareToken);
   if (!view) notFound();
 
-  const { invoice, business, customer } = view;
-  const taxClass =
-    Number(invoice.igstAmount) > 0 ? "interstate" : "intrastate";
-  const intrastate = taxClass === "intrastate";
+  const { document, lines, business, party } = view;
+  const intrastate = Number(document.igstAmount) === 0;
 
   const businessAddr = addressLines([
     business.addressLine1,
@@ -108,44 +126,37 @@ export default async function PublicInvoicePage({
       .filter(Boolean)
       .join(", ") || null,
   ]);
-  const customerAddr = customer
-    ? addressLines([
-        customer.addressLine1,
-        customer.addressLine2,
-        [customer.city, customer.state, customer.pincode]
-          .filter(Boolean)
-          .join(", ") || null,
-      ])
-    : [];
+  const partyAddr = party ? await fetchBillingAddress(party.id) : [];
 
   const showBreakdown =
-    Number(invoice.discountAmount) > 0 ||
-    invoice.extraCharges.some((c) => c.taxable);
+    Number(document.totalLineDiscount) > 0 ||
+    Number(document.additionalChargesTaxable) > 0;
 
   const brandStyle = {
     "--brand-accent": business.brandColor,
   } as CSSProperties;
 
-  // ---- UPI deep link (V1 payment mechanism) ------------------------------
+  // ---- UPI deep link ----------------------------------------------------
   // Render Pay button + QR when the business has set a VPA AND there's
-  // money still due. Drafts have no number and are intentionally hidden.
-  // `outstanding` = total − amount_paid, so a partially-paid invoice asks
-  // for the *remainder*, not the original total.
+  // money still due. Drafts/cancelled are intentionally hidden.
+  // `outstanding` = grand_total − amount_received.
   const outstanding = Math.max(
-    Number(invoice.total) - Number(invoice.amountPaid),
+    Number(document.grandTotal) - Number(document.amountReceived),
     0,
   ).toFixed(2);
   const payable =
     business.upiId &&
-    invoice.status !== "draft" &&
-    invoice.status !== "paid" &&
+    document.docType === "sales_invoice" &&
+    document.status !== "draft" &&
+    document.status !== "paid" &&
+    document.status !== "cancelled" &&
     Number(outstanding) > 0;
   const upiUrl = payable
     ? buildUpiPayUrl({
         vpa: business.upiId!,
         payeeName: business.name,
         amount: outstanding,
-        invoiceNumber: invoice.number,
+        invoiceNumber: document.docNumber,
       })
     : null;
   const upiQrSvg = upiUrl ? await renderUpiQrSvg(upiUrl) : null;
@@ -194,7 +205,7 @@ export default async function PublicInvoicePage({
           )}
         </header>
 
-        {/* ---- invoice card ---- */}
+        {/* ---- document card ---- */}
         <Card className="overflow-hidden">
           <div
             className="h-1.5"
@@ -204,10 +215,10 @@ export default async function PublicInvoicePage({
           <CardContent className="pt-5">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
               <div className="text-base font-semibold">
-                {TYPE_LABEL[invoice.type]}
+                {TYPE_LABEL[document.docType]}
               </div>
-              <Badge tone={STATUS_TONE[invoice.status]}>
-                {STATUS_LABEL[invoice.status]}
+              <Badge tone={STATUS_TONE[document.status]}>
+                {STATUS_LABEL[document.status]}
               </Badge>
             </div>
 
@@ -215,24 +226,24 @@ export default async function PublicInvoicePage({
             <dl className="mb-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
               <div>
                 <dt className="text-xs uppercase tracking-wider text-muted-foreground">
-                  Invoice no.
+                  Number
                 </dt>
                 <dd className="mt-0.5 font-mono">
-                  {invoice.number ?? "—"}
+                  {document.docNumber ?? "—"}
                 </dd>
               </div>
               <div>
                 <dt className="text-xs uppercase tracking-wider text-muted-foreground">
                   Date
                 </dt>
-                <dd className="mt-0.5 tabular-nums">{invoice.issueDate}</dd>
+                <dd className="mt-0.5 tabular-nums">{document.docDate}</dd>
               </div>
-              {invoice.dueDate && (
+              {document.dueDate && (
                 <div>
                   <dt className="text-xs uppercase tracking-wider text-muted-foreground">
                     Due
                   </dt>
-                  <dd className="mt-0.5 tabular-nums">{invoice.dueDate}</dd>
+                  <dd className="mt-0.5 tabular-nums">{document.dueDate}</dd>
                 </div>
               )}
             </dl>
@@ -242,22 +253,22 @@ export default async function PublicInvoicePage({
               <div className="text-xs uppercase tracking-wider text-muted-foreground">
                 Billed to
               </div>
-              {customer ? (
+              {party ? (
                 <div className="mt-1">
-                  <div className="font-semibold">{customer.name}</div>
-                  {customer.gstin && (
+                  <div className="font-semibold">{party.name}</div>
+                  {party.gstin && (
                     <div className="font-mono text-xs text-muted-foreground">
-                      GSTIN {customer.gstin}
+                      GSTIN {party.gstin}
                     </div>
                   )}
-                  {customerAddr.length > 0 && (
+                  {partyAddr.length > 0 && (
                     <div className="mt-0.5 text-sm whitespace-pre-line text-foreground/90">
-                      {customerAddr.join("\n")}
+                      {partyAddr.join("\n")}
                     </div>
                   )}
-                  {customer.phone && (
+                  {party.mobileNumber && (
                     <div className="text-sm text-muted-foreground">
-                      {customer.phone}
+                      {party.mobileNumber}
                     </div>
                   )}
                 </div>
@@ -280,30 +291,39 @@ export default async function PublicInvoicePage({
                   </tr>
                 </thead>
                 <tbody>
-                  {invoice.lineItems
-                    .slice()
-                    .sort((a, b) => a.sortOrder - b.sortOrder)
-                    .map((line) => (
-                      <tr key={line.id} className="border-b border-border">
-                        <td className="px-5 py-3 sm:px-3">
-                          <div className="font-medium">{line.description}</div>
-                          {line.hsnCode && (
-                            <div className="font-mono text-[11px] text-muted-foreground">
-                              HSN {line.hsnCode}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-3 py-3 text-right tabular-nums">
-                          {line.quantity} {line.unit}
-                        </td>
-                        <td className="px-3 py-3 text-right tabular-nums">
-                          {fmt(line.unitPrice)}
-                        </td>
-                        <td className="px-5 py-3 text-right font-medium tabular-nums sm:px-3">
-                          {fmt(line.amount)}
-                        </td>
-                      </tr>
-                    ))}
+                  {lines.map((line) => (
+                    <tr key={line.id} className="border-b border-border">
+                      <td className="px-5 py-3 sm:px-3">
+                        <div className="font-medium">
+                          {line.itemNameSnapshot}
+                        </div>
+                        {line.description && (
+                          <div className="text-xs text-muted-foreground">
+                            {line.description}
+                          </div>
+                        )}
+                        {line.hsnSacCodeSnapshot && (
+                          <div className="font-mono text-[11px] text-muted-foreground">
+                            HSN {line.hsnSacCodeSnapshot}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-right tabular-nums">
+                        {line.quantity}{" "}
+                        {line.unitCodeSnapshot && (
+                          <span className="text-muted-foreground">
+                            {line.unitCodeSnapshot}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-right tabular-nums">
+                        {fmt(line.pricePerUnit)}
+                      </td>
+                      <td className="px-5 py-3 text-right font-medium tabular-nums sm:px-3">
+                        {fmt(line.lineAmount)}
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -311,70 +331,68 @@ export default async function PublicInvoicePage({
             {/* totals */}
             <dl className="mb-5 ml-auto flex max-w-xs flex-col gap-1.5 text-sm tabular-nums">
               {showBreakdown && (
-                <Row label="Subtotal" value={fmt(invoice.subtotal)} />
+                <Row label="Subtotal" value={fmt(document.subtotal)} />
               )}
-              {Number(invoice.discountAmount) > 0 && (
+              {Number(document.totalLineDiscount) > 0 && (
                 <Row
                   label="Discount"
-                  value={`− ${fmt(invoice.discountAmount)}`}
+                  value={`− ${fmt(document.totalLineDiscount)}`}
                 />
               )}
-              <Row label="Taxable" value={fmt(invoice.taxableAmount)} />
+              <Row label="Taxable" value={fmt(document.taxableAmount)} />
               {intrastate ? (
                 <>
-                  <Row label="CGST" value={fmt(invoice.cgstAmount)} />
-                  <Row label="SGST" value={fmt(invoice.sgstAmount)} />
+                  <Row label="CGST" value={fmt(document.cgstAmount)} />
+                  <Row label="SGST" value={fmt(document.sgstAmount)} />
                 </>
               ) : (
-                <Row label="IGST" value={fmt(invoice.igstAmount)} />
+                <Row label="IGST" value={fmt(document.igstAmount)} />
               )}
-              {invoice.roundOff !== "0.00" && invoice.roundOff !== "0" && (
+              {document.roundOff !== "0.00" && document.roundOff !== "0" && (
                 <Row
                   label="Round-off"
-                  value={`${invoice.roundOff.startsWith("-") ? "−" : "+"} ${fmt(invoice.roundOff.replace(/^-/, ""))}`}
+                  value={`${document.roundOff.startsWith("-") ? "−" : "+"} ${fmt(document.roundOff.replace(/^-/, ""))}`}
                 />
               )}
               <div className="mt-1 flex justify-between border-t border-border pt-2 text-base font-bold">
                 <span>Total</span>
-                <span>{fmt(invoice.total)}</span>
+                <span>{fmt(document.grandTotal)}</span>
               </div>
-              {Number(invoice.amountPaid) > 0 && (
+              {Number(document.amountReceived) > 0 && (
                 <div className="mt-0.5 flex justify-between text-xs text-muted-foreground">
                   <span>Paid</span>
-                  <span>{fmt(invoice.amountPaid)}</span>
+                  <span>{fmt(document.amountReceived)}</span>
                 </div>
               )}
             </dl>
 
             {/* notes + terms */}
-            {(invoice.notes || business.invoiceTerms) && (
+            {(document.notes || document.termsConditions) && (
               <div className="mb-5 grid grid-cols-1 gap-4 border-t border-border pt-4 text-xs sm:grid-cols-2">
-                {invoice.notes && (
+                {document.notes && (
                   <div>
                     <div className="uppercase tracking-wider text-muted-foreground">
                       Notes
                     </div>
                     <div className="mt-1 whitespace-pre-wrap text-foreground/90">
-                      {invoice.notes}
+                      {document.notes}
                     </div>
                   </div>
                 )}
-                {business.invoiceTerms && (
+                {document.termsConditions && (
                   <div>
                     <div className="uppercase tracking-wider text-muted-foreground">
                       Terms &amp; conditions
                     </div>
                     <div className="mt-1 whitespace-pre-wrap text-foreground/90">
-                      {business.invoiceTerms}
+                      {document.termsConditions}
                     </div>
                   </div>
                 )}
               </div>
             )}
 
-            {/* UPI Pay button + QR — V1 payment mechanism. Hidden when
-                the business has no VPA, the invoice is a draft, or it's
-                already fully paid. See wiki/decision/upi-deep-links.md. */}
+            {/* UPI Pay button + QR */}
             {payable && upiUrl && upiQrSvg && (
               <div className="mb-3 rounded-xl border border-border bg-card p-4">
                 <a
@@ -391,9 +409,6 @@ export default async function PublicInvoicePage({
                   <div
                     aria-label="UPI payment QR code"
                     className="rounded-lg border border-border bg-white p-2"
-                    // Inline SVG, generated server-side from the same
-                    // upi:// URL the button targets. Safe — the SVG comes
-                    // from our own `qrcode` library, not user input.
                     dangerouslySetInnerHTML={{ __html: upiQrSvg }}
                   />
                   <p className="text-xs text-muted-foreground">

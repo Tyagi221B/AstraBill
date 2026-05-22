@@ -4,18 +4,26 @@
  * Defined separately from schema.ts so schema.ts stays focused on table shape
  * (the canonical source of truth for columns and types) and relations stay
  * focused on graph navigation.
+ *
+ * IMPORTANT — reads on `numeric`-bearing children: prefer flat `db.select()`
+ * plus a manual join over the relational `with:` API. Drizzle's relational
+ * reads JSON-aggregate nested rows, which coerces `numeric` columns to JS
+ * `number` — the money discipline forbids that. See database-and-rbac.md.
  */
 import { relations } from "drizzle-orm";
+
 import {
   accounts,
   auditLog,
   businessMembers,
   businesses,
-  customers,
-  invoiceLineItems,
-  invoices,
-  payments,
-  products,
+  documentAdditionalCharges,
+  documentLineItems,
+  documents,
+  parties,
+  partyAddresses,
+  paymentEntries,
+  paymentEntryAllocations,
   stockMovements,
   users,
   whatsappMessages,
@@ -24,8 +32,10 @@ import {
 export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
   memberships: many(businessMembers),
-  invoicesCreated: many(invoices, { relationName: "invoiceCreatedBy" }),
-  paymentsRecorded: many(payments, { relationName: "paymentCreatedBy" }),
+  documentsCreated: many(documents, { relationName: "documentCreatedBy" }),
+  paymentsRecorded: many(paymentEntries, {
+    relationName: "paymentEntryCreatedBy",
+  }),
   stockMovementsRecorded: many(stockMovements, {
     relationName: "stockMovementCreatedBy",
   }),
@@ -38,10 +48,9 @@ export const accountsRelations = relations(accounts, ({ one }) => ({
 
 export const businessesRelations = relations(businesses, ({ many }) => ({
   members: many(businessMembers),
-  customers: many(customers),
-  products: many(products),
-  invoices: many(invoices),
-  payments: many(payments),
+  parties: many(parties),
+  documents: many(documents),
+  paymentEntries: many(paymentEntries),
   whatsappMessages: many(whatsappMessages),
   stockMovements: many(stockMovements),
   auditEvents: many(auditLog),
@@ -61,83 +70,120 @@ export const businessMembersRelations = relations(
   }),
 );
 
-export const customersRelations = relations(customers, ({ one, many }) => ({
+export const partiesRelations = relations(parties, ({ one, many }) => ({
   business: one(businesses, {
-    fields: [customers.businessId],
+    fields: [parties.businessId],
     references: [businesses.id],
   }),
-  invoices: many(invoices),
+  addresses: many(partyAddresses),
+  documents: many(documents),
+  paymentEntries: many(paymentEntries),
 }));
 
-export const productsRelations = relations(products, ({ one, many }) => ({
+export const partyAddressesRelations = relations(partyAddresses, ({ one }) => ({
+  party: one(parties, {
+    fields: [partyAddresses.partyId],
+    references: [parties.id],
+  }),
   business: one(businesses, {
-    fields: [products.businessId],
+    fields: [partyAddresses.businessId],
     references: [businesses.id],
   }),
-  lineItems: many(invoiceLineItems),
-  stockMovements: many(stockMovements),
 }));
 
-export const invoicesRelations = relations(invoices, ({ one, many }) => ({
+export const documentsRelations = relations(documents, ({ one, many }) => ({
   business: one(businesses, {
-    fields: [invoices.businessId],
+    fields: [documents.businessId],
     references: [businesses.id],
   }),
-  customer: one(customers, {
-    fields: [invoices.customerId],
-    references: [customers.id],
+  party: one(parties, {
+    fields: [documents.partyId],
+    references: [parties.id],
   }),
-  // Credit/debit note → the invoice it adjusts.
-  originalInvoice: one(invoices, {
-    fields: [invoices.originalInvoiceId],
-    references: [invoices.id],
-    relationName: "invoiceAdjustments",
+  // Source doc → the doc this one was converted/derived from
+  // (quotation → invoice; invoice → credit note; etc).
+  sourceDoc: one(documents, {
+    fields: [documents.sourceDocId],
+    references: [documents.id],
+    relationName: "documentLineage",
   }),
-  adjustments: many(invoices, { relationName: "invoiceAdjustments" }),
+  derivedDocs: many(documents, { relationName: "documentLineage" }),
   createdByUser: one(users, {
-    fields: [invoices.createdBy],
+    fields: [documents.createdBy],
     references: [users.id],
-    relationName: "invoiceCreatedBy",
+    relationName: "documentCreatedBy",
   }),
-  lineItems: many(invoiceLineItems),
-  payments: many(payments),
+  lineItems: many(documentLineItems),
+  additionalCharges: many(documentAdditionalCharges),
+  allocations: many(paymentEntryAllocations),
   whatsappMessages: many(whatsappMessages),
-  stockMovements: many(stockMovements),
 }));
 
-export const invoiceLineItemsRelations = relations(
-  invoiceLineItems,
+export const documentLineItemsRelations = relations(
+  documentLineItems,
   ({ one }) => ({
-    invoice: one(invoices, {
-      fields: [invoiceLineItems.invoiceId],
-      references: [invoices.id],
-    }),
-    product: one(products, {
-      fields: [invoiceLineItems.productId],
-      references: [products.id],
+    document: one(documents, {
+      fields: [documentLineItems.documentId],
+      references: [documents.id],
     }),
     business: one(businesses, {
-      fields: [invoiceLineItems.businessId],
+      fields: [documentLineItems.businessId],
       references: [businesses.id],
     }),
   }),
 );
 
-export const paymentsRelations = relations(payments, ({ one }) => ({
-  invoice: one(invoices, {
-    fields: [payments.invoiceId],
-    references: [invoices.id],
+export const documentAdditionalChargesRelations = relations(
+  documentAdditionalCharges,
+  ({ one }) => ({
+    document: one(documents, {
+      fields: [documentAdditionalCharges.documentId],
+      references: [documents.id],
+    }),
+    business: one(businesses, {
+      fields: [documentAdditionalCharges.businessId],
+      references: [businesses.id],
+    }),
   }),
-  business: one(businesses, {
-    fields: [payments.businessId],
-    references: [businesses.id],
+);
+
+export const paymentEntriesRelations = relations(
+  paymentEntries,
+  ({ one, many }) => ({
+    business: one(businesses, {
+      fields: [paymentEntries.businessId],
+      references: [businesses.id],
+    }),
+    party: one(parties, {
+      fields: [paymentEntries.partyId],
+      references: [parties.id],
+    }),
+    allocations: many(paymentEntryAllocations),
+    createdByUser: one(users, {
+      fields: [paymentEntries.createdBy],
+      references: [users.id],
+      relationName: "paymentEntryCreatedBy",
+    }),
   }),
-  createdByUser: one(users, {
-    fields: [payments.createdBy],
-    references: [users.id],
-    relationName: "paymentCreatedBy",
+);
+
+export const paymentEntryAllocationsRelations = relations(
+  paymentEntryAllocations,
+  ({ one }) => ({
+    paymentEntry: one(paymentEntries, {
+      fields: [paymentEntryAllocations.paymentEntryId],
+      references: [paymentEntries.id],
+    }),
+    document: one(documents, {
+      fields: [paymentEntryAllocations.documentId],
+      references: [documents.id],
+    }),
+    business: one(businesses, {
+      fields: [paymentEntryAllocations.businessId],
+      references: [businesses.id],
+    }),
   }),
-}));
+);
 
 export const whatsappMessagesRelations = relations(
   whatsappMessages,
@@ -146,9 +192,9 @@ export const whatsappMessagesRelations = relations(
       fields: [whatsappMessages.businessId],
       references: [businesses.id],
     }),
-    invoice: one(invoices, {
-      fields: [whatsappMessages.invoiceId],
-      references: [invoices.id],
+    document: one(documents, {
+      fields: [whatsappMessages.documentId],
+      references: [documents.id],
     }),
   }),
 );
@@ -157,14 +203,6 @@ export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
   business: one(businesses, {
     fields: [stockMovements.businessId],
     references: [businesses.id],
-  }),
-  product: one(products, {
-    fields: [stockMovements.productId],
-    references: [products.id],
-  }),
-  invoice: one(invoices, {
-    fields: [stockMovements.invoiceId],
-    references: [invoices.id],
   }),
   createdByUser: one(users, {
     fields: [stockMovements.createdBy],

@@ -19,6 +19,8 @@ import { findPartyById } from "@/lib/repositories/parties";
 import { listPaymentEntriesForDocument } from "@/lib/repositories/payment-entries";
 import { getDocumentDetail } from "@/lib/services/documents";
 import { listMoneyAccountsForUser } from "@/lib/services/money-accounts";
+import { listDocumentWhatsAppSends } from "@/lib/services/whatsapp-send";
+import { getMembership, roleHas } from "@/lib/rbac";
 import { routes } from "@/lib/routes";
 import { requireUser } from "@/lib/session";
 import { CancelPaymentButton } from "./CancelPaymentButton";
@@ -28,6 +30,7 @@ import {
   DeleteDraftButton,
   FinaliseButton,
 } from "./SalesInvoiceActions";
+import { WhatsAppPanel } from "./WhatsAppPanel";
 
 export const metadata: Metadata = { title: "Sales invoice · AstraBill" };
 
@@ -67,10 +70,24 @@ export default async function SalesInvoiceDetailPage({
     .toFixed(2);
   const canRecordPayment =
     !isDraft && !isCancelled && new Decimal(balance).gt(0);
-  const [paymentHistory, moneyAccounts] = await Promise.all([
-    listPaymentEntriesForDocument(document.id),
-    listMoneyAccountsForUser({ userId: user.id, businessId }),
-  ]);
+  const [paymentHistory, moneyAccounts, sendsRaw, membership] =
+    await Promise.all([
+      listPaymentEntriesForDocument(document.id),
+      listMoneyAccountsForUser({ userId: user.id, businessId }),
+      isDraft ? Promise.resolve([]) : listDocumentWhatsAppSends(document.id, user.id),
+      getMembership(user.id, businessId),
+    ]);
+  const sends = sendsRaw.map((s) => ({
+    id: s.id,
+    status: s.status,
+    toPhone: s.toPhone,
+    sentAt: s.sentAt?.toISOString() ?? null,
+    createdAt: s.createdAt.toISOString(),
+    errorMessage: s.errorMessage,
+  }));
+  const canSendWhatsApp = membership
+    ? roleHas(membership.role, "whatsapp:send")
+    : false;
 
   return (
     <>
@@ -121,6 +138,16 @@ export default async function SalesInvoiceDetailPage({
                 defaultDate={document.docDate}
                 moneyAccounts={moneyAccounts}
               />
+            )}
+            {!isDraft && (
+              <Link
+                href={`/api/documents/${document.id}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonClasses("outline", "sm")}
+              >
+                Download PDF
+              </Link>
             )}
             {!isDraft && !isCancelled && (
               <CancelInvoiceButton documentId={document.id} />
@@ -424,6 +451,18 @@ export default async function SalesInvoiceDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {!isDraft && (
+        <div className="mt-5">
+          <WhatsAppPanel
+            documentId={document.id}
+            partyPhone={party?.mobileNumber ?? null}
+            partyName={party?.name ?? null}
+            canSend={canSendWhatsApp}
+            sends={sends}
+          />
+        </div>
+      )}
     </>
   );
 }
