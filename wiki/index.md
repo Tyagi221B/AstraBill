@@ -13,14 +13,14 @@
 | [decision/upi-deep-links.md](decision/upi-deep-links.md) | decision | **V1 payments** — UPI deep links to the shop's own VPA; manual reconciliation via existing `Record payment` flow. No gateway, no webhook, no provider abstraction. |
 | [decision/payment-gateway.md](decision/payment-gateway.md) | decision | _(Superseded for V1)_ Razorpay reasoning, kept as background for the V1.x reintroduction. |
 | [decision/onboarding-flow.md](decision/onboarding-flow.md) | decision | No signup first → phone OTP → paid. Feature gating at service layer. |
-| [decision/drafts-and-multi-device.md](decision/drafts-and-multi-device.md) | decision | Drafts = `invoices.status='draft'` rows; localStorage only for the pre-auth window. Multi-device + AI features fall out for free. |
+| [decision/drafts-and-multi-device.md](decision/drafts-and-multi-device.md) | decision | Drafts = `documents.status='draft'` rows; localStorage only for the pre-auth window. Multi-device + AI features fall out for free. |
 | [decision/pdf-generation.md](decision/pdf-generation.md) | decision | Dedicated PDF microservice with Puppeteer. Not serverless. Maximum control. |
 | [decision/whatsapp-meta-api.md](decision/whatsapp-meta-api.md) | decision | Use existing Opryon Labs WABA. Same creds for testing, new phone number for prod. |
 | [decision/infrastructure.md](decision/infrastructure.md) | decision | Vercel (Next.js) + Digital Ocean (PDF + cron worker) + Supabase + Razorpay |
 | [decision/database-and-rbac.md](decision/database-and-rbac.md) | decision | PostgreSQL + Drizzle ORM. Multi-business from day 1. RBAC in TypeScript not SQL. |
 | [decision/auth-strategy.md](decision/auth-strategy.md) | decision | NextAuth v5 + JWT sessions. Two equal entry doors: Google OAuth + WhatsApp OTP. Never Supabase Auth. |
 | [decision/code-architecture.md](decision/code-architecture.md) | decision | LLD: thin routes → service → repo → DB. Interfaces for externals. Typed errors. |
-| [decision/v1-scope.md](decision/v1-scope.md) | decision | V1: GST invoice + PDF + WhatsApp + Udhaar + Inventory. English only. No shortcuts. |
+| [decision/v1-scope.md](decision/v1-scope.md) | decision | **SUPERSEDED** by `decision/full-ledger-pivot`. Kept as historical context (the original billing-loop framing) + the WhatsApp sender-identity rationale that carries forward. |
 | [decision/phase-2-plan.md](decision/phase-2-plan.md) | decision | 2A + 2C + 2D (white-label shell, all 4 steps) + payment recording + udhaar all shipped; 2B (WhatsApp hero loop) next once Meta + Razorpay verifications clear. |
 | [decision/full-ledger-pivot.md](decision/full-ledger-pivot.md) | decision | **(2026-05-21)** AstraBill = full GST books, not billing loop. Parties (cust+supp), Sales+Purchases, Ledger, ITC. Supersedes `decision/v1-scope`. |
 | [decision/frontend-architecture.md](decision/frontend-architecture.md) | decision | Tailwind v4 + CSS-variable theming (light/dark via next-themes); marketing site as a route group; shadcn adopted in F3. |

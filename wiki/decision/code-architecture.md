@@ -1,6 +1,6 @@
 ---
 type: decision
-updated: 2026-05-17
+updated: 2026-05-22
 sources: 0
 ---
 
@@ -14,95 +14,94 @@ Every layer has one job. Nothing bleeds into another layer.
 
 ## Folder Structure
 
+Reflects the post-PR2 full-ledger domain. AstraBill flattens the `server/`
+split — services + repositories sit directly under `lib/`, which Next.js
+keeps server-only as long as nothing in those paths runs on the client.
+
 ```
-src/
-├── app/                          # Next.js 16 App Router
-│   ├── (auth)/                   # Login, OTP pages
-│   ├── (dashboard)/              # App: invoices, customers, reports
-│   │   ├── layout.tsx            # Dashboard shell, sidebar
-│   │   ├── invoices/
-│   │   ├── customers/
-│   │   ├── udhaar/               # Credit/payment tracking
-│   │   └── reports/
-│   └── api/                      # API routes — THIN layer only
-│       ├── invoices/
-│       │   ├── route.ts          # GET (list), POST (create)
-│       │   └── [id]/
-│       │       └── route.ts      # GET, PATCH, DELETE
-│       ├── customers/
-│       ├── auth/
-│       │   └── otp/
-│       │       ├── send/route.ts
-│       │       └── verify/route.ts
-│       └── webhooks/
-│           ├── razorpay/route.ts
-│           └── whatsapp/route.ts
-│
-├── server/                       # Server-only — never imported on client
-│   ├── services/                 # Business logic lives here
-│   │   ├── invoice.service.ts
-│   │   ├── customer.service.ts
-│   │   ├── udhaar.service.ts
-│   │   ├── pdf.service.ts        # Calls DO PDF microservice
-│   │   ├── whatsapp.service.ts   # Queues WhatsApp jobs
-│   │   └── auth.service.ts       # OTP generation + verification
-│   │
-│   ├── repositories/             # All DB queries live here
-│   │   ├── invoice.repo.ts
-│   │   ├── customer.repo.ts
-│   │   ├── business.repo.ts
-│   │   └── udhaar.repo.ts
-│   │
-│   ├── providers/                # External integrations — interface-driven
-│   │   ├── payment/
-│   │   │   ├── payment.interface.ts   # IPaymentProvider
-│   │   │   ├── razorpay.provider.ts
-│   │   │   └── index.ts               # export active provider
-│   │   ├── whatsapp/
-│   │   │   ├── whatsapp.interface.ts  # IWhatsAppProvider
-│   │   │   ├── meta.provider.ts
-│   │   │   └── index.ts
-│   │   └── storage/
-│   │       ├── storage.interface.ts   # IStorageProvider
-│   │       └── supabase.provider.ts
-│   │
-│   ├── rbac/
-│   │   ├── permissions.ts        # PERMISSIONS map: role → string[]
-│   │   └── require-permission.ts # requirePermission(userId, businessId, perm)
-│   │
-│   ├── db/
-│   │   ├── schema/
-│   │   │   ├── businesses.ts
-│   │   │   ├── users.ts
-│   │   │   ├── invoices.ts
-│   │   │   ├── invoice-line-items.ts
-│   │   │   ├── customers.ts
-│   │   │   ├── products.ts
-│   │   │   ├── udhaar.ts
-│   │   │   └── index.ts          # re-export all tables
-│   │   └── index.ts              # drizzle client singleton
-│   │
-│   └── queue/
-│       ├── queues.ts             # BullMQ queue definitions
-│       └── workers/
-│           ├── whatsapp.worker.ts
-│           └── pdf.worker.ts
-│
-├── lib/                          # Shared, safe to import anywhere
-│   ├── errors.ts                 # AppError, NotFoundError, ForbiddenError, etc.
-│   ├── validations/              # Zod schemas — single source of truth for types
-│   │   ├── invoice.schema.ts
-│   │   └── customer.schema.ts
-│   └── constants.ts
-│
-└── components/
-    ├── ui/                       # shadcn/ui base (button, input, etc.)
-    └── features/                 # Feature components, colocated with feature
-        ├── invoices/
-        │   ├── invoice-form.tsx
-        │   └── invoice-table.tsx
-        └── udhaar/
-            └── udhaar-tracker.tsx
+app/                                  # Next.js 16 App Router
+├── (marketing)/                       # Marketing site (own layout chrome)
+├── sign-in/                           # Auth entry
+├── onboarding/                        # Post-auth business-creation wizard
+├── b/[businessId]/                    # Every authed business-scoped page
+│   ├── layout.tsx                     # Membership resolution (one place)
+│   ├── dashboard/
+│   ├── parties/                       # Customers + suppliers, one table
+│   ├── items/                         # Products + services, one table
+│   ├── cash-and-bank/                 # Money accounts
+│   ├── sales/                         # sales_invoice · quotation · credit_note
+│   ├── purchases/                     # purchase_invoice · debit_note
+│   ├── reports/                       # Sales/Purchase Register, GSTR-1, etc.
+│   └── settings/
+├── i/[shareToken]/                    # Public, auth-free document view
+└── api/                               # API routes — THIN layer only
+    ├── auth/                          # NextAuth callbacks + OTP
+    ├── businesses/
+    ├── parties/
+    ├── items/
+    ├── documents/                     # All 8 doc types share routes
+    │   ├── route.ts                   # POST (create draft)
+    │   └── [id]/
+    │       ├── route.ts               # GET / PATCH (edit) / DELETE
+    │       ├── pdf/route.ts           # Authed PDF render
+    │       └── send-whatsapp/route.ts # Meta send
+    ├── payment-entries/
+    ├── money-accounts/
+    ├── document-counters/
+    ├── item-categories/
+    ├── item-units/
+    ├── uploads/                       # Cloudinary signature endpoint
+    ├── reports/
+    ├── otp/
+    └── i/[shareToken]/pdf/route.ts    # Public PDF (token IS the auth)
+
+lib/                                   # Server-side business code + shared utils
+├── db/
+│   ├── schema.ts                      # All tables in one file (Drizzle)
+│   └── relations.ts                   # Drizzle relations (no `with:` on numerics)
+├── repositories/                      # DB queries — every query scoped by businessId
+│   ├── businesses.ts
+│   ├── parties.ts
+│   ├── items.ts
+│   ├── documents.ts
+│   ├── payment-entries.ts
+│   ├── money-accounts.ts
+│   ├── ledger-entries.ts
+│   ├── stock-movements.ts
+│   ├── document-counters.ts
+│   ├── item-categories.ts
+│   ├── item-units.ts
+│   └── whatsapp-messages.ts
+├── services/                          # Orchestration + RBAC + side effects
+│   ├── documents.ts
+│   ├── parties.ts
+│   ├── items.ts
+│   ├── payment-entries.ts
+│   ├── document-pdf.ts                # Builds RenderRequest, calls PDF service
+│   ├── public-document.ts             # Token-auth read path
+│   ├── whatsapp-send.ts               # Meta Cloud API binding
+│   ├── dashboard.ts
+│   ├── reports.ts
+│   └── businesses.ts
+├── schemas/                           # Zod schemas — input validation at API edge
+│   ├── party.ts
+│   ├── item.ts
+│   ├── document.ts
+│   └── payment-entry.ts
+├── pdf/                               # PDF render contract (mirrored in pdf-service/)
+│   ├── contract.ts                    # RenderRequest / RenderResponse types
+│   └── fixtures.ts
+├── rbac.ts                            # PERMISSIONS map + requirePermission()
+├── routes.ts                          # SSOT for URL structure (routes.b(id).…)
+├── errors.ts                          # AppError, NotFoundError, ForbiddenError, …
+├── session.ts                         # NextAuth session helper
+└── gst.ts                             # GST math (pure, testable)
+
+components/
+├── ui/                                # shadcn/ui primitives
+├── app/                               # In-app chrome (Sidebar, MobileNav, …)
+├── marketing/                         # Marketing-site chrome
+└── theme/                             # next-themes provider
 ```
 
 ## The Layering Rule (Strict)
@@ -119,81 +118,77 @@ API Route → Service → Repository → DB
 - **Repositories**: all DB queries. No business logic. Returns domain objects.
 - **Providers**: external services behind interfaces. Never called directly from services — always via the interface.
 
-## How a Request Flows (Invoice Creation Example)
+## How a Request Flows (Document Creation Example)
+
+A sales-invoice create is the canonical authed write path. Same shape applies
+to every doc type (estimate, credit_note, purchase_invoice, debit_note,
+quotation, proforma_invoice, delivery_challan).
 
 ```typescript
 // 1. API Route — thin
-// app/api/invoices/route.ts
+// app/api/documents/route.ts
 export async function POST(req: Request) {
-  const session = await auth()
-  if (!session) return new Response('Unauthorized', { status: 401 })
-
-  const body = CreateInvoiceSchema.parse(await req.json())  // throws ZodError if invalid
-  const invoice = await invoiceService.create(session.user.id, body)
-  return Response.json(invoice, { status: 201 })
+  const user = await requireUser()                          // NextAuth + 401 if absent
+  const body = CreateDocumentSchema.parse(await req.json()) // Zod boundary
+  const doc = await documentService.createDraft(user.id, body)
+  return Response.json(doc, { status: 201 })
 }
 
 // 2. Service — business logic
-// server/services/invoice.service.ts
-class InvoiceService {
-  async create(userId: string, dto: CreateInvoiceDTO) {
-    // RBAC first — always
-    await requirePermission(userId, dto.businessId, 'invoice:create')
+// lib/services/documents.ts
+export async function createDraft(userId: string, input: CreateDocumentInput) {
+  // RBAC + tenant isolation first
+  await requirePermission(userId, input.businessId, 'document:create')
 
-    // Business logic
-    const number = await this.generateInvoiceNumber(dto.businessId)
-    const totals = this.calculateTotals(dto.lineItems)
+  // Per-line GST math runs through gst.ts (pure, testable, money-as-string)
+  const totals = computeDocumentTotals(input.lines, input.charges)
 
-    // Persist via repo (not direct DB)
-    const invoice = await invoiceRepo.create({ ...dto, number, ...totals })
-
-    // Side effects — queued, not blocking
-    await whatsappService.queueInvoiceReady(invoice.id)  // if auto-send enabled
-    await pdfService.queueGeneration(invoice.id)
-
-    return invoice
-  }
-
-  private calculateTotals(lineItems: LineItemDTO[]) {
-    // Pure function — testable without DB
-    const subtotal = lineItems.reduce((sum, item) =>
-      sum + (item.quantity * item.unitPrice), 0
-    )
-    const taxAmount = lineItems.reduce((sum, item) =>
-      sum + (item.quantity * item.unitPrice * item.gstRate / 100), 0
-    )
-    return { subtotal, taxAmount, total: subtotal + taxAmount }
-  }
-}
-export const invoiceService = new InvoiceService()
-
-// 3. Repository — only DB queries
-// server/repositories/invoice.repo.ts
-class InvoiceRepository {
-  async create(data: InsertInvoice) {
-    const [invoice] = await db.insert(invoices).values(data).returning()
-    return invoice
-  }
-
-  async findById(id: string, businessId: string) {
-    return db.query.invoices.findFirst({
-      where: and(eq(invoices.id, id), eq(invoices.businessId, businessId)),
-      with: { lineItems: true, customer: true }
+  // Persist in one transaction — doc + lines + charges
+  return db.transaction(async (tx) => {
+    const doc = await insertDocumentTx(tx, {
+      ...input,
+      ...totals,
+      status: 'draft',           // numbering happens at finalise, not create
+      number: null,
     })
-  }
+    await insertDocumentLinesTx(tx, doc.id, input.lines)
+    await insertDocumentChargesTx(tx, doc.id, input.charges)
+    return doc
+  })
 }
-export const invoiceRepo = new InvoiceRepository()
 
-// 4. Provider — swappable interface
-// server/providers/payment/payment.interface.ts
-export interface IPaymentProvider {
-  createPaymentLink(invoice: Invoice): Promise<{ url: string; id: string }>
-  createVirtualUPI(ref: string): Promise<{ upiId: string }>
-  handleWebhook(payload: unknown): Promise<PaymentEvent>
+// Finalise is a separate service call: it assigns the FY-aware sequence
+// number (FOR UPDATE on document_counters), stamps share_token, flips
+// status draft → unpaid, and posts the ledger leg. See documents.ts.
+
+// 3. Repository — only DB queries, every query scopes by businessId
+// lib/repositories/documents.ts
+export async function getDocumentForUser(
+  userId: string,
+  documentId: string,
+): Promise<Document | null> {
+  // Membership check happens once in the service layer; the repo enforces
+  // tenant scoping defensively. Flat select() — no `with:` on numeric children.
+  const [doc] = await db
+    .select()
+    .from(documents)
+    .innerJoin(businessMembers, eq(businessMembers.businessId, documents.businessId))
+    .where(and(
+      eq(documents.id, documentId),
+      eq(businessMembers.userId, userId),
+      isNull(businessMembers.deletedAt),
+    ))
+  return doc ?? null
 }
-// server/providers/payment/index.ts
-export const paymentProvider: IPaymentProvider = new RazorpayProvider()
-// Tomorrow if we switch to Cashfree: change this one line.
+
+// 4. Provider boundary — only where one exists
+// V1 has no IPaymentProvider (UPI deep links are stateless, no gateway).
+// V1 has no IWhatsAppProvider interface yet either; the Meta Cloud API
+// binding lives in lib/services/whatsapp-send.ts. The interface gets
+// introduced when a second WhatsApp provider arrives, not before.
+//
+// PDF rendering goes over HTTP to the DO microservice — see lib/pdf/contract.ts
+// for the RenderRequest shape (mirrored in pdf-service/src/contract.ts).
 ```
 
 ## Error Handling — Typed Errors

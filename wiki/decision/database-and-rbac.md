@@ -1,6 +1,6 @@
 ---
 type: decision
-updated: 2026-05-17
+updated: 2026-05-22
 sources: 0
 ---
 
@@ -78,53 +78,76 @@ trigger (triggers are a "Never" — logic stays in TypeScript), and not
 fire-and-forget (an audit trail with silent gaps is worse than none). The table is
 append-only: nothing ever updates or deletes an `audit_log` row.
 
-### Soft delete
+### Soft delete + cancellation
 
-Business data is never hard-deleted. Mutable tables carry `deleted_at timestamptz`;
-the repository layer filters `deleted_at IS NULL` by default. This preserves history
-and keeps the audit trail's entity references valid.
+Business data is never hard-deleted. The cancellation matrix differs by
+entity (see `DECISIONS.md` → "Cancellation matrix"):
 
-"Delete" composes with the GST immutability rule: a *draft* invoice can be
-soft-deleted; a *finalized* invoice never can — corrections go through a credit
-note. Removing a teammate is a soft delete of their `business_members` row, not the
-shared `users` account.
+- **Parties / items / categories / money accounts:** soft delete via
+  `deleted_at timestamptz`; the repository layer filters `deleted_at IS NULL`
+  by default.
+- **Documents (draft):** hard delete is OK — no number assigned, no ledger
+  posted, nothing downstream depends on the row.
+- **Documents (finalised):** never deleted; status flips to `cancelled` and
+  the ledger rows for that doc get reversed. The doc + its number stay
+  visible in the audit and the GSTR-1 register.
+- **Payment entries (finalised):** never deleted; status flips to
+  `cancelled` and the two-leg ledger gets reversed.
 
-**RBAC in TypeScript** (where it belongs):
+A teammate is removed by soft-deleting their `business_members` row, not
+the shared `users` account.
+
+**RBAC in TypeScript** (the actual `lib/rbac.ts` shape):
 ```typescript
-// lib/rbac.ts — your single source of truth for permissions
+// lib/rbac.ts — single source of truth for permissions
 const PERMISSIONS = {
-  owner:       ['invoice:create', 'invoice:delete', 'report:view_profit', 'user:invite', 'settings:edit'],
-  admin:       ['invoice:create', 'invoice:delete', 'report:view_profit', 'user:invite'],
-  accountant:  ['invoice:create', 'report:view_profit', 'report:gst'],
-  salesman:    ['invoice:create', 'customer:view'],   // NO profit visibility
-  viewer:      ['invoice:view', 'customer:view'],
+  owner:      ['party:*', 'item:*', 'document:*', 'payment:*',
+               'money-account:*', 'report:*', 'settings:edit', 'user:invite'],
+  admin:      ['party:*', 'item:*', 'document:*', 'payment:*',
+               'money-account:*', 'report:*', 'user:invite'],
+  accountant: ['party:read', 'item:read', 'document:*', 'payment:*',
+               'money-account:*', 'report:*'],
+  salesman:   ['party:read', 'party:create', 'item:read',
+               'document:create', 'document:read', 'whatsapp:send'],
+  viewer:     ['party:read', 'item:read', 'document:read', 'report:read'],
 } as const
 
 export async function requirePermission(
   userId: string,
   businessId: string,
-  permission: Permission
+  permission: Permission,
 ) {
   const member = await db.query.businessMembers.findFirst({
     where: and(
       eq(businessMembers.userId, userId),
-      eq(businessMembers.businessId, businessId)
-    )
+      eq(businessMembers.businessId, businessId),
+      isNull(businessMembers.deletedAt),
+    ),
   })
-  if (!member || !PERMISSIONS[member.role].includes(permission)) {
+  if (!member || !roleHas(member.role, permission)) {
     throw new ForbiddenError()
   }
 }
 
-// Usage in any API route:
-export async function POST(req: Request) {
-  const session = await getServerSession()
-  await requirePermission(session.user.id, businessId, 'invoice:create')
+// Usage in any service:
+export async function createDraft(userId: string, input: CreateDocumentInput) {
+  await requirePermission(userId, input.businessId, 'document:create')
   // ... rest of handler
 }
 ```
 
-This is readable, testable, changeable. When you want to give salesmen profit visibility (a product decision), you change one line in `PERMISSIONS`. Not a SQL migration.
+The actual permission catalog (`document:create`, `payment:record`,
+`whatsapp:send`, …) lives in [lib/rbac.ts](../../lib/rbac.ts) and is the
+SSOT — this snippet is illustrative.
+
+The salesman line is the litmus test we like to call out:
+[[competitor/vyapar]] famously gives sales staff access to margin data;
+AstraBill draws the line at internal financial data, while keeping
+*customer-facing* actions (`whatsapp:send`) in scope.
+
+This is readable, testable, changeable. When the policy shifts (e.g.
+giving salesmen receivables-ageing read access), you change one row in
+`PERMISSIONS`. Not a SQL migration.
 
 ---
 
@@ -137,32 +160,43 @@ Your MongoDB intuition comes from two real things:
 Both of those things now exist in PostgreSQL with **Drizzle ORM**. Here's what it looks like:
 
 ```typescript
-// drizzle/schema.ts — this IS your schema, in TypeScript
-import { pgTable, uuid, text, numeric, timestamp, pgEnum } from 'drizzle-orm/pg-core'
+// lib/db/schema.ts — this IS your schema, in TypeScript
+import { pgTable, uuid, text, numeric, timestamp, date, pgEnum } from 'drizzle-orm/pg-core'
 
-export const invoiceStatus = pgEnum('invoice_status', ['draft', 'sent', 'paid', 'overdue'])
+// One table for all 8 document types, discriminated by docType.
+export const docType = pgEnum('doc_type', [
+  'sales_invoice', 'estimate', 'delivery_challan',
+  'credit_note', 'purchase_invoice', 'debit_note',
+  'quotation', 'proforma_invoice',
+])
+export const docStatus = pgEnum('doc_status', [
+  'draft', 'unpaid', 'partial_paid', 'paid', 'cancelled',
+])
 
-export const invoices = pgTable('invoices', {
-  id:          uuid('id').defaultRandom().primaryKey(),
-  businessId:  uuid('business_id').notNull().references(() => businesses.id, { onDelete: 'cascade' }),
-  customerId:  uuid('customer_id').references(() => customers.id),
-  number:      text('number'),  // null until finalise — see DECISIONS.md
-  status:      invoiceStatus('status').default('draft'),
-  subtotal:    numeric('subtotal', { precision: 12, scale: 2 }).notNull(),
-  taxAmount:   numeric('tax_amount', { precision: 12, scale: 2 }).notNull(),
-  total:       numeric('total', { precision: 12, scale: 2 }).notNull(),
-  notes:       text('notes'),
-  dueDate:     timestamp('due_date'),
-  paidAt:      timestamp('paid_at'),
-  createdAt:   timestamp('created_at').defaultNow().notNull(),
+export const documents = pgTable('documents', {
+  id:             uuid('id').defaultRandom().primaryKey(),
+  businessId:     uuid('business_id').notNull().references(() => businesses.id, { onDelete: 'cascade' }),
+  partyId:        uuid('party_id').references(() => parties.id),
+  docType:        docType('doc_type').notNull(),
+  number:         text('number'),                 // null until finalise — see DECISIONS.md
+  status:         docStatus('status').notNull().default('draft'),
+  shareToken:     text('share_token').unique(),   // stamped at finalise
+  subtotal:       numeric('subtotal',       { precision: 12, scale: 2 }).notNull(),
+  totalTax:       numeric('total_tax',      { precision: 12, scale: 2 }).notNull(),
+  grandTotal:     numeric('grand_total',    { precision: 12, scale: 2 }).notNull(),
+  amountReceived: numeric('amount_received',{ precision: 12, scale: 2 }).notNull().default('0'),
+  docDate:        date('doc_date').notNull(),     // FY derives from this — backdating is honest
+  dueDate:        date('due_date'),
+  sourceDocId:    uuid('source_doc_id'),          // lineage: quotation → invoice, invoice → credit note
+  createdAt:      timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
 // Querying a single table — flat select, types flow through automatically
-const [invoice] = await db
+const [doc] = await db
   .select()
-  .from(invoices)
-  .where(eq(invoices.id, invoiceId))
-// invoice is fully typed. No `any`.
+  .from(documents)
+  .where(and(eq(documents.id, documentId), eq(documents.businessId, businessId)))
+// doc is fully typed; amountReceived is `string`, not `number` (NUMERIC discipline).
 ```
 
 That's not scary. That's more structured than MongoDB and equally readable.
@@ -183,8 +217,9 @@ the hard way during the invoice-edit build (2026-05-18).
 
 **The rule:** for any read that joins a `numeric`-bearing table, use flat
 `db.select()` queries and stitch rows together in JS. The repository layer
-does exactly this for invoices + line items. Plain `db.query.X.findFirst()`
-*without* `with:` is fine — only the JSON-aggregated nested path is the trap.
+does exactly this for documents + their line items + charges + payments.
+Plain `db.query.X.findFirst()` *without* `with:` is fine — only the
+JSON-aggregated nested path is the trap.
 
 **Why PostgreSQL over MongoDB for billing software:**
 

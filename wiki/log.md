@@ -4,6 +4,82 @@ Append-only. Format: `## [YYYY-MM-DD] <operation> | <title>`
 
 ---
 
+## [2026-05-22] lint | PR3c — wiki SSOT cleanup after PR2 demolition
+
+Full post-demolition audit surfaced eight stale references that
+escaped Step 11. None broke the build; all violated the "decision
+pages explain *why*, DECISIONS.md owns the *what*" SSOT rule.
+
+**Pages rewritten / corrected**:
+- **wiki/decision/v1-scope.md** — converted to a SUPERSEDED stub.
+  Strips the old 12-table schema (which still listed `customers` /
+  `products` / `invoices` / `invoice_line_items` / `payments` /
+  legacy `stock_movements`), preserves the WhatsApp-sender-identity
+  rationale that still carries forward, and points readers at
+  `decision/full-ledger-pivot` + `DECISIONS.md`.
+- **wiki/decision/code-architecture.md** — folder structure rewritten
+  to match the actual post-PR2 layout (`app/b/[businessId]/{parties,items,sales,purchases,…}`,
+  `lib/{repositories,services,schemas}/…`, no more `server/` split, no more
+  legacy `IPaymentProvider` example since V1 has no gateway). Request-flow
+  example rewritten as `createDraft(documentId, …)` on `lib/services/documents.ts`.
+- **wiki/decision/database-and-rbac.md** — Drizzle schema example uses
+  `documents` table + `docType` / `docStatus` enums (was `invoices` +
+  `invoiceStatus`). PERMISSIONS map example shows the real `party:* / item:* /
+  document:* / payment:* / money-account:* / report:*` ladder (was the legacy
+  `invoice:create / customer:view / …` set). Soft-delete section reworded to
+  match the cancellation-matrix in DECISIONS.md.
+- **wiki/decision/drafts-and-multi-device.md** — `invoices` /
+  `invoiceStatus` → `documents` / `docStatus` throughout; OCR-flow
+  API example uses `/api/documents/from-photo`; related-pages link
+  retargeted from `[[decision/v1-scope]]` to `[[decision/full-ledger-pivot]]`.
+- **wiki/decision/whatsapp-invoice-send.md** — title becomes "WhatsApp
+  Document Send"; lazy-backfill section notes the column lives on
+  `documents.share_token`; entrypoint renamed to `sendDocumentOnWhatsApp`;
+  related-pages link retargeted.
+
+**DECISIONS.md** — five rows corrected:
+- "WhatsApp sender identity" — rationale link `[[decision/v1-scope]]` → `[[decision/whatsapp-meta-api]]` (v1-scope is now a stub).
+- Payment-recording section — six rows rewritten: `invoices.amount_paid` →
+  `documents.amount_received`; source is now
+  `SUM(payment_entry_allocations.allocated_amount)` filtered to
+  non-cancelled `payment_entries`; status thresholds use the actual
+  `unpaid / partial_paid / paid` enum; "voiding a payment" reworded to
+  "cancelling a payment" with the two-leg-ledger reversal.
+- Public-invoice-share — `invoices.share_token` → `documents.share_token`;
+  unscoped-repo list now lists `findBusinessById`, `findPartyById`,
+  `getDocumentByShareToken` (was `findCustomerById`).
+- WhatsApp invoice send — every row references `documents` / `parties` /
+  `documents.share_token` / `parties.mobile_number`; the entrypoint is
+  `sendDocumentOnWhatsApp(documentId, actorUserId)`; the route is
+  `POST /api/documents/[id]/send-whatsapp`; sales-invoice-only guard
+  called out explicitly.
+- Section header (line 129) — reworded from "carry forward their patterns…
+  (rename `invoices.x` → `documents.x` …)" to "(the rename completed in
+  PR2 Step 11, 2026-05-22)" so it no longer reads as future work.
+
+**wiki/index.md** — `v1-scope.md` summary marked SUPERSEDED; `drafts-and-multi-device.md`
+summary now reads `documents.status='draft'`.
+
+**Schema audit result**: clean. No drift between `lib/db/schema.ts`,
+`drizzle/*.sql`, `drizzle/meta/_journal.json` (idx 0–7), `lib/db/relations.ts`,
+or the API/page directory structure. Every deleted directory verified absent;
+every dropped table/enum verified absent from code (zero matches for
+`invoiceType` / `invoiceStatus` / `stockMovementType` / `tableInvoices` /
+`invoiceId` outside historical comments).
+
+**Code naming debt remaining** (deferred to PR3a + PR3b, not in this commit):
+- PDF contract types still say `InvoiceType` / `InvoiceStatus` /
+  `InvoicePayload` / `BusinessOnInvoice` / `BillToOnInvoice` /
+  `LineItemOnInvoice` / `RenderRequest.invoice` in both
+  `lib/pdf/contract.ts` and `pdf-service/src/contract.ts`. (PR3a.)
+- `businesses` table still has `invoice_template_id` / `invoice_settings` /
+  `invoice_terms` / `invoice_number_prefix` columns; needs migration 0008
+  to rename. (PR3b — `invoice_number_prefix` likely dead; confirm before drop.)
+
+DECISIONS.md "Last reconciled" bumped to `2026-05-22 (PR3c — wiki SSOT cleanup; stale invoices.* / customers.* references replaced with current documents.* / parties.* field names)`.
+
+---
+
 ## [2026-05-22] build | PR2 Step 11 — atomic demolition
 
 Three pre-demolition refactors first, then the destructive cut.

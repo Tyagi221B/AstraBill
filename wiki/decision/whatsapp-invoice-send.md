@@ -1,15 +1,16 @@
 ---
 type: decision
-updated: 2026-05-19
+updated: 2026-05-22
 sources: 0
 ---
 
-# WhatsApp Invoice Send
+# WhatsApp Document Send
 
-The "Send on WhatsApp" loop on a finalised invoice — the V1 hero feature
-that turns AstraBill from a billing app into a *get-paid* app. Binding
-facts live in `DECISIONS.md` ("Product — WhatsApp invoice send"); this
-page is the *why*.
+The "Send on WhatsApp" loop on a finalised document — the V1 hero feature
+that turns AstraBill from a billing app into a *get-paid* app. Currently
+restricted to `sales_invoice` doc type; extending to other outbound types
+(quotation, credit_note) is a separate decision. Binding facts live in
+`DECISIONS.md` ("Product — WhatsApp invoice send"); this page is the *why*.
 
 ## Why the template binding lives in the send service, not the route
 
@@ -92,17 +93,19 @@ ephemeral notifications, we lift it; not before.
 Before Phase 2B shipped, finalised invoices stored their share-link
 identity in nothing — there was no `share_token` column. The 2B
 migration added the column nullable; existing rows came in as NULL.
+(After PR2 the column lives on `documents.share_token` — the rationale
+predates the rename but the mechanism is unchanged.)
 
 Two ways to handle the NULL rows:
 
 1. **Backfill migration** — UPDATE every finalised row with a
    freshly-generated token in one big statement.
 2. **Lazy on first send** — generate + persist on the first
-   `sendInvoiceOnWhatsApp` for that row.
+   `sendDocumentOnWhatsApp` call for that row.
 
 Option 2 wins because most pre-2B invoices will *never* be sent on
 WhatsApp (they were created before the feature existed; the customer
-already has the PDF some other way). Generating tokens for invoices
+already has the PDF some other way). Generating tokens for documents
 that don't need them adds rows to the unique-token index for no
 reason, and a migration in production is a heavier lift than a
 conditional UPDATE per send. The conditional UPDATE is race-safe by
@@ -112,7 +115,7 @@ sends can't produce two tokens.
 ## Related Pages
 
 - [[decision/public-invoice-share]] — the URL the WhatsApp button points at
-- [[decision/whatsapp-meta-api]] — the provider abstraction (`IWhatsAppProvider`)
-- [[decision/v1-scope]] — V1 feature #2 (WhatsApp send) — this is the page
+- [[decision/whatsapp-meta-api]] — Meta Cloud API binding (no provider interface in V1)
+- [[decision/full-ledger-pivot]] — V1 scope (WhatsApp send is sales_invoice-only)
 - [[decision/database-and-rbac]] — where `whatsapp:send` sits in the catalog
 - [[decision/payment-recording]] — the inline-status UX pattern this matches

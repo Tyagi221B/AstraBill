@@ -8,7 +8,7 @@ The single source of truth for every binding technical and product decision.
 - Changing a decision = edit the row here, then grep the wiki for stale copies.
 - `wiki/decision/*.md` pages carry rationale only — they must never restate a fact, only link here.
 
-Last reconciled: 2026-05-22 (PR2 complete — Step 11 atomic demolition shipped; legacy domain removed)
+Last reconciled: 2026-05-22 (PR3c — wiki SSOT cleanup; stale `invoices.*` / `customers.*` references replaced with current `documents.*` / `parties.*` field names)
 
 ---
 
@@ -67,7 +67,7 @@ Last reconciled: 2026-05-22 (PR2 complete — Step 11 atomic demolition shipped;
 | Payments (V1.x) | **Razorpay deferred** — added when a customer needs cards / auto-reconciliation or when public launch demands it. Per-merchant credentials (each business connects their own Razorpay) — never platform-shared, never AstraBill-as-merchant. The `IPaymentProvider` interface is introduced at that point, not before; V1 has no provider abstraction because there is no provider | platform-shared Razorpay (turns AstraBill into the merchant of record — PA license territory + your books absorb their revenue); writing the `IPaymentProvider` interface speculatively without a provider behind it | [[decision/upi-deep-links]] |
 | WhatsApp API | Meta Cloud API, direct (existing Opryon Labs WABA) | BSP middleman | [[decision/whatsapp-meta-api]] |
 | WhatsApp abstraction | `IWhatsAppProvider` interface | — | [[decision/whatsapp-meta-api]] |
-| WhatsApp sender identity | AstraBill's own number (not the shop owner's) | — | [[decision/v1-scope]] |
+| WhatsApp sender identity | AstraBill's own number (not the shop owner's) | — | [[decision/whatsapp-meta-api]] |
 | PDF URL delivery | Redirect endpoint `/i/[invoiceId]/pdf` on our domain | raw Supabase signed URLs in WhatsApp | [[decision/pdf-generation]] |
 
 ## Code Architecture
@@ -126,7 +126,7 @@ Last reconciled: 2026-05-22 (PR2 complete — Step 11 atomic demolition shipped;
 
 ## Product — V1 Scope (SUPERSEDED 2026-05-21)
 
-The earlier "billing loop" V1 framing (GST invoice + WhatsApp + UPI link + udhaar + basic inventory) is **superseded** by the full-ledger pivot above. Sections below ("Invoice Anatomy", "Payment recording", "Public invoice share", "WhatsApp invoice send") **carry forward** their patterns to the new document model (rename `invoices.x` → `documents.x`, `customers.y` → `parties.y`) — they are NOT discarded, just re-scoped. Specific superseded rows are marked inline.
+The earlier "billing loop" V1 framing (GST invoice + WhatsApp + UPI link + udhaar + basic inventory) is **superseded** by the full-ledger pivot above. Sections below ("Invoice Anatomy", "Payment recording", "Public invoice share", "WhatsApp invoice send") **carry forward** their patterns to the new document model (the `invoices` → `documents` and `customers` → `parties` rename completed in PR2 Step 11, 2026-05-22) — they are NOT discarded, just re-scoped. Specific superseded rows are marked inline.
 
 ## Product — Invoice Anatomy
 
@@ -188,12 +188,12 @@ depend on. Rationale + LLD: [[decision/payment-recording]].
 
 | Area | Decision | Never | Rationale |
 |------|----------|-------|-----------|
-| `amount_paid` is derived | `invoices.amount_paid` is **always** recomputed as `SUM(payments.amount WHERE deleted_at IS NULL)` — the payment rows are the single source of truth; the invoice column is a derived cache | `UPDATE … SET amount_paid = amount_paid + :x` (an incrementally-mutated counter drifts and can't self-check) | [[decision/payment-recording]] |
-| Status derivation | Payment status follows the sum: `amount_paid >= total` → `paid` (+ `paid_at`); `0 < amount_paid < total` → `partially_paid`; `amount_paid == 0` → `sent`. Computed in one pure function, after every record/void | a client-supplied status; storing status independently of the sum | [[decision/payment-recording]] |
-| Payments need a finalised invoice | A payment can only be recorded against `status != 'draft'`. A draft has no number and a still-mutable total — money against a moving total is meaningless | recording a payment on a draft | [[decision/payment-recording]] |
-| Concurrency | Record + void both lock the invoice row `FOR UPDATE` before re-summing, so two concurrent payments serialise and the sum can't lose a row | re-summing without the lock (READ COMMITTED lets each tx miss the other's uncommitted row) | [[decision/payment-recording]] |
-| Voiding a payment | A void is a **soft delete** (`deleted_at`) + recompute. The row stays; the audit log keeps both `payment.record` and `payment.delete`. Correcting a mis-keyed payment = void + re-record | editing a payment in place; hard-deleting it (both erase that a wrong figure was entered) | [[decision/payment-recording]] |
-| RBAC | `payment:record` = owner / admin / accountant; `payment:delete` = owner / admin. A salesman collecting cash cannot record it in V1 — recording is an accountant-grade action | giving salesman `payment:record` without a deliberate decision | [[decision/database-and-rbac]] |
+| `amount_received` is derived | `documents.amount_received` is **always** recomputed as `SUM(payment_entry_allocations.allocated_amount)` filtered to non-cancelled `payment_entries` — the allocation rows are the single source of truth; the document column is a derived cache | `UPDATE … SET amount_received = amount_received + :x` (an incrementally-mutated counter drifts and can't self-check) | [[decision/payment-recording]] |
+| Status derivation | Document status follows the sum: `amount_received >= grand_total` → `paid`; `0 < amount_received < grand_total` → `partial_paid`; `amount_received == 0` → `unpaid`. Computed in one pure function (`statusFromAmounts`), after every payment record / cancel | a client-supplied status; storing status independently of the sum | [[decision/payment-recording]] |
+| Payments need a finalised document | A payment_entry allocation can only be recorded against a document whose `status != 'draft'` and `status != 'cancelled'`. A draft has no number and a still-mutable total — money against a moving total is meaningless | recording a payment on a draft; recording against a cancelled doc | [[decision/payment-recording]] |
+| Concurrency | Allocation recompute happens inside the same transaction that inserts the `payment_entries` row; the per-document recompute (`refreshDocumentReceiptTx`) reads + writes `documents` in that transaction so two concurrent allocations serialise and the sum can't lose a row | re-summing without the in-tx lock (READ COMMITTED lets each tx miss the other's uncommitted row) | [[decision/payment-recording]] |
+| Cancelling a payment | A cancel sets `payment_entries.status='cancelled'` and reverses its two-leg ledger postings in the same transaction; the document then recomputes `amount_received` from non-cancelled allocations. The audit log keeps both `payment.record` and `payment.cancel`. Correcting a mis-keyed payment = cancel + re-record | editing a payment in place; hard-deleting it (both erase that a wrong figure was entered) | [[decision/payment-recording]] |
+| RBAC | `payment:record` = owner / admin / accountant; `payment:cancel` = owner / admin. A salesman collecting cash cannot record it in V1 — recording is an accountant-grade action | giving salesman `payment:record` without a deliberate decision | [[decision/database-and-rbac]] |
 
 ## Product — Public invoice share
 
@@ -204,32 +204,34 @@ that the WhatsApp button URL points to. Rationale + LLD:
 | Area | Decision | Never | Rationale |
 |------|----------|-------|-----------|
 | URL pattern | `/i/[shareToken]` — **locked** by the Meta template button base URL (`https://www.astrabill.com/i/`) + the share_token appended. Meta's URL-button mechanism *appends* the variable value, it does not substitute — the base URL field never contains `{{1}}`. Changing the base invalidates every already-sent invoice link and requires a new Meta template version | `/i/{uuid}`; rotating the path shape after templates approve; typing `{{1}}` into the URL field | [[decision/public-invoice-share]] |
-| Share token | 16-char URL-safe random — `randomBytes(12).toString("base64url")`, ~96 bits of entropy. Stored in `invoices.share_token`, unique. Stamped on at finalise alongside the invoice number, one transaction | the invoice UUID as the public identifier; a sequential / guessable handle; a signed JWT (over-engineering — entropy IS the auth) | [[decision/public-invoice-share]] |
-| Token nullability | Nullable column. Drafts have `share_token IS NULL`; the row gets a token the moment it's finalised | generating a token at draft create (drafts may never be issued); a NOT NULL constraint that would block adoption for existing finalised invoices | [[decision/public-invoice-share]] |
-| Auth model | The token IS the auth. The public page + the public PDF endpoint do NO membership check, NO `requireUser`. Anyone with the URL sees the invoice, by design | wrapping the public page in `requireUser`; rate-limiting in v1 (acceptable; entropy + obscurity are enough); signed query strings on top of the token | [[decision/public-invoice-share]] |
-| Unscoped repo reads | `findBusinessById` and `findCustomerById` (no membership filter) are the ONLY repository helpers callable from the public path. Named `find*` (vs `get*ForUser`) to signal the semantic difference; explicit comments warn against general use | calling the auth-scoped repo helpers and "pretending" a system user; inlining raw SQL in the public service to bypass the convention | [[decision/database-and-rbac]] |
+| Share token | 16-char URL-safe random — `randomBytes(12).toString("base64url")`, ~96 bits of entropy. Stored in `documents.share_token`, unique. Stamped on at finalise alongside the document number, one transaction | the document UUID as the public identifier; a sequential / guessable handle; a signed JWT (over-engineering — entropy IS the auth) | [[decision/public-invoice-share]] |
+| Token nullability | Nullable column. Drafts have `share_token IS NULL`; the row gets a token the moment it's finalised | generating a token at draft create (drafts may never be issued); a NOT NULL constraint that would block adoption for existing finalised documents | [[decision/public-invoice-share]] |
+| Auth model | The token IS the auth. The public page + the public PDF endpoint do NO membership check, NO `requireUser`. Anyone with the URL sees the document, by design | wrapping the public page in `requireUser`; rate-limiting in v1 (acceptable; entropy + obscurity are enough); signed query strings on top of the token | [[decision/public-invoice-share]] |
+| Unscoped repo reads | `findBusinessById`, `findPartyById`, and `getDocumentByShareToken` (no membership filter) are the ONLY repository helpers callable from the public path. Named `find*` / `*ByShareToken` (vs `get*ForUser`) to signal the semantic difference; explicit comments warn against general use | calling the auth-scoped repo helpers and "pretending" a system user; inlining raw SQL in the public service to bypass the convention | [[decision/database-and-rbac]] |
 | SEO | Pages set `robots: { index: false, follow: false }` in `generateMetadata`; `robots.ts` also disallows `/i/`. Both layers because Google sometimes indexes `robots`-blocked pages via inbound links — the meta tag is the harder block | relying on `robots.txt` alone | [[decision/public-invoice-share]] |
 | Plan-gated mark | A small "Made with AstraBill" link sits below the invoice card **only on the free plan** — same rule as the PDF footer ([[decision/invoice-design-system]]). The customer-facing surface is the customer-facing surface, regardless of medium | a different gating policy for web vs PDF | [[decision/public-invoice-share]] |
 
 ## Product — WhatsApp invoice send  (Phase 2B)
 
-The "Send on WhatsApp" loop for a finalised invoice. The button on the
-invoice detail page posts to `POST /api/invoices/[id]/send-whatsapp`, which
-calls the `astrabill_invoice_v1` template and delivers the share-link URL.
+The "Send on WhatsApp" loop for a finalised sales invoice. The button on
+the document detail page posts to `POST /api/documents/[id]/send-whatsapp`,
+which calls the `astrabill_invoice_v1` template and delivers the share-link
+URL. V1 restricts send to `doc_type='sales_invoice'`; extending to
+quotation / credit_note is a separate decision.
 
 | Area | Decision | Never | Rationale |
 |------|----------|-------|-----------|
 | Template | `astrabill_invoice_v1` — Utility, English (`en`), text body + 1 dynamic URL button. **Approved 2026-05-20** by Meta (Active - Quality). The body has 4 variables; the URL button **base** is `https://www.astrabill.com/i/` and Meta **appends** the variable value (the share_token) at the end — Meta's URL buttons append, they do not substitute. v1 supersedes v0, which had its URL incorrectly typed with `{{1}}` inline (Meta concatenated rather than substituted, producing broken links) | hard-coding template content elsewhere; sending without going through the template; typing `{{1}}` into the URL field (only the base goes there) | [[decision/whatsapp-meta-api]] |
-| Body variable order | `{{1}}` = customer name · `{{2}}` = invoice number · `{{3}}` = business name · `{{4}}` = amount (raw "1442.00", no `₹` — the template provides it). Order is locked by the approved template | reordering body vars without a new template submission | [[decision/whatsapp-meta-api]] |
-| Button variable | URL button index 0, `{{1}}` = `invoices.share_token`. The full URL Meta delivers is the public `/i/[shareToken]` view | sending the invoice UUID; sending the authed URL | [[decision/public-invoice-share]] |
-| Send entrypoint | One service: `sendInvoiceOnWhatsApp(invoiceId, actorUserId)`. The route is a thin POST. The service owns membership scoping, permission check, finalised-only guard, customer-phone guard, lazy share_token backfill, log row insert, the Meta call, and the success/failure mark | branching the binding from route or UI; calling the provider from anywhere other than this service | [[decision/whatsapp-meta-api]] |
+| Body variable order | `{{1}}` = party name · `{{2}}` = document number · `{{3}}` = business name · `{{4}}` = amount (raw "1442.00", no `₹` — the template provides it). Order is locked by the approved template | reordering body vars without a new template submission | [[decision/whatsapp-meta-api]] |
+| Button variable | URL button index 0, `{{1}}` = `documents.share_token`. The full URL Meta delivers is the public `/i/[shareToken]` view | sending the document UUID; sending the authed URL | [[decision/public-invoice-share]] |
+| Send entrypoint | One service: `sendDocumentOnWhatsApp(documentId, actorUserId)`. The route is a thin POST. The service owns membership scoping, permission check, doc-type guard (sales_invoice only), finalised-only guard, party-mobile guard, lazy share_token backfill, log row insert, the Meta call, and the success/failure mark | branching the binding from route or UI; calling the provider from anywhere other than this service | [[decision/whatsapp-meta-api]] |
 | Send permission | `whatsapp:send` — owner / admin / accountant / salesman. Viewer cannot send. Salesman CAN send (it's an outbound customer action, not a profit-data action) | giving viewer send; gating send on `payment:record` | [[decision/database-and-rbac]] |
-| Drafts cannot send | `status='draft'` invoices have no number — refused with a 409. Finalise first | sending a draft (template body would be malformed) | — |
-| No-phone refusal | If `customers.phone` is NULL the send is refused with a 422. UI surfaces it as "Add a phone number" before the user can click Send | sending to a placeholder phone; silently no-op'ing | — |
-| Lazy share_token backfill | An invoice finalised before Phase 2B has `share_token IS NULL`. The first send generates and persists a token via a conditional UPDATE (`WHERE id = ? AND share_token IS NULL`) — race-safe against concurrent clicks. Once non-null the token never changes | running a one-off migration script (the on-demand path is enough); generating a fresh token per send (would invalidate already-printed URLs) | [[decision/public-invoice-share]] |
-| Send log | Every send writes a `whatsapp_messages` row — queued on insert, then `sent` (with Meta wamid) or `failed` (with error). Rows are **immutable** — no soft-delete column, no edit. The history list IS the audit | editing a row to "fix" a status; re-using a row across resends | — |
+| Drafts cannot send | `status='draft'` documents have no number — refused with a 409. Finalise first | sending a draft (template body would be malformed) | — |
+| No-phone refusal | If `parties.mobile_number` is NULL the send is refused with a 422. UI surfaces it as "Add a phone number" before the user can click Send | sending to a placeholder phone; silently no-op'ing | — |
+| Lazy share_token backfill | A document finalised before Phase 2B has `share_token IS NULL`. The first send generates and persists a token via a conditional UPDATE (`WHERE id = ? AND share_token IS NULL`) — race-safe against concurrent clicks. Once non-null the token never changes | running a one-off migration script (the on-demand path is enough); generating a fresh token per send (would invalidate already-printed URLs) | [[decision/public-invoice-share]] |
+| Send log | Every send writes a `whatsapp_messages` row (with `document_id` FK) — queued on insert, then `sent` (with Meta wamid) or `failed` (with error). Rows are **immutable** — no soft-delete column, no edit. The history list IS the audit | editing a row to "fix" a status; re-using a row across resends | — |
 | Resend semantics | "Resend" is just another POST that writes a new `whatsapp_messages` row. No server-side debouncing or rate limit in v1; the UI shows a confirm dialog | reusing the previous wamid; merging "send" + "resend" into a different flow | — |
-| Variable sanitisation | Body var text is normalised at the transport boundary (`/\s+/g → ' '`, trim) so customer / business names with paste-induced newlines or tabs don't trip Meta's #131008. The stored value is left alone — this is transport-only | sanitising on write (loses fidelity); skipping it (random sends will fail) | — |
+| Variable sanitisation | Body var text is normalised at the transport boundary (`/\s+/g → ' '`, trim) so party / business names with paste-induced newlines or tabs don't trip Meta's #131008. The stored value is left alone — this is transport-only | sanitising on write (loses fidelity); skipping it (random sends will fail) | — |
 | Failure UX | The panel renders inline status (badge + history list) and shows the failed row's error message — same convention as `PaymentPanel`. No global toast in v1 | layering a toast library only for this one feature | — |
 
 ## Product — UI refinement  (Phase 2E)
