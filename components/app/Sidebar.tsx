@@ -87,30 +87,47 @@ export function SidebarContent({
   const pathname = usePathname();
   const b = routes.b(business.id);
 
-  // Phase 2E: nav split into "Workspace" (daily operational pages) and
-  // "Settings" (configurational). The two-group structure gives breathing
-  // room and signals "where the work lives vs where the knobs are."
-  // Inspired by GymPilot's PLATFORM / SETTINGS pattern.
-  const workspaceItems = [
+  // Phase 2E + PR2: nav structured into IA groups matching the books model.
+  //   General  — daily-use pages (dashboard, parties, items, cash & bank).
+  //   Sales    — outward documents.
+  //   Purchases — inward documents.
+  //   Insights — reports.
+  //   Legacy   — surfaces leaving in PR2 demolition.
+  //   Settings — knobs.
+  const generalItems = [
     { label: "Dashboard", path: b.dashboard, icon: LayoutDashboard },
     { label: "Parties", path: b.parties, icon: Contact },
     { label: "Items", path: b.items, icon: Boxes },
     { label: "Cash & Bank", path: b.cashAndBank, icon: Banknote },
+  ] as const;
+  const salesItems = [
     { label: "Sales invoices", path: b.salesInvoices, icon: ReceiptText },
     { label: "Quotations", path: b.quotations, icon: FileText },
     { label: "Credit notes", path: b.creditNotes, icon: RotateCcw },
+  ] as const;
+  const purchaseItems = [
     { label: "Purchase invoices", path: b.purchaseInvoices, icon: FileInput },
     { label: "Debit notes", path: b.debitNotes, icon: RotateCcw },
+  ] as const;
+  const insightsItems = [
     { label: "Reports", path: b.reports, icon: BarChart3 },
-    { label: "Invoices", path: b.invoices, icon: ReceiptText },
-    { label: "Customers", path: b.customers, icon: Users },
-    { label: "Products", path: b.products, icon: Package },
+  ] as const;
+  const legacyItems = [
+    { label: "Invoices (legacy)", path: b.invoices, icon: ReceiptText },
+    { label: "Customers (legacy)", path: b.customers, icon: Users },
+    { label: "Products (legacy)", path: b.products, icon: Package },
   ] as const;
   const settingsItems = [
     { label: "Settings", path: b.settings.branding, icon: Settings },
   ] as const;
 
-  type NavItem = (typeof workspaceItems)[number] | (typeof settingsItems)[number];
+  type NavItem =
+    | (typeof generalItems)[number]
+    | (typeof salesItems)[number]
+    | (typeof purchaseItems)[number]
+    | (typeof insightsItems)[number]
+    | (typeof legacyItems)[number]
+    | (typeof settingsItems)[number];
 
   const renderNavLink = (item: NavItem) => {
     // Exact match for the dashboard so it isn't also lit on /b/[id]/x.
@@ -154,18 +171,18 @@ export function SidebarContent({
       />
 
       <nav className="flex flex-1 flex-col gap-5 px-3 py-4">
-        <div className="flex flex-col gap-0.5">
-          <div className="px-3 pb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-            Workspace
-          </div>
-          {workspaceItems.map(renderNavLink)}
-        </div>
-        <div className="flex flex-col gap-0.5">
-          <div className="px-3 pb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-            Settings
-          </div>
+        <NavGroup label="General">{generalItems.map(renderNavLink)}</NavGroup>
+        <NavGroup label="Sales">{salesItems.map(renderNavLink)}</NavGroup>
+        <NavGroup label="Purchases">
+          {purchaseItems.map(renderNavLink)}
+        </NavGroup>
+        <NavGroup label="Insights">
+          {insightsItems.map(renderNavLink)}
+        </NavGroup>
+        <NavGroup label="Legacy">{legacyItems.map(renderNavLink)}</NavGroup>
+        <NavGroup label="Settings">
           {settingsItems.map(renderNavLink)}
-        </div>
+        </NavGroup>
       </nav>
 
       <div className="border-t border-sidebar-border p-3">
@@ -180,6 +197,23 @@ export function SidebarContent({
 }
 
 /* --------------------------------------------------------------------- */
+
+function NavGroup({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="px-3 pb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
 
 function BusinessSwitcher({
   business,

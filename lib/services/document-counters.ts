@@ -15,9 +15,14 @@
  * Default: "{PREFIX}{SEQ:3}". Owner-customisable per counter row.
  */
 import "server-only";
+import { and, eq } from "drizzle-orm";
 
-import { type Tx } from "../db";
-import type { DocTypeValue } from "../db/schema";
+import { db, type Tx } from "../db";
+import { type DocTypeValue, documentCounters } from "../db/schema";
+import { writeAuditEntry } from "../audit";
+import { ForbiddenError, NotFoundError } from "../errors";
+import { requirePermission } from "../rbac";
+import { getBusinessForUserTx } from "../repositories/businesses";
 import {
   incrementSequenceTx,
   lockOrCreateCounterTx,
@@ -93,4 +98,96 @@ export function renderTemplate(
     .replace(/\{SEQ:(\d+)\}/g, (_match, n: string) =>
       String(ctx.sequence).padStart(Number(n), "0"),
     );
+}
+
+export interface CounterSeed {
+  docType: DocTypeValue;
+  startSequence: number;
+  prefix?: string;
+  sequenceTemplate?: string;
+  resetEachFy?: boolean;
+}
+
+/**
+ * Bulk-seed document_counters for the current FY (and ahead). Called by the
+ * onboarding wizard. Idempotent — re-seeding the same (business, doc_type,
+ * fy_year) overwrites prefix + template + nextSequence to the supplied
+ * values.
+ *
+ * Refuses to seed below `next_sequence − 1` of an existing row when one
+ * sequence is already issued for the current FY — that would risk
+ * duplicate doc numbers (the partial UQ on `documents` catches it, but the
+ * service is the friendly gate).
+ */
+export async function seedCountersForBusiness(opts: {
+  businessId: string;
+  actorUserId: string;
+  seeds: CounterSeed[];
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}): Promise<void> {
+  await requirePermission(opts.actorUserId, opts.businessId, "settings:edit");
+
+  await db.transaction(async (tx) => {
+    const access = await getBusinessForUserTx(
+      tx,
+      opts.actorUserId,
+      opts.businessId,
+    );
+    if (!access) throw new NotFoundError("Business not found");
+    const business = access.business;
+    const today = new Date().toISOString().slice(0, 10);
+    const fyYear = fyTokenFromDate(today, business.fyStartMonth);
+
+    for (const seed of opts.seeds) {
+      const [existing] = await tx
+        .select()
+        .from(documentCounters)
+        .where(
+          and(
+            eq(documentCounters.businessId, opts.businessId),
+            eq(documentCounters.docType, seed.docType),
+            eq(documentCounters.fyYear, fyYear),
+          ),
+        );
+      if (existing) {
+        if (seed.startSequence < existing.nextSequence) {
+          throw new ForbiddenError(
+            `Cannot reduce ${seed.docType} sequence below ${existing.nextSequence} — invoices already issued at higher numbers`,
+          );
+        }
+        await tx
+          .update(documentCounters)
+          .set({
+            prefix: seed.prefix ?? existing.prefix,
+            sequenceTemplate:
+              seed.sequenceTemplate ?? existing.sequenceTemplate,
+            nextSequence: seed.startSequence,
+            resetEachFy: seed.resetEachFy ?? existing.resetEachFy,
+          })
+          .where(eq(documentCounters.id, existing.id));
+      } else {
+        await tx.insert(documentCounters).values({
+          businessId: opts.businessId,
+          docType: seed.docType,
+          fyYear,
+          prefix: seed.prefix ?? "",
+          sequenceTemplate: seed.sequenceTemplate ?? "{PREFIX}{SEQ:3}",
+          nextSequence: seed.startSequence,
+          resetEachFy: seed.resetEachFy ?? true,
+        });
+      }
+    }
+
+    await writeAuditEntry(tx, {
+      action: "document_counters.seed",
+      businessId: opts.businessId,
+      actorUserId: opts.actorUserId,
+      entityType: "business",
+      entityId: opts.businessId,
+      changes: { fyYear, seedCount: opts.seeds.length },
+      ipAddress: opts.ipAddress ?? null,
+      userAgent: opts.userAgent ?? null,
+    });
+  });
 }
