@@ -8,7 +8,7 @@ The single source of truth for every binding technical and product decision.
 - Changing a decision = edit the row here, then grep the wiki for stale copies.
 - `wiki/decision/*.md` pages carry rationale only — they must never restate a fact, only link here.
 
-Last reconciled: 2026-05-21 (full-ledger pivot)
+Last reconciled: 2026-05-22 (PR2 Steps 1–10 shipped; Step 11 demolition pending — see [[overview]] + [[log]])
 
 ---
 

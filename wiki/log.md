@@ -1192,3 +1192,120 @@ Deferred from this PR (intentional):
 Migration applied: not yet — awaiting human review of the SQL before
 `npm run db:migrate` (which immediately reaches prod under the shared
 Supabase project).
+
+## [2026-05-21] build | PR2 Step 1 — pivot foundations (item_units seed + Cash account + Cash Sale party)
+
+Foundations for the full-ledger pivot. Three things:
+1. `drizzle/0006_seed_pivot_foundations.sql` — 41 system `item_units` (UQC list: PCS, KGS, MTR, SQF, SQM, LTR, NOS, …); backfill for existing businesses (idempotent): default `Cash in hand` money_account, "Cash Sale" walk-in party, per-doc-type T&C defaults seeded onto `businesses.doc_type_defaults`.
+2. `lib/constants/{item-units,doc-type-defaults}.ts` — canonical TS copies + `applyCityPlaceholder()` helper (substitutes the literal `[CITY]` with `businesses.city` at render — improvement on myBillBook's literal `[ENTER_YOUR_CITY_NAME]`).
+3. Tenant-scoped repos + service skeletons for `money_accounts` and `parties` (read paths + idempotent seed helpers). `createBusiness` now runs the trio (default cash + Cash Sale + doc_type_defaults) in the same tx.
+
+Commit: `69faf59`.
+
+## [2026-05-21] build | PR2 Step 2 — parties UI (full CRUD)
+
+Replaces customers as a domain concept. List page with type counts (Customer / Supplier), detail page (4-card grid), form (Type pill, GST&PAN, Credit terms, Contact person, Notes), `party:*` RBAC mapped for every role, soft-delete-aware, Cash Sale structurally undeletable. Sidebar gets "Parties" entry; legacy Customers stays for the duration.
+
+Commit: `586031c`.
+
+## [2026-05-21] build | PR2 Step 3 — items + categories + adjust stock
+
+Items UI + Item Categories CRUD (workspace-scoped, soft-delete-aware, inline-create in the item form) + Adjust Stock modal. Stock model done **properly**: opening stock IS the first `item_stock_movements` row (txn_type='opening_stock'); every write goes through `SELECT … FOR UPDATE` lock on `items` with `closing_stock_after` computed inline as `(SELECT SUM(qty) + new)::text` so concurrent writes serialise per item. Items list KPIs (Stock Value · Low Stock · Total) use batch helper `getCurrentStockForItems`; detail page renders chronological stock movements ledger with signed quantities + closing snapshots.
+
+Commit: `8e4da26`.
+
+## [2026-05-21] build | PR2 Step 4 — Cash & Bank with ledger-backed balances
+
+`money_accounts` UI + Add/Reduce/Transfer flows, all posting to `ledger_entries`. `ledger-entries` repo has `insertLedgerEntryTx` (with invariant guards), `balanceForParty` / `balanceForMoneyAccount` (single-row + batch), `listEntriesFor*`, `findTransferPair`. Service writes the opening_balance ledger row at create when openingBalance > 0; transfer writes a paired `transfer_out`/`transfer_in` with a shared `transfer_pair_id`. Delete refused unless balance == 0 (book invariant). `money_account:{view,manage,adjust,transfer}` permissions added.
+
+Commit: `1f1ef79`.
+
+## [2026-05-21] build | PR2 Step 5 — documents service (the transactional spine)
+
+The heart of the books. `document_counters` repo with FOR UPDATE locking + ON CONFLICT DO NOTHING race handling; `reserveNextNumberTx` is the only way to consume a number. `fyTokenFromDate` derives Indian FY from any date. `renderTemplate` resolves `{PREFIX}` / `{FY}` / `{SEQ:N}` tokens. Documents service:
+- `createDocument` / `updateDocument` (drafts only) — line items + additional charges replaced wholesale; GST math via existing `lib/gst.ts` (back-calc on inclusive-tax pricing).
+- `finaliseDocument` — ONE TX: reserve number → mark finalised → post ledger leg if `POSTING_POLICY[docType].ledgerSide` is set → write stock movements per line if `policy.stockDirection` is set. Covers all 8 doc types via the policy table.
+- `cancelDocument` — ONE TX: write `voucher_type='reversal'` rows (sides flipped, originals' `reversed_by_ledger_entry_id` set) + negated stock movements (`manual_adjustment` since the stock enum has no generic reversal value; narration carries audit context).
+- `deleteDraftDocument` — drafts only.
+
+API: `/api/documents` (POST/GET), `/api/documents/[id]` (GET/PATCH/DELETE), `/api/documents/[id]/finalise` (POST), `/api/documents/[id]/cancel` (POST). `document:{view,create,finalize,cancel,delete}` permissions added. UI lands in Step 6.
+
+Commit: `1c49653`.
+
+## [2026-05-21] build | PR2 Step 6 — sales invoice UI (list + form + detail + finalise/cancel)
+
+End-to-end customer-facing surface for the most-used doc type. `SalesInvoiceForm` does client-side totals preview via `decimal.js` (subtotal / discount / taxable / CGST+SGST or IGST / round-off / grand total); server runs `lib/gst.ts` on save (persisted figure is authoritative — footer note). Two save paths: "Save as draft" (POST/PATCH `/api/documents`) and "Save & finalise" (POST then POST `/finalise`). T&C seeded from `businesses.doc_type_defaults.sales_invoice.termsConditions` with `[CITY]` substituted via `applyCityPlaceholder`. Detail page renders 3 KPIs (Bill To / Invoice info / Status) + line items + additional charges + notes/T&C + totals breakdown. Status-aware actions: draft → Edit · Finalise · Delete draft; unpaid/partial_paid → Cancel.
+
+Commit: `7d808c6`.
+
+## [2026-05-21] build | PR2 Step 7 — Payment In + two-leg ledger posting
+
+`recordPayment` writes EXACTLY 2 ledger rows in one tx: party leg (credit on payment_in, debit on payment_out) + money-account leg (debit on payment_in, credit on payment_out). Optional 3rd leg for settlement discount (no cash leg — writes off the receivable). Refreshes `documents.amount_received` + status from non-cancelled allocations; preserves cancelled status (cancelled stays cancelled). `cancelPayment` writes `voucher_type='reversal'` rows + re-derives. `statusFromAmounts` exported as a pure helper.
+
+UI: `RecordPaymentModal` (single-doc allocation), `CancelPaymentButton`, Payment History card on the invoice detail page (Date / Mode / Reference / Amount / Status / Void link). The hero loop now works end-to-end: create draft → finalise (number assigned, party debited, stock movements written) → record payment (party credit + cash debit, status flips to paid).
+
+Commit: `6077d7d`.
+
+## [2026-05-21] build | PR2 Step 8 — other 4 doc types + Convert + Payment Out
+
+Layers the V1 remaining doc types (quotation, credit_note, purchase_invoice, debit_note) on the documents pipeline. Shared components under `components/documents/`:
+- `DocumentForm` — parameterised by `docType` via `TYPE_CONFIGS` map. Same UX as SalesInvoiceForm with per-type labels (Bill to / Bill from / Quote to), Validity-date vs Due-date label, conditional Original Doc Number fields (required for purchase_invoice + debit_note for ITC).
+- `DocumentDetailView` — server component read surface, takes a `headerActions` slot + optional `paymentHistorySlot`.
+- `DocumentListView` — shared list table with type-aware KPIs.
+- `DocumentActions` — FinaliseButton / CancelDocumentButton / DeleteDraftButton / ConvertToInvoiceButton.
+- `RecordPaymentModal` — generic, `entryType` prop drives payment_in vs payment_out.
+
+Service additions:
+- `convertQuotationToInvoice` — copies lines + charges + metadata into a new sales_invoice draft, sets `source_doc_id` for lineage, writes a "document.convert" audit. Refused on draft / cancelled quotations.
+
+Per-type routes (each ~80-line wrapper): `/sales/quotations`, `/sales/credit-notes`, `/purchases/purchase-invoices`, `/purchases/debit-notes` — each with list / new / detail / edit. Sidebar gets 4 new entries.
+
+Commit: `f282c8a`.
+
+## [2026-05-22] build | PR2 Step 9 — reports (9 surfaces)
+
+Full V1 reports landing. `lib/services/reports.ts`:
+- `getSalesRegister` / `getPurchaseRegister` — date-range filtered.
+- `getPartyStatement` — opening balance (sum before `from`) + windowed entries + closing balance.
+- `getAgeing` — per-party bucketed (0-30 / 31-60 / 61-90 / 90+). Receivables: sales_invoice positive + credit_note negative. Payables: purchase_invoice positive + debit_note negative.
+- `getHsnSummary` — line items grouped by (hsn, gst_rate); sales/purchase toggle.
+- `getStockSummary` — products with SUM(stock_movements.qty) + stock_value.
+- `getGstr3bSummary` — outward taxable / zero-rated / exempt split; CGST/SGST/IGST totals; net GST payable.
+- `getGstr1B2b` + `gstr1B2bToCsv` — B2B sheet with GST-portal-compatible CSV.
+
+UI: 9 page routes under `/b/[id]/reports/...` + 1 CSV API route. Shared `DateRangeFilter` (pushes `?from=&to=`, `currentFyBounds()` default), shared `AgeingTable`. Sidebar: "Reports" entry.
+
+Commit: `40393c4`.
+
+## [2026-05-22] build | PR2 Step 10 — onboarding wizard + sidebar IA refresh
+
+3-step wizard (per `decision/full-ledger-pivot`): Business setup → Numbering seed → First party prompt. Step 2 POSTs to a new `/api/document-counters/seed` route — `seedCountersForBusiness` upserts the per-(business, docType, fyYear) row, refuses to push `next_sequence` backwards below an already-issued number. Inline stepper at top shows progress + completed-in-green.
+
+Sidebar refactored from flat into IA groups via a tiny `NavGroup` helper: General (Dashboard / Parties / Items / Cash & Bank) · Sales (Sales invoices / Quotations / Credit notes) · Purchases (Purchase invoices / Debit notes) · Insights (Reports) · Legacy (Invoices/Customers/Products — labelled "(legacy)") · Settings. The Legacy group makes it visible what retires when Step 11 lands.
+
+Commit: `458b2ab`.
+
+## [2026-05-22] plan | PR2 Step 11 (atomic demolition) — what still needs to happen
+
+Three cross-domain surfaces still depend on legacy tables and need migration BEFORE the SQL drop:
+
+1. **Dashboard `/b/[id]/dashboard`** — reads `getBusinessDashboard` which sums legacy `invoices`. Needs to swap to documents + ledger_entries (`documents.status in ('unpaid','partial_paid')` for outstanding; sum of payment_entries this month for paid; sum of finalised documents this month for revenue; low stock from `item_stock_movements`).
+2. **Public share `/i/[shareToken]`** + `/api/i/[shareToken]/pdf` — read `invoices.share_token`. The new `documents.share_token` exists with the same shape; need to swap the read path. Once switched, finalised documents render at the same `/i/<token>` URL.
+3. **WhatsApp send** (`/api/invoices/[id]/send-whatsapp`) — sends the legacy invoice via the `astrabill_invoice_v1` Meta template. Either rewrite as `/api/documents/[id]/send-whatsapp` (recommended — same template, just points at the new domain) or punt to a post-demolition follow-up.
+
+Demolition SQL migration (atomic):
+- `DROP TABLE customers, products, invoices, invoice_line_items, payments, stock_movements` (legacy product-bound one)
+- `ALTER TABLE item_stock_movements RENAME TO stock_movements`
+- `ALTER TABLE businesses DROP COLUMN bank_name, bank_account_number, bank_ifsc, bank_account_holder, invoice_terms, invoice_number_prefix` (superseded by money_accounts + doc_type_defaults + document_counters)
+- `DROP TYPE invoice_type, invoice_status, unit, stock_movement_type` (legacy enums)
+
+Code-side deletion:
+- `app/api/customers/`, `app/api/invoices/`, `app/api/products/`, `app/api/payments/`
+- `app/b/[businessId]/customers/`, `app/b/[businessId]/invoices/`, `app/b/[businessId]/products/`
+- `lib/repositories/{customers,invoices,products,payments,stock-movements}.ts`
+- `lib/services/{customers,invoices,products,payments,invoice-pdf,public-invoice,whatsapp-send,dashboard}.ts` (dashboard gets replaced not deleted)
+- `lib/schemas/{customer,invoice,payment,product}.ts`
+- `customer:*` + `product:*` permissions from `lib/rbac.ts`
+- Legacy entries from `routes.ts` (customers / newCustomer / customer / editCustomer / invoices / newInvoice / invoice / editInvoice / products / newProduct / editProduct) and the Legacy sidebar group.
+
+Supabase snapshot before the migration runs (DECISIONS calls for this even with no real users). Suggested sequencing: ship the 3 cross-domain migrations as separate commits first (each verifiable in isolation), then one final atomic demolition commit that drops the code + runs the migration together.
