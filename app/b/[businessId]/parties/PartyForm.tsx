@@ -164,6 +164,7 @@ export function PartyForm({
   openingBalanceLocked = false,
   categories = [],
   customFieldDefinitions = [],
+  gstinLookupEnabled = false,
 }: {
   businessId: string;
   editingPartyId?: string;
@@ -178,6 +179,11 @@ export function PartyForm({
   /** Workspace custom-field definitions, fetched server-side. Renders one
    *  text input per definition; values flow through `customFieldValues`. */
   customFieldDefinitions?: PartyCustomFieldDefinition[];
+  /** Server-side feature flag (true when GSTIN lookup env vars are set).
+   *  When false the "Get details" button is hidden — owners type all
+   *  fields manually. Single source of truth: `isGstinLookupAvailable()`
+   *  in the factory; the API route honours the same flag. */
+  gstinLookupEnabled?: boolean;
 }) {
   const isEdit = Boolean(editingPartyId);
   const [f, setF] = useState<PartyFormInitial>(initial ?? blank);
@@ -480,14 +486,16 @@ export function PartyForm({
             <div className="flex flex-col gap-2">
               <div className="flex items-end justify-between gap-2">
                 <Label htmlFor="gstin">GSTIN</Label>
-                <button
-                  type="button"
-                  onClick={fetchGstinDetails}
-                  disabled={!isGstinFormatValid(f.gstin) || gstinFetching}
-                  className="text-xs font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
-                >
-                  {gstinFetching ? "Fetching…" : "Get details"}
-                </button>
+                {gstinLookupEnabled && (
+                  <button
+                    type="button"
+                    onClick={fetchGstinDetails}
+                    disabled={!isGstinFormatValid(f.gstin) || gstinFetching}
+                    className="text-xs font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+                  >
+                    {gstinFetching ? "Fetching…" : "Get details"}
+                  </button>
+                )}
               </div>
               <Input
                 id="gstin"
@@ -497,8 +505,9 @@ export function PartyForm({
                 className="font-mono uppercase"
               />
               <p className="text-xs text-muted-foreground">
-                Enter a 15-character GSTIN, then "Get details" to auto-fill
-                name and billing address from the GST portal.
+                {gstinLookupEnabled
+                  ? `Enter a 15-character GSTIN, then "Get details" to auto-fill name and billing address from the GST portal.`
+                  : "15-character GSTIN. Optional — leave blank for unregistered parties."}
               </p>
             </div>
             <div className="flex flex-col gap-2">

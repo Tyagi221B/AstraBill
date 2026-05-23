@@ -52,6 +52,11 @@ export interface GstinLookupResult {
 export async function lookupGstin(input: string): Promise<GstinLookupResult> {
   const gstin = normaliseGstin(input);
   const adapter = getGstinAdapter();
+  if (!adapter) {
+    throw new GstinAdapterUnavailableError(
+      "GSTIN lookup is not configured on this deployment",
+    );
+  }
 
   const cached = await findGstinCacheRow(gstin);
   const now = Date.now();

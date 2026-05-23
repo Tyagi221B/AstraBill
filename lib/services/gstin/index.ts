@@ -10,6 +10,7 @@
 import "server-only";
 
 export { lookupGstin } from "./service";
+export { isGstinLookupAvailable } from "./factory";
 export type {
   GstinAddress,
   GstinLookupAdapter,

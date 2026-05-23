@@ -19,6 +19,7 @@ import {
   listPartyCustomFieldDefsForUser,
   listPartyCustomFieldValues,
 } from "@/lib/repositories/party-custom-fields";
+import { isGstinLookupAvailable } from "@/lib/services/gstin";
 import { getParty } from "@/lib/services/parties";
 import { PartyBankAccountsPanel } from "./PartyBankAccountsPanel";
 import { PartyShippingAddressesPanel } from "./PartyShippingAddressesPanel";
@@ -132,6 +133,7 @@ export default async function EditPartyPage({
         openingBalanceLocked={openingLocked}
         categories={categories}
         customFieldDefinitions={customFieldDefinitions}
+        gstinLookupEnabled={isGstinLookupAvailable()}
       />
       <Card className="mt-5">
         <CardContent className="pt-6">

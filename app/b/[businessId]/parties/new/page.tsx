@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
 import { listPartyCategoriesForUser } from "@/lib/repositories/party-categories";
 import { listPartyCustomFieldDefsForUser } from "@/lib/repositories/party-custom-fields";
+import { isGstinLookupAvailable } from "@/lib/services/gstin";
 import { requireUser } from "@/lib/session";
 import { PartyForm } from "../PartyForm";
 
@@ -35,6 +36,7 @@ export default async function NewPartyPage({
         businessId={business.id}
         categories={categories}
         customFieldDefinitions={customFieldDefinitions}
+        gstinLookupEnabled={isGstinLookupAvailable()}
       />
     </div>
   );

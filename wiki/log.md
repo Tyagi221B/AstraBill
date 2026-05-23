@@ -4,6 +4,38 @@ Append-only. Format: `## [YYYY-MM-DD] <operation> | <title>`
 
 ---
 
+## [2026-05-23] fix | PR7-C.1 — Sandbox GSTIN endpoint + feature flag
+
+Two-part fix following prod smoke-test of the PR7-C surface:
+
+**Bug**: I implemented the Sandbox lookup as
+`GET /gst/compliance/public/gstin/{gstin}` based on convention guess. Every
+real GSTIN returned 404 in prod. The actual endpoint is **POST** to
+`/gst/compliance/public/gstin/search` with `{ "gstin": "<15-char>" }` in
+the JSON body. Confirmed against developer.sandbox.co.in reference docs.
+Auth flow + response parsing unchanged.
+
+**Cost-side cleanup**: Sandbox pricing is ₹899/month minimum, too steep
+for an early V1. The factory previously fell back to MockGstinAdapter
+when env vars were missing — meaning prod-without-keys would
+auto-fill real parties with fake data ("Mock Enterprises (XXXXXXXXXX)").
+
+Fixed by introducing an explicit feature-flag pattern:
+- `factory.pickAdapter()` returns `null` in prod when no env vars are
+  set (instead of falling through to mock)
+- Mock is now strictly dev-only (NODE_ENV !== "production")
+- `isGstinLookupAvailable(): boolean` is the single source of truth,
+  exported from `lib/services/gstin/index.ts`
+- Server pages call it and pass `gstinLookupEnabled` to PartyForm; the
+  "Get details" button only renders when it's true
+- The route also throws `GstinAdapterUnavailableError` (503) when no
+  adapter — UI and API share the flag, can't disagree
+
+When we're ready to flip GSTIN on (paying customers / a cheaper vendor
+appears), set `SANDBOX_API_KEY` + `SANDBOX_API_SECRET` in Vercel — no
+code change needed. Until then, owners type GSTIN + address manually,
+no broken UX.
+
 ## [2026-05-23] build | PR7-E — Multi-shipping + Custom Fields
 
 Fifth and final PR of the Parties V1 sequence. Two surfaces in one

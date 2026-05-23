@@ -11,8 +11,15 @@
  *   POST https://api.sandbox.co.in/authenticate
  *     headers: x-api-key, x-api-secret, x-api-version: 1.0
  *     returns: { access_token, expires_at }
- *   GET  https://api.sandbox.co.in/gst/compliance/public/gstin/{gstin}
- *     headers: authorization: <access_token>, x-api-key, x-api-version: 1.0
+ *   POST https://api.sandbox.co.in/gst/compliance/public/gstin/search
+ *     headers: authorization: <access_token>, x-api-key, x-api-version: 1.0,
+ *              content-type: application/json
+ *     body:    { "gstin": "<15-char-uppercase-gstin>" }
+ *
+ * NB: my initial implementation used `GET .../gstin/{gstin}` (URL-path
+ * param) — that returned 404 on prod for every real GSTIN. Sandbox's
+ * actual shape is POST + JSON body, confirmed against their dev docs at
+ * developer.sandbox.co.in/reference/search-gstin-api.
  *
  * Response shape (subset we care about, observed in their docs):
  *   { code, timestamp, data: {
@@ -111,15 +118,17 @@ export class SandboxGstinAdapter implements GstinLookupAdapter {
     let res: Response;
     try {
       res = await globalThis.fetch(
-        `${SANDBOX_HOST}/gst/compliance/public/gstin/${gstin}`,
+        `${SANDBOX_HOST}/gst/compliance/public/gstin/search`,
         {
-          method: "GET",
+          method: "POST",
           headers: {
             authorization: token,
             "x-api-key": this.apiKey,
             "x-api-version": API_VERSION,
+            "content-type": "application/json",
             accept: "application/json",
           },
+          body: JSON.stringify({ gstin }),
           // 8s — typical p95 from their docs is ~2s, leaves headroom for
           // GSTN backend slowness without holding the route too long.
           signal: AbortSignal.timeout(8_000),
