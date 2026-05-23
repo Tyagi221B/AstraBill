@@ -20,6 +20,7 @@ import { INDIAN_STATES } from "@/lib/constants/indian-states";
 import { routes } from "@/lib/routes";
 
 export type PartyTypeOption = "customer" | "supplier";
+export type OpeningBalanceDirection = "to_collect" | "to_pay";
 
 export interface AddressFormFields {
   streetAddress: string;
@@ -37,6 +38,10 @@ const blankAddress: AddressFormFields = {
   pincode: "",
 };
 
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export interface PartyFormInitial {
   type: PartyTypeOption;
   name: string;
@@ -53,6 +58,11 @@ export interface PartyFormInitial {
   /** When true → shippingAddress fields are ignored on submit. */
   shippingSameAsBilling: boolean;
   shipping: AddressFormFields;
+  /** Opening balance — "" or "0" means no posting. */
+  openingBalanceAmount: string;
+  openingBalanceDirection: OpeningBalanceDirection;
+  /** As-of date for the opening_balance ledger row; defaults to today. */
+  openingBalanceAsOfDate: string;
 }
 
 const blank: PartyFormInitial = {
@@ -70,6 +80,9 @@ const blank: PartyFormInitial = {
   billing: { ...blankAddress },
   shippingSameAsBilling: true,
   shipping: { ...blankAddress },
+  openingBalanceAmount: "",
+  openingBalanceDirection: "to_collect",
+  openingBalanceAsOfDate: todayIso(),
 };
 
 const SELECT_CLASS =
@@ -109,10 +122,15 @@ export function PartyForm({
   businessId,
   editingPartyId,
   initial,
+  openingBalanceLocked = false,
 }: {
   businessId: string;
   editingPartyId?: string;
   initial?: PartyFormInitial;
+  /** When true, the party already has non-opening ledger activity — the
+   *  opening balance card renders read-only with a reason; the field is
+   *  omitted from the PATCH payload so the server-side guard never trips. */
+  openingBalanceLocked?: boolean;
 }) {
   const isEdit = Boolean(editingPartyId);
   const [f, setF] = useState<PartyFormInitial>(initial ?? blank);
@@ -173,6 +191,25 @@ export function PartyForm({
             sameAsBilling: false,
             shippingAddress: addressFieldsToPayload(f.shipping),
           };
+
+      // Opening balance — only sent when unlocked AND amount > 0. The server
+      // treats `null` as "set to none" (and on update will DELETE the row),
+      // so we explicitly send null when the user cleared a previously-set
+      // amount during an edit, to mirror the intent.
+      if (!openingBalanceLocked) {
+        const amount = f.openingBalanceAmount.trim();
+        if (amount && Number(amount) !== 0) {
+          payload.openingBalance = {
+            amount,
+            direction: f.openingBalanceDirection,
+            asOfDate: f.openingBalanceAsOfDate || undefined,
+          };
+        } else if (isEdit) {
+          // Edit mode + cleared field = explicit clear intent.
+          payload.openingBalance = null;
+        }
+      }
+
       const url = isEdit
         ? `/api/parties/${editingPartyId}`
         : "/api/parties";
@@ -290,6 +327,61 @@ export function PartyForm({
                 onChange={(e) => set("panNumber", e.target.value.toUpperCase())}
                 placeholder="ABCDE1234F"
                 className="font-mono uppercase"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="pt-6">
+          <h2 className="mb-1 text-base font-semibold">Opening balance</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Any pending balance carried over from before AstraBill.
+            {openingBalanceLocked
+              ? " — locked because this party already has invoices or payments."
+              : ""}
+          </p>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="opening-balance-amount">Amount (₹)</Label>
+              <Input
+                id="opening-balance-amount"
+                value={f.openingBalanceAmount}
+                onChange={(e) => set("openingBalanceAmount", e.target.value)}
+                placeholder="0"
+                inputMode="decimal"
+                disabled={openingBalanceLocked}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="opening-balance-direction">Direction</Label>
+              <select
+                id="opening-balance-direction"
+                value={f.openingBalanceDirection}
+                onChange={(e) =>
+                  set(
+                    "openingBalanceDirection",
+                    e.target.value as OpeningBalanceDirection,
+                  )
+                }
+                className={SELECT_CLASS}
+                disabled={openingBalanceLocked}
+              >
+                <option value="to_collect">To collect (party owes me)</option>
+                <option value="to_pay">To pay (I owe party)</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="opening-balance-date">As of date</Label>
+              <Input
+                id="opening-balance-date"
+                type="date"
+                value={f.openingBalanceAsOfDate}
+                onChange={(e) =>
+                  set("openingBalanceAsOfDate", e.target.value)
+                }
+                disabled={openingBalanceLocked}
               />
             </div>
           </div>

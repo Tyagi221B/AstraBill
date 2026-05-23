@@ -14,12 +14,13 @@ import "server-only";
 
 import { db, type Tx } from "../db";
 import type { Party } from "../db/schema";
-import { NotFoundError } from "../errors";
+import { ConflictError, NotFoundError } from "../errors";
 import { requirePermission } from "../rbac";
 import { writeAuditEntry } from "../audit";
 import type {
   AddressInputZ,
   CreatePartyInput,
+  OpeningBalanceInputZ,
   ShippingPolicy,
   UpdatePartyInput,
 } from "../schemas/party";
@@ -40,6 +41,12 @@ import {
   upsertBillingAddressTx,
   upsertDefaultShippingAddressTx,
 } from "../repositories/party-addresses";
+import {
+  deleteLedgerEntryByIdTx,
+  getOpeningBalanceEntryForPartyTx,
+  hasNonOpeningActivityForPartyTx,
+  insertLedgerEntryTx,
+} from "../repositories/ledger-entries";
 
 /** Map the Zod-validated address payload (every field optional) to the
  *  repository's nullable-everywhere shape. Empty strings become null so
@@ -98,6 +105,95 @@ async function applyAddressesTx(
   }
 }
 
+/**
+ * Normalise the opening-balance input: "0", empty, or null/undefined all
+ * collapse to "no opening balance". Returns a typed shape with `amount`
+ * guaranteed to be a positive decimal string when non-null.
+ */
+function normaliseOpeningBalance(
+  input: OpeningBalanceInputZ | null | undefined,
+): {
+  amount: string;
+  direction: OpeningBalanceInputZ["direction"];
+  asOfDate: string | null;
+} | null {
+  if (!input) return null;
+  const amount = input.amount.trim();
+  if (!amount || Number(amount) === 0) return null;
+  return {
+    amount,
+    direction: input.direction,
+    asOfDate: input.asOfDate ?? null,
+  };
+}
+
+/**
+ * Apply the opening-balance slice of a party create/update payload.
+ *
+ * Semantics:
+ *   - desired: NULL  + no existing row  → no-op
+ *   - desired: NULL  + existing row     → DELETE existing (only if pre-activity)
+ *   - desired: VALUE + no existing row  → INSERT new opening_balance row
+ *   - desired: VALUE + existing equal   → no-op (idempotent)
+ *   - desired: VALUE + existing diff    → DELETE + INSERT (only if pre-activity)
+ *   - any change attempt while non-opening activity exists → ConflictError
+ *
+ * Why hard-delete on pre-activity edits (not a reversal pair): until any
+ * other ledger row exists, the opening balance is effectively a draft
+ * accounting decision. A reversal pair would leave two rows in the
+ * statement view ("opening 5000" + "reversed −5000" + "opening 6000")
+ * which is noisy and confusing for an unactivated party. Once activity
+ * exists, we lock — at that point reversal is the right correction path,
+ * and we'll add an "Adjust opening balance" journal voucher in V1.5.
+ */
+async function applyOpeningBalanceTx(
+  tx: Tx,
+  opts: {
+    businessId: string;
+    partyId: string;
+    openingBalance: OpeningBalanceInputZ | null | undefined;
+  },
+): Promise<void> {
+  const desired = normaliseOpeningBalance(opts.openingBalance);
+  const existing = await getOpeningBalanceEntryForPartyTx(tx, opts.partyId);
+
+  if (!desired && !existing) return;
+
+  if (desired && existing) {
+    const existingAmount = existing.debitAmount ?? existing.creditAmount;
+    const existingDirection: OpeningBalanceInputZ["direction"] =
+      existing.debitAmount != null ? "to_collect" : "to_pay";
+    const sameAmount =
+      existingAmount != null &&
+      Number(existingAmount) === Number(desired.amount);
+    const sameDirection = existingDirection === desired.direction;
+    if (sameAmount && sameDirection) return;
+  }
+
+  const hasActivity = await hasNonOpeningActivityForPartyTx(tx, opts.partyId);
+  if (hasActivity) {
+    throw new ConflictError(
+      "Cannot modify opening balance — this party already has invoices or payments. (Adjust via journal voucher in V1.5.)",
+    );
+  }
+
+  if (existing) {
+    await deleteLedgerEntryByIdTx(tx, existing.id);
+  }
+  if (desired) {
+    const isDebit = desired.direction === "to_collect";
+    await insertLedgerEntryTx(tx, {
+      businessId: opts.businessId,
+      voucherType: "opening_balance",
+      entryDate: desired.asOfDate ?? new Date().toISOString().slice(0, 10),
+      partyId: opts.partyId,
+      debitAmount: isDebit ? desired.amount : null,
+      creditAmount: isDebit ? null : desired.amount,
+      narration: "Opening balance",
+    });
+  }
+}
+
 /** The walk-in customer that holds cash sales. Created once per business. */
 export const CASH_SALE_PARTY_NAME = "Cash Sale";
 
@@ -137,6 +233,13 @@ export async function createParty(
       shipping: input.shipping,
     });
 
+    await applyOpeningBalanceTx(tx, {
+      businessId: input.businessId,
+      partyId: row.id,
+      openingBalance: input.openingBalance,
+    });
+
+    const openingBalance = normaliseOpeningBalance(input.openingBalance);
     await writeAuditEntry(tx, {
       action: "party.create",
       businessId: input.businessId,
@@ -150,6 +253,9 @@ export async function createParty(
         hasBillingAddress: input.billingAddress
           ? isAddressFilled(toAddressInput(input.billingAddress))
           : false,
+        openingBalance: openingBalance
+          ? { amount: openingBalance.amount, direction: openingBalance.direction }
+          : null,
       },
       ipAddress: ctx.ipAddress ?? null,
       userAgent: ctx.userAgent ?? null,
@@ -169,9 +275,9 @@ export async function updateParty(
     if (!existing) throw new NotFoundError("Party not found");
     await requirePermission(actorUserId, existing.businessId, "party:edit");
 
-    // Strip address-shaped keys before passing the rest to updatePartyTx —
-    // those columns live on the `party_addresses` table, not on parties.
-    const { billingAddress, shipping, ...partyPatch } = input;
+    // Strip address-shaped + opening-balance keys before passing the rest to
+    // updatePartyTx — those don't live on the parties row.
+    const { billingAddress, shipping, openingBalance, ...partyPatch } = input;
 
     const updated = await updatePartyTx(tx, partyId, partyPatch);
 
@@ -181,6 +287,16 @@ export async function updateParty(
       billingAddress,
       shipping,
     });
+
+    // Only apply opening-balance changes when the caller actually included
+    // the key (PATCH semantics: undefined = no intent to change).
+    if (openingBalance !== undefined) {
+      await applyOpeningBalanceTx(tx, {
+        businessId: existing.businessId,
+        partyId,
+        openingBalance,
+      });
+    }
 
     await writeAuditEntry(tx, {
       action: "party.update",

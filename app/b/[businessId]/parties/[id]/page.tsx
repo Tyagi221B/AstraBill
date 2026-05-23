@@ -14,6 +14,10 @@ import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+  balanceForParty,
+  getOpeningBalanceEntryForParty,
+} from "@/lib/repositories/ledger-entries";
+import {
   getBillingAddressForParty,
   getDefaultShippingAddressForParty,
 } from "@/lib/repositories/party-addresses";
@@ -21,6 +25,9 @@ import { CASH_SALE_PARTY_NAME, getParty } from "@/lib/services/parties";
 import { routes } from "@/lib/routes";
 import { requireUser } from "@/lib/session";
 import { DeletePartyButton } from "./DeletePartyButton";
+
+const fmt = (n: number | string) =>
+  `₹${Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
 export const metadata: Metadata = { title: "Party · AstraBill" };
 
@@ -35,10 +42,22 @@ export default async function PartyDetailPage({
   if (!party || party.businessId !== businessId) notFound();
   const b = routes.b(businessId);
 
-  const [billing, shipping] = await Promise.all([
+  const [billing, shipping, balanceStr, openingEntry] = await Promise.all([
     getBillingAddressForParty(party.id),
     getDefaultShippingAddressForParty(party.id),
+    balanceForParty(party.id),
+    getOpeningBalanceEntryForParty(party.id),
   ]);
+
+  const balance = Number(balanceStr);
+  const openingAmount = openingEntry
+    ? (openingEntry.debitAmount ?? openingEntry.creditAmount ?? "0")
+    : null;
+  const openingDirection: "to_collect" | "to_pay" | null = openingEntry
+    ? openingEntry.debitAmount != null
+      ? "to_collect"
+      : "to_pay"
+    : null;
 
   const isCashSale = party.name === CASH_SALE_PARTY_NAME;
 
@@ -74,6 +93,49 @@ export default async function PartyDetailPage({
           </>
         }
       />
+
+      {!isCashSale && (
+        <Card className="mb-5">
+          <CardContent className="flex flex-wrap items-center justify-between gap-4 px-6 py-5">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                Current balance
+              </p>
+              <p
+                className={`mt-1 text-3xl font-semibold tabular-nums ${
+                  balance > 0
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : balance < 0
+                      ? "text-rose-600 dark:text-rose-400"
+                      : "text-foreground"
+                }`}
+              >
+                {balance === 0 ? "₹0" : fmt(Math.abs(balance))}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {balance > 0
+                  ? "To collect — party owes you"
+                  : balance < 0
+                    ? "To pay — you owe party"
+                    : "Settled"}
+              </p>
+            </div>
+            {openingAmount && Number(openingAmount) !== 0 && (
+              <div className="text-right">
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Opening balance
+                </p>
+                <p className="mt-1 text-base font-medium tabular-nums text-foreground">
+                  {fmt(openingAmount)}{" "}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {openingDirection === "to_collect" ? "to collect" : "to pay"}
+                  </span>
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card>

@@ -2,6 +2,10 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/app/PageHeader";
+import {
+  getOpeningBalanceEntryForParty,
+  hasNonOpeningActivityForParty,
+} from "@/lib/repositories/ledger-entries";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
 import {
   getBillingAddressForParty,
@@ -12,6 +16,7 @@ import { requireUser } from "@/lib/session";
 import {
   PartyForm,
   type AddressFormFields,
+  type OpeningBalanceDirection,
   type PartyFormInitial,
 } from "../../PartyForm";
 
@@ -48,10 +53,23 @@ export default async function EditPartyPage({
   const party = await getParty(id, user.id);
   if (!party || party.businessId !== business.id) notFound();
 
-  const [billing, shipping] = await Promise.all([
+  const [billing, shipping, openingEntry, openingLocked] = await Promise.all([
     getBillingAddressForParty(party.id),
     getDefaultShippingAddressForParty(party.id),
+    getOpeningBalanceEntryForParty(party.id),
+    hasNonOpeningActivityForParty(party.id),
   ]);
+
+  const openingAmount = openingEntry
+    ? (openingEntry.debitAmount ?? openingEntry.creditAmount ?? "")
+    : "";
+  const openingDirection: OpeningBalanceDirection = openingEntry
+    ? openingEntry.debitAmount != null
+      ? "to_collect"
+      : "to_pay"
+    : "to_collect";
+  const openingAsOfDate =
+    openingEntry?.entryDate ?? new Date().toISOString().slice(0, 10);
 
   const initial: PartyFormInitial = {
     type: party.type,
@@ -68,6 +86,9 @@ export default async function EditPartyPage({
     billing: addressRowToFields(billing),
     shippingSameAsBilling: shipping === null,
     shipping: addressRowToFields(shipping),
+    openingBalanceAmount: openingAmount,
+    openingBalanceDirection: openingDirection,
+    openingBalanceAsOfDate: openingAsOfDate,
   };
 
   return (
@@ -77,6 +98,7 @@ export default async function EditPartyPage({
         businessId={business.id}
         editingPartyId={party.id}
         initial={initial}
+        openingBalanceLocked={openingLocked}
       />
     </div>
   );

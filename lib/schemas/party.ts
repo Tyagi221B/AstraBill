@@ -81,6 +81,32 @@ export type ShippingPolicy = z.infer<typeof shippingPolicySchema>;
 
 export const partyTypeSchema = z.enum(["customer", "supplier"]);
 
+/**
+ * Opening balance — captured on party form. Posts a single `opening_balance`
+ * row to `ledger_entries`:
+ *   - direction = "to_collect" → debit leg (party owes us)
+ *   - direction = "to_pay"     → credit leg (we owe party)
+ *
+ * Once the party has any non-opening-balance ledger activity (an invoice or
+ * a payment), this becomes immutable — the service throws ConflictError on
+ * any attempted change. The UI surfaces it as a locked field with a reason.
+ *
+ * `amount` is a string the whole way through (memory: money stays string).
+ * "0" / "" are treated as "no opening balance" — the service skips the post.
+ */
+export const openingBalanceDirectionSchema = z.enum(["to_collect", "to_pay"]);
+export type OpeningBalanceDirection = z.infer<
+  typeof openingBalanceDirectionSchema
+>;
+
+export const openingBalanceSchema = z.object({
+  amount: money,
+  direction: openingBalanceDirectionSchema,
+  /** Defaults to today (server-side) when omitted. */
+  asOfDate: isoDate.optional(),
+});
+export type OpeningBalanceInputZ = z.infer<typeof openingBalanceSchema>;
+
 export const createPartySchema = z.object({
   businessId: z.string().uuid(),
   type: partyTypeSchema,
@@ -99,6 +125,8 @@ export const createPartySchema = z.object({
   billingAddress: addressSchema.nullable().optional(),
   /** Shipping policy — defaults to `sameAsBilling: true` when omitted. */
   shipping: shippingPolicySchema.optional(),
+  /** Opening balance — optional; "0" amount = no posting. */
+  openingBalance: openingBalanceSchema.nullable().optional(),
 });
 export type CreatePartyInput = z.infer<typeof createPartySchema>;
 

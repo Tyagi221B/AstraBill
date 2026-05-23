@@ -4,6 +4,69 @@ Append-only. Format: `## [YYYY-MM-DD] <operation> | <title>`
 
 ---
 
+## [2026-05-23] build | PR7-A — Opening balance + KPI tiles + Balance column
+
+First of the five-PR Parties V1 sequence (see [[decision/full-ledger-pivot]]).
+Goal: bring the Parties surface to myBillBook parity on the *most-visible*
+gaps — opening balance capture, To Collect / To Pay KPIs, balance column with
+↑/↓ direction on the list, and a balance card on the detail page. All
+ledger-driven; **zero schema migrations** because PR1 already shipped the
+substrate (party rows, ledger_entries, voucher_type='opening_balance').
+
+**Why ledger-driven, not a column** — a `parties.opening_balance` column
+would have to stay in sync with the ledger forever; any drift corrupts the
+party statement. Storing opening balance as a single ledger row makes
+"current balance" a one-liner (`SUM(debit) − SUM(credit)`) and means every
+future feature (invoice, payment, journal voucher) gets balance updates
+for free.
+
+**What landed**:
+- `lib/schemas/party.ts` — new `openingBalanceSchema` (amount + direction +
+  optional asOfDate); attached to create/update party schemas.
+- `lib/repositories/ledger-entries.ts` — `hasNonOpeningActivityForParty[Tx]`,
+  `getOpeningBalanceEntryForParty[Tx]`, `deleteLedgerEntryByIdTx`. The hard
+  delete is reserved for pre-activity opening-balance edits — see the
+  comment on the helper, and the new row in `DECISIONS.md`.
+- `lib/services/parties.ts` — `applyOpeningBalanceTx` (idempotent, locks
+  post-activity via `ConflictError`); wired into both `createParty` and
+  `updateParty`. Audit log captures `{amount, direction}` on create.
+- `app/b/[businessId]/parties/page.tsx` — 3 KPI tiles + ledger-driven
+  balance column (bulk fetch via `balancesForParties`); ↑green/↓red.
+- `app/b/[businessId]/parties/[id]/page.tsx` — big balance card at top,
+  with the opening-balance hint when present.
+- `app/b/[businessId]/parties/[id]/edit/page.tsx` — prefill opening
+  balance from the existing ledger row; pass `openingBalanceLocked` when
+  the party has non-opening activity.
+- `app/b/[businessId]/parties/PartyForm.tsx` — new "Opening balance" card
+  with ₹ + To Collect/To Pay select + As-of date; locked state with reason
+  message.
+- `DECISIONS.md` — new "Party opening balance" row codifying the
+  ledger-driven model, the immutability rule, and the pre-activity
+  hard-delete exception. `Last reconciled` bumped to 2026-05-23.
+
+**Locked decisions reaffirmed by this PR**:
+- Money stays string end-to-end (`amount: string` from Zod → service →
+  ledger insert).
+- `::text` on READ side only (the existing `balanceForParty[ies]` casts
+  apply on SELECT; INSERTs pass the naked decimal string).
+- One-source-of-truth: every UI surface (KPI tiles, list column, detail
+  card, edit prefill) reads from `ledger_entries`. No denormalised
+  caches.
+
+**What's deferred** (V1.5, deliberately):
+- Journal voucher to adjust opening balance once a party has activity.
+- "Last 5 transactions" preview on the party detail page (full ledger
+  statement is the Party Statement report).
+- Sort / filter on the parties list by balance direction.
+
+Next in the Parties V1 sequence:
+- PR7-B: party_categories model + Party Settings scaffold + category
+  filter on the list.
+- PR7-C: GSTIN Get Details (Sandbox adapter + cache table).
+- PR7-D: Party Bank Account (multi, IFSC auto-lookup via Razorpay free
+  endpoint).
+- PR7-E: Multi-shipping + Custom Fields.
+
 ## [2026-05-22] build | PR4 — system seed module + db:seed / db:reset CLI
 
 A bug surfaced after the morning's DB nuke: item-creation dropdowns went

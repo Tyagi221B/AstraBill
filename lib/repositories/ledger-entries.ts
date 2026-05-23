@@ -17,7 +17,7 @@
  * (receivable for a party, on-hand cash for a money account).
  */
 import "server-only";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 
 import { db, type Tx } from "../db";
 import {
@@ -250,6 +250,104 @@ export async function findTransferPair(
     .select()
     .from(ledgerEntries)
     .where(eq(ledgerEntries.transferPairId, transferPairId));
+}
+
+/**
+ * Has this party seen any ledger activity OTHER than an opening_balance row?
+ *
+ * Used to lock the party's opening-balance field once an invoice or payment
+ * has landed — at that point the opening balance is part of the audited
+ * history of the books, not an editable form field. See decision/full-
+ * ledger-pivot.
+ */
+export async function hasNonOpeningActivityForParty(
+  partyId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: ledgerEntries.id })
+    .from(ledgerEntries)
+    .where(
+      and(
+        eq(ledgerEntries.partyId, partyId),
+        ne(ledgerEntries.voucherType, "opening_balance"),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
+/** Tx-bound variant, used by the party service inside its create/update tx. */
+export async function hasNonOpeningActivityForPartyTx(
+  tx: Tx,
+  partyId: string,
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: ledgerEntries.id })
+    .from(ledgerEntries)
+    .where(
+      and(
+        eq(ledgerEntries.partyId, partyId),
+        ne(ledgerEntries.voucherType, "opening_balance"),
+      ),
+    )
+    .limit(1);
+  return row !== undefined;
+}
+
+/**
+ * The single opening_balance ledger row for a party, if any. Used by the
+ * edit page to prefill the opening balance form fields, and by the service
+ * layer to decide between replace / no-op / delete on update.
+ */
+export async function getOpeningBalanceEntryForParty(
+  partyId: string,
+): Promise<LedgerEntry | null> {
+  const [row] = await db
+    .select()
+    .from(ledgerEntries)
+    .where(
+      and(
+        eq(ledgerEntries.partyId, partyId),
+        eq(ledgerEntries.voucherType, "opening_balance"),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+/** Tx-bound variant — used by the party service inside its update tx. */
+export async function getOpeningBalanceEntryForPartyTx(
+  tx: Tx,
+  partyId: string,
+): Promise<LedgerEntry | null> {
+  const [row] = await tx
+    .select()
+    .from(ledgerEntries)
+    .where(
+      and(
+        eq(ledgerEntries.partyId, partyId),
+        eq(ledgerEntries.voucherType, "opening_balance"),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Hard-delete a ledger row by id.
+ *
+ * Ledger rows are normally immutable — corrections happen through a paired
+ * reversal entry (see `reversed_by_ledger_entry_id`). The ONE exception is a
+ * pre-activity opening balance: while the party has no other ledger rows,
+ * the opening balance is still "draft accounting" and can be edited in
+ * place. Once any non-opening row exists, the service layer blocks edits
+ * (ConflictError) and this helper is never reached.
+ */
+export async function deleteLedgerEntryByIdTx(
+  tx: Tx,
+  id: string,
+): Promise<void> {
+  await tx.delete(ledgerEntries).where(eq(ledgerEntries.id, id));
 }
 
 /**
