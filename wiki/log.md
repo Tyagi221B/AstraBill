@@ -4,6 +4,73 @@ Append-only. Format: `## [YYYY-MM-DD] <operation> | <title>`
 
 ---
 
+## [2026-05-23] build | PR7-D — Party Bank Accounts (multi, IFSC auto-lookup)
+
+Fourth of the five-PR Parties V1 sequence. Surfaces the existing
+`party_bank_accounts` table (shipped in PR1) end-to-end. **Multi-bank
+per party** — myBillBook's "Add Bank Account" allows one bank but
+real-world suppliers often have a UPI VPA and a NEFT account on
+different banks. Our schema's deviation D1 from PR1 covers this.
+
+What landed:
+
+Schema + Zod — `lib/schemas/party-bank-account.ts`
+- createPartyBankAccountSchema (account number 6–20 alphanumeric;
+  IFSC `^[A-Z]{4}0[A-Z0-9]{6}$`; UPI `name@bank` lazy)
+- updatePartyBankAccountSchema (partial, same validations when present)
+
+Repository — `lib/repositories/party-bank-accounts.ts`
+- listPartyBankAccountsForParty / getPartyBankAccountByIdTx
+- insertPartyBankAccountTx / updatePartyBankAccountTx
+- softDeletePartyBankAccountTx
+- unsetOtherDefaultsForPartyTx — flips all-but-one isDefault=false
+- countPartyBankAccountsTx — drives "first bank auto-defaults" rule
+
+Service — `lib/services/party-bank-accounts.ts`
+- All four endpoints gated on `party:edit` (banks are subordinate data
+  to the party, no need for a separate permission)
+- Tenant scoping via `getPartyForUserTx` on the parent party
+- Default-flag invariant: at most one default per party; first add is
+  auto-default; set-default elsewhere flips others in the same tx
+- Audit log writes party_bank_account.{create|update|delete} with the
+  account-number last-4 only (PII-light)
+
+API — nested under party
+- POST   /api/parties/[id]/bank-accounts
+- GET    /api/parties/[id]/bank-accounts
+- PATCH  /api/parties/[id]/bank-accounts/[accountId]
+- DELETE /api/parties/[id]/bank-accounts/[accountId]
+
+IFSC lookup — `app/api/ifsc/[code]/route.ts`
+- Server-side proxy to Razorpay's free `ifsc.razorpay.com/<ifsc>`
+  endpoint (CORS-blocked from the browser; auth-gating bounds noise)
+- Validates format before calling out; 5s timeout
+- 404 → NotFoundError, network/5xx → 503
+
+UI — inline-edit panel on the edit page
+- `PartyBankAccountsPanel.tsx` — list with default badge, edit
+  (pencil), delete, "set default" (star). New banks slide out an
+  inline form
+- IFSC "Look up" button beside the IFSC field — disabled until format
+  matches; pulls bank + branch and confirms before overwriting non-blank
+  fields
+- Banks save independently of the party form's submit button — each
+  add/edit/delete commits straight away (so the user never loses an
+  added bank if they bail on the main Save)
+- Detail page gets a read-only Bank accounts card spanning both
+  columns at the bottom, showing default badge + last-4 + IFSC +
+  branch + UPI
+
+Why not on the New party flow:
+The New party flow stays simple — owners can add banks after the first
+save. Trying to accumulate multi-row bank state in the create form
+adds enough complexity that we'd risk a regression on the much more
+common single-bank-on-create path. V1.5 can revisit if data shows
+owners actually adding banks during create.
+
+Typecheck clean, next build green. No schema migration — the table was
+already in place from PR1.
+
 ## [2026-05-23] build | PR7-C — GSTIN Get Details (Sandbox adapter + cache)
 
 Third of the five-PR Parties V1 sequence. Adds the "Get details" button

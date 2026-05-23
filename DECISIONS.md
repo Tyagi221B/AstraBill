@@ -8,7 +8,7 @@ The single source of truth for every binding technical and product decision.
 - Changing a decision = edit the row here, then grep the wiki for stale copies.
 - `wiki/decision/*.md` pages carry rationale only — they must never restate a fact, only link here.
 
-Last reconciled: 2026-05-23 (PR7-A opening balance + ledger-driven Parties list; PR7-B party_categories + Party Settings scaffold; PR7-C GSTIN Get Details — new `gstin_cache` table (migration 0009, cross-tenant shared), `lib/services/gstin/` adapter pattern with Sandbox + Mock implementations + factory + cache-first orchestration, `GET /api/gstin/[gstin]` auth-only route, "Get details" button on the party form auto-fills name + billing address with confirm prompts on overwrite.)
+Last reconciled: 2026-05-23 (PR7-A opening balance + ledger-driven Parties list; PR7-B party_categories + Party Settings scaffold; PR7-C GSTIN Get Details with adapter pattern + cross-tenant gstin_cache; PR7-D Party Bank Accounts — multi-bank per party, default-flag invariant enforced server-side, IFSC auto-lookup via Razorpay's free public endpoint wrapped at `/api/ifsc/[code]`, inline-edit panel on the party edit page, read-only card on the detail page.)
 
 ---
 

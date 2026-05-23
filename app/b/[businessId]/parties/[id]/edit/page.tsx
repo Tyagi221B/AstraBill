@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import { PageHeader } from "@/components/app/PageHeader";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   getOpeningBalanceEntryForParty,
   hasNonOpeningActivityForParty,
@@ -11,8 +12,10 @@ import {
   getBillingAddressForParty,
   getDefaultShippingAddressForParty,
 } from "@/lib/repositories/party-addresses";
+import { listPartyBankAccountsForParty } from "@/lib/repositories/party-bank-accounts";
 import { listPartyCategoriesForUser } from "@/lib/repositories/party-categories";
 import { getParty } from "@/lib/services/parties";
+import { PartyBankAccountsPanel } from "./PartyBankAccountsPanel";
 import { requireUser } from "@/lib/session";
 import {
   PartyForm,
@@ -54,13 +57,14 @@ export default async function EditPartyPage({
   const party = await getParty(id, user.id);
   if (!party || party.businessId !== business.id) notFound();
 
-  const [billing, shipping, openingEntry, openingLocked, categories] =
+  const [billing, shipping, openingEntry, openingLocked, categories, banks] =
     await Promise.all([
       getBillingAddressForParty(party.id),
       getDefaultShippingAddressForParty(party.id),
       getOpeningBalanceEntryForParty(party.id),
       hasNonOpeningActivityForParty(party.id),
       listPartyCategoriesForUser({ userId: user.id, businessId }),
+      listPartyBankAccountsForParty(party.id),
     ]);
 
   const openingAmount = openingEntry
@@ -105,6 +109,17 @@ export default async function EditPartyPage({
         openingBalanceLocked={openingLocked}
         categories={categories}
       />
+      <Card className="mt-5">
+        <CardContent className="pt-6">
+          <h2 className="mb-1 text-base font-semibold">Bank accounts</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Banks are saved independently of the party form above — each
+            add / edit / delete commits straight away. The default bank
+            shows on this party's payment-out flow.
+          </p>
+          <PartyBankAccountsPanel partyId={party.id} initial={banks} />
+        </CardContent>
+      </Card>
     </div>
   );
 }

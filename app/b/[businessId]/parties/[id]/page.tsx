@@ -21,6 +21,7 @@ import {
   getBillingAddressForParty,
   getDefaultShippingAddressForParty,
 } from "@/lib/repositories/party-addresses";
+import { listPartyBankAccountsForParty } from "@/lib/repositories/party-bank-accounts";
 import { listPartyCategoriesForUser } from "@/lib/repositories/party-categories";
 import { CASH_SALE_PARTY_NAME, getParty } from "@/lib/services/parties";
 import { routes } from "@/lib/routes";
@@ -43,13 +44,14 @@ export default async function PartyDetailPage({
   if (!party || party.businessId !== businessId) notFound();
   const b = routes.b(businessId);
 
-  const [billing, shipping, balanceStr, openingEntry, categories] =
+  const [billing, shipping, balanceStr, openingEntry, categories, banks] =
     await Promise.all([
       getBillingAddressForParty(party.id),
       getDefaultShippingAddressForParty(party.id),
       balanceForParty(party.id),
       getOpeningBalanceEntryForParty(party.id),
       listPartyCategoriesForUser({ userId: user.id, businessId }),
+      listPartyBankAccountsForParty(party.id),
     ]);
   const category = party.categoryId
     ? categories.find((c) => c.id === party.categoryId) ?? null
@@ -206,6 +208,50 @@ export default async function PartyDetailPage({
               <p className="text-sm text-muted-foreground">
                 Same as billing
               </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardContent className="pt-6">
+            <h2 className="mb-3 text-base font-semibold">Bank accounts</h2>
+            {banks.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No bank accounts on file. Add one from the Edit page.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {banks.map((b) => (
+                  <li
+                    key={b.id}
+                    className="flex flex-wrap items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium">
+                          {b.bankName ?? "Bank"}
+                        </span>
+                        {b.isDefault && <Badge tone="info">Default</Badge>}
+                      </div>
+                      <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                        •••• {b.bankAccountNumber.slice(-4)}
+                        {b.ifsc ? ` · ${b.ifsc}` : ""}
+                        {b.branchName ? ` · ${b.branchName}` : ""}
+                      </p>
+                      {b.accountHolderName && (
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {b.accountHolderName}
+                        </p>
+                      )}
+                      {b.upiId && (
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          UPI: <span className="font-mono">{b.upiId}</span>
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
           </CardContent>
         </Card>
