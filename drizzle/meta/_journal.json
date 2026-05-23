@@ -64,6 +64,13 @@
       "when": 1779465610000,
       "tag": "0008_pr3b_businesses_rename",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1779638400000,
+      "tag": "0009_pr7c_gstin_cache",
+      "breakpoints": true
     }
   ]
 }

@@ -96,6 +96,34 @@ function lookupStateName(code: string): string | null {
   return INDIAN_STATES.find((s) => s.code === code)?.name ?? null;
 }
 
+const GSTIN_FORMAT_RE = /^[0-9A-Z]{15}$/;
+
+function isGstinFormatValid(s: string): boolean {
+  return GSTIN_FORMAT_RE.test(s.trim().toUpperCase());
+}
+
+/** Shape of the /api/gstin/[gstin] success payload. */
+interface GstinLookupResponse {
+  profile: {
+    gstin: string;
+    legalName: string | null;
+    tradeName: string | null;
+    address: {
+      streetAddress: string | null;
+      city: string | null;
+      state: string | null;
+      stateCode: string | null;
+      pincode: string | null;
+    };
+    status: string | null;
+    registrationDate: string | null;
+    businessType: string | null;
+  };
+  source: "cache" | "vendor" | "stale-cache";
+  vendor: string;
+  fetchedAt: string;
+}
+
 function addressFieldsToPayload(addr: AddressFormFields): {
   streetAddress: string | null;
   city: string | null;
@@ -143,6 +171,76 @@ export function PartyForm({
   const isEdit = Boolean(editingPartyId);
   const [f, setF] = useState<PartyFormInitial>(initial ?? blank);
   const [busy, setBusy] = useState(false);
+  const [gstinFetching, setGstinFetching] = useState(false);
+
+  async function fetchGstinDetails() {
+    const gstin = f.gstin.trim().toUpperCase();
+    if (!isGstinFormatValid(gstin)) return;
+    setGstinFetching(true);
+    try {
+      const res = await fetch(`/api/gstin/${encodeURIComponent(gstin)}`);
+      const json = (await res.json()) as
+        | { ok: true; data: GstinLookupResponse }
+        | { ok: false; error: { message: string } };
+      if (!json.ok) {
+        toast.error(json.error.message);
+        return;
+      }
+      const { profile, source, vendor } = json.data;
+      const partyName = profile.legalName?.trim() || profile.tradeName?.trim() || "";
+
+      // Auto-fill rules:
+      //   - Name: overwrite if blank, otherwise ask
+      //   - Billing address: overwrite if blank, otherwise ask
+      const shouldOverwriteName =
+        partyName !== "" &&
+        (!f.name.trim() ||
+          window.confirm(
+            `Replace party name with "${partyName}" from the GST portal?`,
+          ));
+
+      const billingIsEmpty = addressIsEmpty(f.billing);
+      const newBilling: AddressFormFields = {
+        streetAddress: profile.address.streetAddress ?? "",
+        city: profile.address.city ?? "",
+        stateCode: profile.address.stateCode ?? "",
+        pincode: profile.address.pincode ?? "",
+      };
+      const billingHasAnything =
+        newBilling.streetAddress ||
+        newBilling.city ||
+        newBilling.stateCode ||
+        newBilling.pincode;
+      const shouldOverwriteBilling =
+        Boolean(billingHasAnything) &&
+        (billingIsEmpty ||
+          window.confirm(
+            "Replace billing address with the registered address from the GST portal?",
+          ));
+
+      setF((prev) => ({
+        ...prev,
+        name: shouldOverwriteName ? partyName : prev.name,
+        billing: shouldOverwriteBilling ? newBilling : prev.billing,
+      }));
+
+      // Vendor / source telemetry — useful while we tune the cache TTL.
+      const vendorTag = vendor === "mock" ? " (mock data)" : "";
+      const sourceTag =
+        source === "cache"
+          ? " · cached"
+          : source === "stale-cache"
+            ? " · cached (stale, vendor unreachable)"
+            : "";
+      toast.success(`GSTIN details fetched${sourceTag}${vendorTag}`);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "GSTIN lookup failed",
+      );
+    } finally {
+      setGstinFetching(false);
+    }
+  }
 
   function set<K extends keyof PartyFormInitial>(
     key: K,
@@ -360,7 +458,17 @@ export function PartyForm({
           <h2 className="mb-4 text-base font-semibold">GST &amp; PAN</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="gstin">GSTIN</Label>
+              <div className="flex items-end justify-between gap-2">
+                <Label htmlFor="gstin">GSTIN</Label>
+                <button
+                  type="button"
+                  onClick={fetchGstinDetails}
+                  disabled={!isGstinFormatValid(f.gstin) || gstinFetching}
+                  className="text-xs font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+                >
+                  {gstinFetching ? "Fetching…" : "Get details"}
+                </button>
+              </div>
               <Input
                 id="gstin"
                 value={f.gstin}
@@ -368,6 +476,10 @@ export function PartyForm({
                 placeholder="29XXXXX9438X1XX"
                 className="font-mono uppercase"
               />
+              <p className="text-xs text-muted-foreground">
+                Enter a 15-character GSTIN, then "Get details" to auto-fill
+                name and billing address from the GST portal.
+              </p>
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="pan">PAN</Label>

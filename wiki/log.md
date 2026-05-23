@@ -4,6 +4,67 @@ Append-only. Format: `## [YYYY-MM-DD] <operation> | <title>`
 
 ---
 
+## [2026-05-23] build | PR7-C — GSTIN Get Details (Sandbox adapter + cache)
+
+Third of the five-PR Parties V1 sequence. Adds the "Get details" button
+on the party form, fetching legal name + trade name + registered address
+from the GST portal so owners can populate a B2B party with a 15-char
+GSTIN instead of typing six fields.
+
+**New migration** (first one this PR sequence): `0009_pr7c_gstin_cache.sql`
+— a single `gstin_cache` table (PK = gstin, cross-tenant shared on
+purpose; the data is public, the auth-gate on the route bounds vendor
+cost).
+
+Adapter pattern — `lib/services/gstin/`:
+- `types.ts` — `GstinLookupAdapter` interface, `GstinProfile` shape,
+  typed errors (NotFound / Invalid / AdapterUnavailable), `normaliseGstin`
+- `sandbox-adapter.ts` — Sandbox API (auth + lookup, in-process token
+  cache, 8s timeout, DD/MM/YYYY → ISO date conversion, principal-address
+  pluck)
+- `mock-adapter.ts` — synthetic profiles for dev (no env vars required;
+  state code derived from chars 1–2 of the GSTIN so state-derived GST
+  classification still works during dev)
+- `factory.ts` — singleton-per-process picker; SANDBOX_API_KEY +
+  SANDBOX_API_SECRET → SandboxGstinAdapter, else MockGstinAdapter
+- `service.ts` — cache-first orchestration; on adapter unavailable
+  with a stale cache hit, return stale + flag (UI shows hint)
+- `index.ts` — clean public surface (the only file the route touches)
+
+Repo + route:
+- `lib/repositories/gstin-cache.ts` — find + upsert
+- `app/api/gstin/[gstin]/route.ts` — auth-only (requireUser, no
+  business-membership check — the cache is cross-tenant by design)
+  with typed-error mapping: Invalid→400, NotFound→404,
+  Unavailable→503
+
+UI — `app/b/[businessId]/parties/PartyForm.tsx`:
+- "Get details" link next to the GSTIN label
+- Disabled until the GSTIN matches the 15-char regex
+- Fetches `/api/gstin/<gstin>` and confirms on overwrite:
+  - Name: prefer legalName, fall back to tradeName; auto-fill if
+    blank, else `window.confirm`
+  - Billing: address overwrite gated by same `window.confirm` pattern
+- Toast surfaces the source (`cached`, `cached (stale, …)`, fresh) and
+  flags mock data so devs don't confuse it with production
+
+Env vars expected in prod (Vercel):
+- `SANDBOX_API_KEY` — Sandbox API key
+- `SANDBOX_API_SECRET` — Sandbox API secret
+Without these, the factory returns MockGstinAdapter and the cache row
+gets `vendor='mock'`; production deploys MUST set them.
+
+What's deferred:
+- Per-user rate limiting on `/api/gstin/[gstin]` (auth-gate + cache
+  is enough for V1; revisit if abuse appears)
+- Background TTL refresh job (currently next call after expiry
+  refreshes; bounded by login-gated traffic)
+- Re-parse of raw responses on adapter change (we don't snapshot
+  raw payloads yet)
+
+Typecheck clean, next build green. Migration applied to the shared
+Supabase project via `npm run db:migrate`.
+
 ## [2026-05-23] build | PR7-B — Party categories + Party Settings scaffold + filter
 
 Second of the five-PR Parties V1 sequence. Surfaces the existing

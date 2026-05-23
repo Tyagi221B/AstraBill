@@ -1386,6 +1386,60 @@ export const stockMovements = pgTable(
 );
 
 // =========================================================================
+// NEW — gstin_cache  (PR7-C)
+//
+// Shared cross-tenant cache for GSTIN profile lookups (party name + address
+// + status, fetched from a third-party GST data vendor).
+//
+// Why cross-tenant: the data is *public* (the GST portal exposes it on a
+// captcha-gated page; we just call the vendor's API). Two businesses that
+// happen to look up the same GSTIN should share the cache hit so neither
+// pays the per-call vendor cost twice. Read paths require an authed user,
+// so the tenant model is still enforced at the API boundary.
+//
+// Vendor neutrality: the row stores the normalised `GstinProfile` shape
+// plus the raw vendor payload (for debugging / re-parsing if we swap
+// vendors), and a `vendor` column so re-fetch logic can age out rows
+// originally fetched from a now-removed adapter.
+// =========================================================================
+
+export const gstinCache = pgTable(
+  "gstin_cache",
+  {
+    /** 15-char alphanumeric GSTIN, always uppercase. */
+    gstin: text("gstin").primaryKey(),
+    legalName: text("legal_name"),
+    tradeName: text("trade_name"),
+    streetAddress: text("street_address"),
+    city: text("city"),
+    state: text("state"),
+    stateCode: text("state_code"),
+    pincode: text("pincode"),
+    /** "Active" / "Cancelled" / "Suspended" / "Provisional" — vendor strings,
+     *  preserved as-is so the UI can decide how to surface unusual states. */
+    status: text("status"),
+    registrationDate: date("registration_date"),
+    /** "Regular" / "Composition" / "Casual" / "Non-Resident" / etc. */
+    businessType: text("business_type"),
+    /** Full vendor JSON for debugging + future re-parse on adapter change. */
+    rawResponse: jsonb("raw_response"),
+    /** "sandbox" / "setu" / "mock" — drives TTL + age-out semantics. */
+    vendor: text("vendor").notNull(),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    /** Honoured by the service layer; the row is kept past expiry so a hot
+     *  vendor outage can serve stale data with a `staleAt` flag. */
+    cacheExpiresAt: timestamp("cache_expires_at", { withTimezone: true })
+      .notNull(),
+  },
+  (t) => [
+    index("gstin_cache_expires_idx").on(t.cacheExpiresAt),
+    check("gstin_cache_gstin_format", sql`${t.gstin} ~ '^[0-9A-Z]{15}$'`),
+  ],
+);
+
+// =========================================================================
 // Inferred types — single source of truth for row shapes
 // =========================================================================
 
@@ -1465,6 +1519,10 @@ export type NewPaymentEntryAllocation =
   typeof paymentEntryAllocations.$inferInsert;
 export type LedgerEntry = typeof ledgerEntries.$inferSelect;
 export type NewLedgerEntry = typeof ledgerEntries.$inferInsert;
+
+// GSTIN lookup cache (PR7-C)
+export type GstinCacheRow = typeof gstinCache.$inferSelect;
+export type NewGstinCacheRow = typeof gstinCache.$inferInsert;
 
 // Enum value unions
 export type Role = (typeof memberRole.enumValues)[number];
