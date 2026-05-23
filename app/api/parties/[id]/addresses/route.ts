@@ -1,16 +1,22 @@
 /**
  * GET /api/parties/[id]/addresses
  *
- * Returns the party's billing + default shipping addresses (or nulls). Used
- * by document-creation forms to populate Bill-to / Ship-to without loading
- * every party's full address graph upfront. Membership-scoped via
- * `getParty`; non-members get 404 (no existence leak).
+ * Returns the party's billing + all active shipping addresses. Used by
+ * document-creation forms to populate the Bill-to / Ship-to picker without
+ * loading every party's full address graph upfront.
+ *
+ * Multi-shipping landed in PR7-E. Response shape:
+ *   { billing: PartyAddress | null,
+ *     shippingAddresses: PartyAddress[]   // default first, then by created
+ *   }
+ *
+ * Membership-scoped via `getParty`; non-members get 404 (no existence leak).
  */
 import { NotFoundError } from "@/lib/errors";
 import { ok, route } from "@/lib/http";
 import {
   getBillingAddressForParty,
-  getDefaultShippingAddressForParty,
+  listShippingAddressesForParty,
 } from "@/lib/repositories/party-addresses";
 import { getParty } from "@/lib/services/parties";
 import { requireUser } from "@/lib/session";
@@ -22,11 +28,11 @@ export const GET = route(
     const party = await getParty(id, user.id);
     if (!party) throw new NotFoundError("Party not found");
 
-    const [billing, shipping] = await Promise.all([
+    const [billing, shippingAddresses] = await Promise.all([
       getBillingAddressForParty(id),
-      getDefaultShippingAddressForParty(id),
+      listShippingAddressesForParty(id),
     ]);
 
-    return ok({ billing, shipping });
+    return ok({ billing, shippingAddresses });
   },
 );

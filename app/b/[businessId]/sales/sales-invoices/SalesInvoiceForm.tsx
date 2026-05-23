@@ -132,12 +132,12 @@ export function SalesInvoiceForm({
   const [busy, setBusy] = useState(false);
   const [partyAddrs, setPartyAddrs] = useState<{
     billing: PartyAddress | null;
-    shipping: PartyAddress | null;
+    shippingAddresses: PartyAddress[];
   } | null>(null);
 
-  // Fetch the picked party's billing + default shipping addresses. The
-  // form starts with ship-to == bill-to; the toggle below lets the user
-  // override only when the party has a saved default shipping.
+  // Fetch the picked party's billing + all shipping addresses. The form
+  // auto-picks the default shipping (if any) on first load; the dropdown
+  // below lets the user override per-invoice or fall back to billing.
   useEffect(() => {
     if (!f.partyId) {
       setPartyAddrs(null);
@@ -150,11 +150,26 @@ export function SalesInvoiceForm({
         const json = (await res.json()) as
           | {
               ok: true;
-              data: { billing: PartyAddress | null; shipping: PartyAddress | null };
+              data: {
+                billing: PartyAddress | null;
+                shippingAddresses: PartyAddress[];
+              };
             }
           | { ok: false; error: { message: string } };
         if (!cancelled && json.ok) {
           setPartyAddrs(json.data);
+          // Auto-pick default shipping on first load (only when the form
+          // doesn't already carry a value — preserve edit-mode prefill).
+          if (f.shipToAddressId === null) {
+            const def = json.data.shippingAddresses.find((s) => s.isDefault);
+            if (def) {
+              setF((prev) =>
+                prev.shipToAddressId === null
+                  ? { ...prev, shipToAddressId: def.id }
+                  : prev,
+              );
+            }
+          }
         }
       } catch {
         // Silent — block just doesn't render; saving still works.
@@ -163,6 +178,7 @@ export function SalesInvoiceForm({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [f.partyId]);
 
   function set<K extends keyof SalesInvoiceFormInitial>(
@@ -450,41 +466,46 @@ export function SalesInvoiceForm({
                 <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                   Ship to
                 </h2>
-                {partyAddrs.shipping ? (
-                  f.shipToAddressId ? (
-                    <>
-                      <address className="not-italic text-sm leading-relaxed text-foreground whitespace-pre-line">
-                        {formatAddressLine(partyAddrs.shipping)}
-                      </address>
-                      <button
-                        type="button"
-                        onClick={() => set("shipToAddressId", null)}
-                        className="mt-2 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                      >
-                        Use billing instead
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-sm text-muted-foreground">
-                        Same as billing
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          partyAddrs.shipping &&
-                          set("shipToAddressId", partyAddrs.shipping.id)
-                        }
-                        className="mt-2 text-xs text-primary underline-offset-2 hover:underline"
-                      >
-                        Use saved shipping address
-                      </button>
-                    </>
-                  )
+                {partyAddrs.shippingAddresses.length === 0 ? (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Same as billing
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Add a shipping address from the party's edit page to
+                      pick it here.
+                    </p>
+                  </>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Same as billing
-                  </p>
+                  <>
+                    <select
+                      value={f.shipToAddressId ?? ""}
+                      onChange={(e) =>
+                        set("shipToAddressId", e.target.value || null)
+                      }
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+                    >
+                      <option value="">— Same as billing —</option>
+                      {partyAddrs.shippingAddresses.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {(s.label ?? "(no label)") +
+                            (s.isDefault ? " · default" : "")}
+                        </option>
+                      ))}
+                    </select>
+                    {f.shipToAddressId &&
+                      (() => {
+                        const picked = partyAddrs.shippingAddresses.find(
+                          (s) => s.id === f.shipToAddressId,
+                        );
+                        if (!picked) return null;
+                        return (
+                          <address className="mt-2 not-italic text-sm leading-relaxed text-foreground whitespace-pre-line">
+                            {formatAddressLine(picked)}
+                          </address>
+                        );
+                      })()}
+                  </>
                 )}
               </div>
             </div>

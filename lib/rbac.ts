@@ -30,6 +30,7 @@ const ALL_PERMISSIONS = [
   "party:edit",
   "party:delete",
   "party_category:manage",
+  "party_custom_field:manage",
   // Items (products + services)
   "item:view",
   "item:create",
@@ -72,6 +73,7 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     "party:edit",
     "party:delete",
     "party_category:manage",
+    "party_custom_field:manage",
     "item:view",
     "item:create",
     "item:edit",
@@ -100,6 +102,7 @@ export const PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
     "party:create",
     "party:edit",
     "party_category:manage",
+    "party_custom_field:manage",
     "item:view",
     "item_category:manage",
     "money_account:view",

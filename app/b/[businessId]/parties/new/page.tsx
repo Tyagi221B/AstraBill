@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/app/PageHeader";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
 import { listPartyCategoriesForUser } from "@/lib/repositories/party-categories";
+import { listPartyCustomFieldDefsForUser } from "@/lib/repositories/party-custom-fields";
 import { requireUser } from "@/lib/session";
 import { PartyForm } from "../PartyForm";
 
@@ -22,15 +23,19 @@ export default async function NewPartyPage({
   const business = await getBusinessForUser(user.id, businessId);
   if (!business) notFound();
 
-  const categories = await listPartyCategoriesForUser({
-    userId: user.id,
-    businessId,
-  });
+  const [categories, customFieldDefinitions] = await Promise.all([
+    listPartyCategoriesForUser({ userId: user.id, businessId }),
+    listPartyCustomFieldDefsForUser({ userId: user.id, businessId }),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader title="New party" />
-      <PartyForm businessId={business.id} categories={categories} />
+      <PartyForm
+        businessId={business.id}
+        categories={categories}
+        customFieldDefinitions={customFieldDefinitions}
+      />
     </div>
   );
 }

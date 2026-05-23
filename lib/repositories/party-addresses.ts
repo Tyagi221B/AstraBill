@@ -275,3 +275,158 @@ export async function findAddressById(
     .limit(1);
   return row ?? null;
 }
+
+// =========================================================================
+// Multi-shipping helpers (PR7-E)
+//
+// Extending the V1.0 "single default shipping" pattern to "many labelled
+// shipping addresses, one default". The existing single-default helpers
+// (upsertDefaultShippingAddressTx, clearDefaultShippingAddressTx, the
+// "Same as billing" toggle on the new-party form) stay for backward
+// compatibility — multi-shipping kicks in on the edit page + invoice form.
+//
+// Invariant: at most ONE active shipping row per party has is_default=true.
+// Enforced service-side; the repo provides the flip primitive.
+// =========================================================================
+
+import { ne } from "drizzle-orm";
+
+/** Every active shipping row for a party (defaults first, then by created). */
+export async function listShippingAddressesForParty(
+  partyId: string,
+): Promise<PartyAddress[]> {
+  return db
+    .select()
+    .from(partyAddresses)
+    .where(
+      and(
+        eq(partyAddresses.partyId, partyId),
+        eq(partyAddresses.kind, "shipping"),
+        isNull(partyAddresses.deletedAt),
+      ),
+    )
+    .orderBy(asc(partyAddresses.createdAt));
+}
+
+export async function listShippingAddressesForPartyTx(
+  tx: Tx,
+  partyId: string,
+): Promise<PartyAddress[]> {
+  return tx
+    .select()
+    .from(partyAddresses)
+    .where(
+      and(
+        eq(partyAddresses.partyId, partyId),
+        eq(partyAddresses.kind, "shipping"),
+        isNull(partyAddresses.deletedAt),
+      ),
+    )
+    .orderBy(asc(partyAddresses.createdAt));
+}
+
+export async function findShippingAddressByIdTx(
+  tx: Tx,
+  addressId: string,
+): Promise<PartyAddress | null> {
+  const [row] = await tx
+    .select()
+    .from(partyAddresses)
+    .where(
+      and(
+        eq(partyAddresses.id, addressId),
+        eq(partyAddresses.kind, "shipping"),
+        isNull(partyAddresses.deletedAt),
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
+export interface ShippingAddressInput extends AddressInput {
+  /** Required for multi-shipping rows so the UI + invoice picker can
+   *  distinguish "Warehouse" from "Branch office" etc. */
+  label: string;
+  isDefault: boolean;
+}
+
+export async function insertShippingAddressTx(
+  tx: Tx,
+  opts: {
+    businessId: string;
+    partyId: string;
+    address: ShippingAddressInput;
+  },
+): Promise<PartyAddress> {
+  const [row] = await tx
+    .insert(partyAddresses)
+    .values({
+      businessId: opts.businessId,
+      partyId: opts.partyId,
+      kind: "shipping",
+      label: opts.address.label,
+      streetAddress: opts.address.streetAddress,
+      city: opts.address.city,
+      state: opts.address.state,
+      stateCode: opts.address.stateCode,
+      pincode: opts.address.pincode,
+      isDefault: opts.address.isDefault,
+    })
+    .returning();
+  if (!row) throw new Error("Insert shipping address returned no row");
+  return row;
+}
+
+export interface ShippingAddressPatch {
+  label?: string;
+  streetAddress?: string | null;
+  city?: string | null;
+  state?: string | null;
+  stateCode?: string | null;
+  pincode?: string | null;
+  isDefault?: boolean;
+}
+
+export async function updateShippingAddressTx(
+  tx: Tx,
+  addressId: string,
+  patch: ShippingAddressPatch,
+): Promise<PartyAddress> {
+  const [row] = await tx
+    .update(partyAddresses)
+    .set(patch)
+    .where(eq(partyAddresses.id, addressId))
+    .returning();
+  if (!row) throw new Error("Update shipping address returned no row");
+  return row;
+}
+
+export async function softDeleteShippingAddressTx(
+  tx: Tx,
+  addressId: string,
+): Promise<void> {
+  await tx
+    .update(partyAddresses)
+    .set({ deletedAt: new Date() })
+    .where(eq(partyAddresses.id, addressId));
+}
+
+/** Flip every other active shipping row for the party to is_default=false. */
+export async function unsetOtherDefaultShippingTx(
+  tx: Tx,
+  partyId: string,
+  exceptId: string,
+): Promise<void> {
+  await tx
+    .update(partyAddresses)
+    .set({ isDefault: false })
+    .where(
+      and(
+        eq(partyAddresses.partyId, partyId),
+        eq(partyAddresses.kind, "shipping"),
+        eq(partyAddresses.isDefault, true),
+        ne(partyAddresses.id, exceptId),
+        isNull(partyAddresses.deletedAt),
+      ),
+    );
+}

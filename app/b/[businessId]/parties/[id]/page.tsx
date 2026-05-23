@@ -19,10 +19,14 @@ import {
 } from "@/lib/repositories/ledger-entries";
 import {
   getBillingAddressForParty,
-  getDefaultShippingAddressForParty,
+  listShippingAddressesForParty,
 } from "@/lib/repositories/party-addresses";
 import { listPartyBankAccountsForParty } from "@/lib/repositories/party-bank-accounts";
 import { listPartyCategoriesForUser } from "@/lib/repositories/party-categories";
+import {
+  listPartyCustomFieldDefsForBusiness,
+  listPartyCustomFieldValues,
+} from "@/lib/repositories/party-custom-fields";
 import { CASH_SALE_PARTY_NAME, getParty } from "@/lib/services/parties";
 import { routes } from "@/lib/routes";
 import { requireUser } from "@/lib/session";
@@ -44,15 +48,31 @@ export default async function PartyDetailPage({
   if (!party || party.businessId !== businessId) notFound();
   const b = routes.b(businessId);
 
-  const [billing, shipping, balanceStr, openingEntry, categories, banks] =
-    await Promise.all([
-      getBillingAddressForParty(party.id),
-      getDefaultShippingAddressForParty(party.id),
-      balanceForParty(party.id),
-      getOpeningBalanceEntryForParty(party.id),
-      listPartyCategoriesForUser({ userId: user.id, businessId }),
-      listPartyBankAccountsForParty(party.id),
-    ]);
+  const [
+    billing,
+    shippingAddresses,
+    balanceStr,
+    openingEntry,
+    categories,
+    banks,
+    customFieldDefs,
+    customFieldValues,
+  ] = await Promise.all([
+    getBillingAddressForParty(party.id),
+    listShippingAddressesForParty(party.id),
+    balanceForParty(party.id),
+    getOpeningBalanceEntryForParty(party.id),
+    listPartyCategoriesForUser({ userId: user.id, businessId }),
+    listPartyBankAccountsForParty(party.id),
+    listPartyCustomFieldDefsForBusiness(businessId),
+    listPartyCustomFieldValues(party.id),
+  ]);
+  const cfValueByDef = new Map(
+    customFieldValues.map((v) => [v.definitionId, v.value]),
+  );
+  const cfRows = customFieldDefs
+    .map((d) => ({ name: d.name, value: cfValueByDef.get(d.id) ?? null }))
+    .filter((row) => row.value && row.value.trim());
   const category = party.categoryId
     ? categories.find((c) => c.id === party.categoryId) ?? null
     : null;
@@ -201,16 +221,41 @@ export default async function PartyDetailPage({
 
         <Card>
           <CardContent className="pt-6">
-            <h2 className="mb-3 text-base font-semibold">Shipping address</h2>
-            {shipping ? (
-              <AddressBlock address={shipping} />
-            ) : (
+            <h2 className="mb-3 text-base font-semibold">Shipping addresses</h2>
+            {shippingAddresses.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Same as billing
               </p>
+            ) : (
+              <ul className="flex flex-col gap-4">
+                {shippingAddresses.map((s) => (
+                  <li key={s.id}>
+                    <div className="mb-1 flex items-center gap-2">
+                      <span className="text-sm font-medium">
+                        {s.label ?? "(no label)"}
+                      </span>
+                      {s.isDefault && <Badge tone="info">Default</Badge>}
+                    </div>
+                    <AddressBlock address={s} />
+                  </li>
+                ))}
+              </ul>
             )}
           </CardContent>
         </Card>
+
+        {cfRows.length > 0 && (
+          <Card className="lg:col-span-2">
+            <CardContent className="pt-6">
+              <h2 className="mb-3 text-base font-semibold">More details</h2>
+              <dl className="grid grid-cols-1 gap-x-8 gap-y-2.5 text-sm sm:grid-cols-2">
+                {cfRows.map((row) => (
+                  <Field key={row.name} label={row.name} value={row.value} />
+                ))}
+              </dl>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="lg:col-span-2">
           <CardContent className="pt-6">

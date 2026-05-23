@@ -47,6 +47,11 @@ import {
   hasNonOpeningActivityForPartyTx,
   insertLedgerEntryTx,
 } from "../repositories/ledger-entries";
+import {
+  filterValidDefinitionIdsForBusinessTx,
+  upsertPartyCustomFieldValueTx,
+} from "../repositories/party-custom-fields";
+import type { PartyCustomFieldValueInput } from "../schemas/party-custom-field";
 
 /** Map the Zod-validated address payload (every field optional) to the
  *  repository's nullable-everywhere shape. Empty strings become null so
@@ -194,6 +199,39 @@ async function applyOpeningBalanceTx(
   }
 }
 
+/**
+ * Apply a list of (definitionId, value) tuples to a party. Stray IDs that
+ * don't belong to the business (or are soft-deleted) are silently dropped
+ * — the caller's UI shouldn't have surfaced them anyway, and we don't
+ * want to fail the whole party-save on a stale definition pointer.
+ */
+async function applyPartyCustomFieldsTx(
+  tx: Tx,
+  opts: {
+    businessId: string;
+    partyId: string;
+    values: PartyCustomFieldValueInput[] | undefined;
+  },
+): Promise<void> {
+  if (!opts.values || opts.values.length === 0) return;
+
+  const validIds = await filterValidDefinitionIdsForBusinessTx(
+    tx,
+    opts.businessId,
+    opts.values.map((v) => v.definitionId),
+  );
+
+  for (const v of opts.values) {
+    if (!validIds.has(v.definitionId)) continue;
+    await upsertPartyCustomFieldValueTx(tx, {
+      businessId: opts.businessId,
+      partyId: opts.partyId,
+      definitionId: v.definitionId,
+      value: v.value,
+    });
+  }
+}
+
 /** The walk-in customer that holds cash sales. Created once per business. */
 export const CASH_SALE_PARTY_NAME = "Cash Sale";
 
@@ -239,6 +277,12 @@ export async function createParty(
       openingBalance: input.openingBalance,
     });
 
+    await applyPartyCustomFieldsTx(tx, {
+      businessId: input.businessId,
+      partyId: row.id,
+      values: input.customFields,
+    });
+
     const openingBalance = normaliseOpeningBalance(input.openingBalance);
     await writeAuditEntry(tx, {
       action: "party.create",
@@ -275,9 +319,16 @@ export async function updateParty(
     if (!existing) throw new NotFoundError("Party not found");
     await requirePermission(actorUserId, existing.businessId, "party:edit");
 
-    // Strip address-shaped + opening-balance keys before passing the rest to
-    // updatePartyTx — those don't live on the parties row.
-    const { billingAddress, shipping, openingBalance, ...partyPatch } = input;
+    // Strip non-row keys before passing the rest to updatePartyTx — those
+    // live on adjacent tables (party_addresses / ledger_entries /
+    // party_custom_field_values).
+    const {
+      billingAddress,
+      shipping,
+      openingBalance,
+      customFields,
+      ...partyPatch
+    } = input;
 
     const updated = await updatePartyTx(tx, partyId, partyPatch);
 
@@ -295,6 +346,14 @@ export async function updateParty(
         businessId: existing.businessId,
         partyId,
         openingBalance,
+      });
+    }
+
+    if (customFields !== undefined) {
+      await applyPartyCustomFieldsTx(tx, {
+        businessId: existing.businessId,
+        partyId,
+        values: customFields,
       });
     }
 

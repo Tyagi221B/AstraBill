@@ -4,6 +4,116 @@ Append-only. Format: `## [YYYY-MM-DD] <operation> | <title>`
 
 ---
 
+## [2026-05-23] build | PR7-E — Multi-shipping + Custom Fields
+
+Fifth and final PR of the Parties V1 sequence. Two surfaces in one
+commit because they share the same UX shape: workspace-configured
+metadata that the party form picks up and renders. Zero schema
+migrations — `party_addresses` (with label + isDefault), and
+`party_custom_field_definitions` + `party_custom_field_values` were all
+shipped in PR1.
+
+## Multi-shipping
+
+Repo additions — `lib/repositories/party-addresses.ts`
+- listShippingAddressesForParty[Tx]
+- findShippingAddressByIdTx
+- insertShippingAddressTx (with label required + isDefault)
+- updateShippingAddressTx · softDeleteShippingAddressTx
+- unsetOtherDefaultShippingTx — enforces the at-most-one-default rule
+
+Service — `lib/services/party-shipping-addresses.ts`
+- All CRUD endpoints gated on `party:edit`; tenant scoping via
+  getPartyForUserTx on parent
+- Default-flag invariant enforced server-side; first row added is
+  auto-default
+- Audit log: party_shipping_address.{create|update|delete}
+
+API
+- POST/GET   /api/parties/[id]/shipping-addresses
+- PATCH/DELETE /api/parties/[id]/shipping-addresses/[shippingId]
+- GET /api/parties/[id]/addresses — response shape **changed** from
+  `{ billing, shipping }` to `{ billing, shippingAddresses[] }` so the
+  invoice picker can list all options
+
+UI
+- New PartyShippingAddressesPanel on the party edit page (siblings the
+  bank-accounts panel): list w/ Default badge, edit, delete, set
+  default, inline add form with label + INDIAN_STATES dropdown
+- Party detail page: replaced the single shipping card with a list of
+  every active shipping address
+- SalesInvoiceForm: replaced the binary "use saved shipping / use
+  billing" toggle with a dropdown over all saved shipping addresses,
+  with a "Same as billing" option at the top; auto-picks the default
+  when the form first loads a party (preserves edit-mode prefill)
+
+Backward compat: the V1.0 PartyForm "Same as billing" toggle on the
+new-party flow still uses the legacy `upsertDefaultShippingAddressTx`
+single-shipping helper — owners can add more shipping rows post-save
+on the edit page.
+
+## Custom Fields
+
+RBAC — `lib/rbac.ts`
+- New `party_custom_field:manage` permission (owner / admin /
+  accountant — same scope as `party_category:manage`)
+
+Schema (Zod) — `lib/schemas/party-custom-field.ts`
+- createPartyCustomFieldDefSchema + updatePartyCustomFieldDefSchema
+- partyCustomFieldValueSchema — (definitionId, value) tuple used inside
+  party create / update payloads
+
+Repository — `lib/repositories/party-custom-fields.ts`
+- Definitions: insert / list (user-scoped + business-scoped) /
+  get / update / softDelete
+- Values: listPartyCustomFieldValues, upsertPartyCustomFieldValueTx
+  (onConflictDoUpdate by partyId+definitionId)
+- filterValidDefinitionIdsForBusinessTx — drops stray IDs sent by the
+  client (anti-bug, anti-tenant-leak)
+
+Service — `lib/services/party-custom-fields.ts`
+- create / update (rename + sort_order) / delete on definitions,
+  RBAC-gated + audited
+- mapUniqueViolation maps 23505 to a friendly ValidationError
+
+Service — `lib/services/parties.ts`
+- applyPartyCustomFieldsTx — drops stray definition IDs (silent,
+  matches "the UI shouldn't have surfaced them"), upserts the rest
+- Wired into createParty (unconditional) + updateParty (only when key
+  was included — PATCH semantics)
+
+API
+- POST/GET   /api/party-custom-fields
+- PATCH/DELETE /api/party-custom-fields/[id]
+
+UI — Settings tab + form integration
+- /b/[businessId]/settings/party-custom-fields — server page +
+  PartyCustomFieldsPanel client component (add / inline-rename /
+  delete with confirm). Max-10 enforced client-side
+- SettingsNav extended with "Party fields" tab; routes.ts gets
+  partyCustomFields path
+- PartyForm.tsx: optional "More details" card renders one text input
+  per definition. Submit payload sends customFields array with every
+  current definition (cleared values become null on the server).
+- New + edit pages fetch definitions; edit also fetches values and
+  prefills the form
+- Party detail page: "More details" card lists every definition with
+  a value (deleted-definition rows are filtered out by the UI)
+
+## What's deferred
+
+- Typed fields (number / date / dropdown) — V1.5
+- Reordering definitions via drag — V1.5 (sort_order column is in
+  schema; current UI uses 0 default)
+- Multi-shipping from the new-party flow (single-shipping with
+  "Same as billing" still gates create; multi kicks in on edit)
+- Inline "Add new shipping" from the invoice form (the picker shows
+  saved options + same-as-billing; new shipping addresses are added
+  on the party edit page)
+
+Typecheck clean, next build green. With this, the Parties V1 surface
+is feature-complete and ready to push.
+
 ## [2026-05-23] build | PR7-D — Party Bank Accounts (multi, IFSC auto-lookup)
 
 Fourth of the five-PR Parties V1 sequence. Surfaces the existing

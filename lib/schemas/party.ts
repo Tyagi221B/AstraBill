@@ -12,6 +12,8 @@
  */
 import { z } from "zod";
 
+import { partyCustomFieldValueSchema } from "./party-custom-field";
+
 const trimmedNonEmpty = (max: number, label: string) =>
   z
     .string()
@@ -127,6 +129,9 @@ export const createPartySchema = z.object({
   shipping: shippingPolicySchema.optional(),
   /** Opening balance — optional; "0" amount = no posting. */
   openingBalance: openingBalanceSchema.nullable().optional(),
+  /** Workspace custom-field values keyed by definitionId. Stray IDs are
+   *  filtered server-side (they're dropped silently). */
+  customFields: z.array(partyCustomFieldValueSchema).optional(),
 });
 export type CreatePartyInput = z.infer<typeof createPartySchema>;
 

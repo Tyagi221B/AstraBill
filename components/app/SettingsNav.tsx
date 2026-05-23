@@ -22,6 +22,7 @@ export function SettingsNav({ businessId }: { businessId: string }) {
     { label: "Branding", href: s.branding },
     { label: "Payments", href: s.payments },
     { label: "Party categories", href: s.partyCategories },
+    { label: "Party fields", href: s.partyCustomFields },
     { label: "Item categories", href: s.itemCategories },
   ] as const;
 

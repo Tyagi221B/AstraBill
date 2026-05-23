@@ -8,7 +8,7 @@ The single source of truth for every binding technical and product decision.
 - Changing a decision = edit the row here, then grep the wiki for stale copies.
 - `wiki/decision/*.md` pages carry rationale only — they must never restate a fact, only link here.
 
-Last reconciled: 2026-05-23 (PR7-A opening balance + ledger-driven Parties list; PR7-B party_categories + Party Settings scaffold; PR7-C GSTIN Get Details with adapter pattern + cross-tenant gstin_cache; PR7-D Party Bank Accounts — multi-bank per party, default-flag invariant enforced server-side, IFSC auto-lookup via Razorpay's free public endpoint wrapped at `/api/ifsc/[code]`, inline-edit panel on the party edit page, read-only card on the detail page.)
+Last reconciled: 2026-05-23 (PR7-A opening balance + ledger-driven Parties list; PR7-B party_categories + Party Settings scaffold; PR7-C GSTIN Get Details with adapter pattern + cross-tenant gstin_cache; PR7-D Party Bank Accounts — multi-bank per party + IFSC lookup via Razorpay; PR7-E Multi-shipping addresses (required label, default-flag invariant, invoice form picks from saved list) + Custom Fields (workspace-defined text fields, max 10, rendered as inputs on the party form, values upserted in the same create/update tx). The full Parties V1 surface is now feature-complete.)
 
 ---
 

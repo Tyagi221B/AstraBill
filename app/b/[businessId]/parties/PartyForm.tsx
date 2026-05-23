@@ -17,7 +17,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { INDIAN_STATES } from "@/lib/constants/indian-states";
-import type { PartyCategory } from "@/lib/db/schema";
+import type {
+  PartyCategory,
+  PartyCustomFieldDefinition,
+} from "@/lib/db/schema";
 import { routes } from "@/lib/routes";
 
 export type PartyTypeOption = "customer" | "supplier";
@@ -66,6 +69,9 @@ export interface PartyFormInitial {
   openingBalanceDirection: OpeningBalanceDirection;
   /** As-of date for the opening_balance ledger row; defaults to today. */
   openingBalanceAsOfDate: string;
+  /** Workspace custom-field values keyed by definitionId. Missing key =
+   *  empty string. */
+  customFieldValues: Record<string, string>;
 }
 
 const blank: PartyFormInitial = {
@@ -87,6 +93,7 @@ const blank: PartyFormInitial = {
   openingBalanceAmount: "",
   openingBalanceDirection: "to_collect",
   openingBalanceAsOfDate: todayIso(),
+  customFieldValues: {},
 };
 
 const SELECT_CLASS =
@@ -156,6 +163,7 @@ export function PartyForm({
   initial,
   openingBalanceLocked = false,
   categories = [],
+  customFieldDefinitions = [],
 }: {
   businessId: string;
   editingPartyId?: string;
@@ -167,6 +175,9 @@ export function PartyForm({
   /** Workspace party categories, fetched server-side. Empty list = the
    *  Category dropdown is replaced by an inline "manage categories" link. */
   categories?: PartyCategory[];
+  /** Workspace custom-field definitions, fetched server-side. Renders one
+   *  text input per definition; values flow through `customFieldValues`. */
+  customFieldDefinitions?: PartyCustomFieldDefinition[];
 }) {
   const isEdit = Boolean(editingPartyId);
   const [f, setF] = useState<PartyFormInitial>(initial ?? blank);
@@ -298,6 +309,15 @@ export function PartyForm({
             sameAsBilling: false,
             shippingAddress: addressFieldsToPayload(f.shipping),
           };
+
+      // Custom fields — always include the snapshot, so a cleared field
+      // updates to null on the server.
+      if (customFieldDefinitions.length > 0) {
+        payload.customFields = customFieldDefinitions.map((d) => ({
+          definitionId: d.id,
+          value: f.customFieldValues[d.id]?.trim() || null,
+        }));
+      }
 
       // Opening balance — only sent when unlocked AND amount > 0. The server
       // treats `null` as "set to none" (and on update will DELETE the row),
@@ -727,6 +747,44 @@ export function PartyForm({
           </div>
         </CardContent>
       </Card>
+
+      {customFieldDefinitions.length > 0 && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="mb-4 flex items-end justify-between gap-2">
+              <h2 className="text-base font-semibold">More details</h2>
+              <a
+                href={routes.b(businessId).settings.partyCustomFields}
+                target="_blank"
+                rel="noopener"
+                className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+              >
+                Configure fields →
+              </a>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {customFieldDefinitions.map((d) => (
+                <div key={d.id} className="flex flex-col gap-2">
+                  <Label htmlFor={`cf-${d.id}`}>{d.name}</Label>
+                  <Input
+                    id={`cf-${d.id}`}
+                    value={f.customFieldValues[d.id] ?? ""}
+                    onChange={(e) =>
+                      setF((prev) => ({
+                        ...prev,
+                        customFieldValues: {
+                          ...prev.customFieldValues,
+                          [d.id]: e.target.value,
+                        },
+                      }))
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="pt-6">

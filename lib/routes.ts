@@ -89,6 +89,7 @@ export const routes = {
         payments: `${base}/settings/payments`,
         itemCategories: `${base}/settings/item-categories`,
         partyCategories: `${base}/settings/party-categories`,
+        partyCustomFields: `${base}/settings/party-custom-fields`,
       },
     };
   },

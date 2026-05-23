@@ -12,10 +12,16 @@ import {
   getBillingAddressForParty,
   getDefaultShippingAddressForParty,
 } from "@/lib/repositories/party-addresses";
+import { listShippingAddressesForParty } from "@/lib/repositories/party-addresses";
 import { listPartyBankAccountsForParty } from "@/lib/repositories/party-bank-accounts";
 import { listPartyCategoriesForUser } from "@/lib/repositories/party-categories";
+import {
+  listPartyCustomFieldDefsForUser,
+  listPartyCustomFieldValues,
+} from "@/lib/repositories/party-custom-fields";
 import { getParty } from "@/lib/services/parties";
 import { PartyBankAccountsPanel } from "./PartyBankAccountsPanel";
+import { PartyShippingAddressesPanel } from "./PartyShippingAddressesPanel";
 import { requireUser } from "@/lib/session";
 import {
   PartyForm,
@@ -57,15 +63,31 @@ export default async function EditPartyPage({
   const party = await getParty(id, user.id);
   if (!party || party.businessId !== business.id) notFound();
 
-  const [billing, shipping, openingEntry, openingLocked, categories, banks] =
-    await Promise.all([
-      getBillingAddressForParty(party.id),
-      getDefaultShippingAddressForParty(party.id),
-      getOpeningBalanceEntryForParty(party.id),
-      hasNonOpeningActivityForParty(party.id),
-      listPartyCategoriesForUser({ userId: user.id, businessId }),
-      listPartyBankAccountsForParty(party.id),
-    ]);
+  const [
+    billing,
+    shipping,
+    openingEntry,
+    openingLocked,
+    categories,
+    banks,
+    shippingAddresses,
+    customFieldDefinitions,
+    customFieldValues,
+  ] = await Promise.all([
+    getBillingAddressForParty(party.id),
+    getDefaultShippingAddressForParty(party.id),
+    getOpeningBalanceEntryForParty(party.id),
+    hasNonOpeningActivityForParty(party.id),
+    listPartyCategoriesForUser({ userId: user.id, businessId }),
+    listPartyBankAccountsForParty(party.id),
+    listShippingAddressesForParty(party.id),
+    listPartyCustomFieldDefsForUser({ userId: user.id, businessId }),
+    listPartyCustomFieldValues(party.id),
+  ]);
+  const customFieldValuesMap: Record<string, string> = {};
+  for (const v of customFieldValues) {
+    customFieldValuesMap[v.definitionId] = v.value ?? "";
+  }
 
   const openingAmount = openingEntry
     ? (openingEntry.debitAmount ?? openingEntry.creditAmount ?? "")
@@ -97,6 +119,7 @@ export default async function EditPartyPage({
     openingBalanceAmount: openingAmount,
     openingBalanceDirection: openingDirection,
     openingBalanceAsOfDate: openingAsOfDate,
+    customFieldValues: customFieldValuesMap,
   };
 
   return (
@@ -108,7 +131,23 @@ export default async function EditPartyPage({
         initial={initial}
         openingBalanceLocked={openingLocked}
         categories={categories}
+        customFieldDefinitions={customFieldDefinitions}
       />
+      <Card className="mt-5">
+        <CardContent className="pt-6">
+          <h2 className="mb-1 text-base font-semibold">Shipping addresses</h2>
+          <p className="mb-4 text-xs text-muted-foreground">
+            Multiple ship-to addresses per party (e.g. warehouse, branch).
+            The default is auto-picked on new invoices; you can override
+            per-invoice. Saved independently of the form above.
+          </p>
+          <PartyShippingAddressesPanel
+            partyId={party.id}
+            initial={shippingAddresses}
+          />
+        </CardContent>
+      </Card>
+
       <Card className="mt-5">
         <CardContent className="pt-6">
           <h2 className="mb-1 text-base font-semibold">Bank accounts</h2>
