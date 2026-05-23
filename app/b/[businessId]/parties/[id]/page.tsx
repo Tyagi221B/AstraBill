@@ -21,6 +21,7 @@ import {
   getBillingAddressForParty,
   getDefaultShippingAddressForParty,
 } from "@/lib/repositories/party-addresses";
+import { listPartyCategoriesForUser } from "@/lib/repositories/party-categories";
 import { CASH_SALE_PARTY_NAME, getParty } from "@/lib/services/parties";
 import { routes } from "@/lib/routes";
 import { requireUser } from "@/lib/session";
@@ -42,12 +43,17 @@ export default async function PartyDetailPage({
   if (!party || party.businessId !== businessId) notFound();
   const b = routes.b(businessId);
 
-  const [billing, shipping, balanceStr, openingEntry] = await Promise.all([
-    getBillingAddressForParty(party.id),
-    getDefaultShippingAddressForParty(party.id),
-    balanceForParty(party.id),
-    getOpeningBalanceEntryForParty(party.id),
-  ]);
+  const [billing, shipping, balanceStr, openingEntry, categories] =
+    await Promise.all([
+      getBillingAddressForParty(party.id),
+      getDefaultShippingAddressForParty(party.id),
+      balanceForParty(party.id),
+      getOpeningBalanceEntryForParty(party.id),
+      listPartyCategoriesForUser({ userId: user.id, businessId }),
+    ]);
+  const category = party.categoryId
+    ? categories.find((c) => c.id === party.categoryId) ?? null
+    : null;
 
   const balance = Number(balanceStr);
   const openingAmount = openingEntry
@@ -70,6 +76,7 @@ export default async function PartyDetailPage({
             <Badge tone={party.type === "supplier" ? "warning" : "info"}>
               {party.type}
             </Badge>
+            {category && <Badge tone="neutral">{category.name}</Badge>}
             {isCashSale && (
               <Badge tone="neutral">walk-in (system)</Badge>
             )}

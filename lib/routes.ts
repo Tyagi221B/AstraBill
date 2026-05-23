@@ -88,6 +88,7 @@ export const routes = {
         branding: `${base}/settings/branding`,
         payments: `${base}/settings/payments`,
         itemCategories: `${base}/settings/item-categories`,
+        partyCategories: `${base}/settings/party-categories`,
       },
     };
   },

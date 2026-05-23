@@ -6,7 +6,10 @@
  *   - To Collect (KPI)   = SUM of positive balances (party owes us)
  *   - To Pay     (KPI)   = SUM of absolute negative balances (we owe party)
  *
- * One bulk fetch (`balancesForParties`) keeps the page to two queries total.
+ * Optional `?category=<id>` filter narrows the list to one workspace
+ * category (the URL drives the filter so bookmarks + sharing work). The
+ * KPI tiles always reflect the filtered set — they're what the owner is
+ * actually looking at.
  */
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -14,9 +17,11 @@ import { Users } from "lucide-react";
 
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
+import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
 import { balancesForParties } from "@/lib/repositories/ledger-entries";
+import { listPartyCategoriesForUser } from "@/lib/repositories/party-categories";
 import { listPartiesForUser } from "@/lib/services/parties";
 import { routes } from "@/lib/routes";
 import { requireUser } from "@/lib/session";
@@ -30,18 +35,24 @@ const fmt = (n: number | string) =>
 
 export default async function PartiesPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ businessId: string }>;
+  searchParams: Promise<{ category?: string }>;
 }) {
   const user = await requireUser();
   const { businessId } = await params;
+  const { category: filterCategoryId } = await searchParams;
   const b = routes.b(businessId);
 
-  const parties = await listPartiesForUser({
-    userId: user.id,
-    businessId,
-    limit: 500,
-  });
+  const [allParties, categories] = await Promise.all([
+    listPartiesForUser({ userId: user.id, businessId, limit: 500 }),
+    listPartyCategoriesForUser({ userId: user.id, businessId }),
+  ]);
+
+  const parties = filterCategoryId
+    ? allParties.filter((p) => p.categoryId === filterCategoryId)
+    : allParties;
 
   const balances = await balancesForParties(parties.map((p) => p.id));
 
@@ -55,6 +66,10 @@ export default async function PartiesPage({
 
   const customerCount = parties.filter((p) => p.type === "customer").length;
   const supplierCount = parties.length - customerCount;
+  const categoryById = new Map(categories.map((c) => [c.id, c]));
+  const activeCategory = filterCategoryId
+    ? categoryById.get(filterCategoryId)
+    : null;
 
   return (
     <>
@@ -71,6 +86,14 @@ export default async function PartiesPage({
             <span className="text-muted-foreground/80">
               {supplierCount === 1 ? "supplier" : "suppliers"}
             </span>
+            {activeCategory && (
+              <>
+                {" · in "}
+                <span className="font-medium text-foreground">
+                  {activeCategory.name}
+                </span>
+              </>
+            )}
           </span>
         }
         action={
@@ -79,6 +102,14 @@ export default async function PartiesPage({
           </Link>
         }
       />
+
+      {categories.length > 0 && (
+        <CategoryFilter
+          businessId={businessId}
+          categories={categories}
+          activeId={filterCategoryId ?? null}
+        />
+      )}
 
       {parties.length > 0 && (
         <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -95,14 +126,18 @@ export default async function PartiesPage({
       {parties.length === 0 ? (
         <EmptyState
           icon={Users}
-          title="No parties yet"
-          description="Parties are who you buy from and sell to. Customers and suppliers live here — your books balance from the ledger they share."
+          title={filterCategoryId ? "No parties in this category" : "No parties yet"}
+          description={
+            filterCategoryId
+              ? "Tag a party with this category from the party form, or clear the filter above."
+              : "Parties are who you buy from and sell to. Customers and suppliers live here — your books balance from the ledger they share."
+          }
           action={
             <Link
               href={b.newParty}
               className={buttonClasses("primary", "sm")}
             >
-              + Add your first party
+              + Add{filterCategoryId ? " a party" : " your first party"}
             </Link>
           }
         />
@@ -115,6 +150,7 @@ export default async function PartiesPage({
                   <tr className="text-left text-muted-foreground">
                     <th className="px-4 py-3 font-medium">Name</th>
                     <th className="px-4 py-3 font-medium">Type</th>
+                    <th className="px-4 py-3 font-medium">Category</th>
                     <th className="px-4 py-3 font-medium">Mobile</th>
                     <th className="px-4 py-3 font-medium">GSTIN</th>
                     <th className="px-4 py-3 text-right font-medium">
@@ -126,6 +162,9 @@ export default async function PartiesPage({
                 <tbody>
                   {parties.map((p) => {
                     const bal = Number(balances.get(p.id) ?? "0");
+                    const cat = p.categoryId
+                      ? categoryById.get(p.categoryId)
+                      : null;
                     return (
                       <tr
                         key={p.id}
@@ -141,6 +180,13 @@ export default async function PartiesPage({
                         </td>
                         <td className="px-4 py-3 text-muted-foreground capitalize">
                           {p.type}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {cat ? (
+                            <Badge tone="neutral">{cat.name}</Badge>
+                          ) : (
+                            "—"
+                          )}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
                           {p.mobileNumber ?? "—"}
@@ -169,6 +215,45 @@ export default async function PartiesPage({
         </Card>
       )}
     </>
+  );
+}
+
+function CategoryFilter({
+  businessId,
+  categories,
+  activeId,
+}: {
+  businessId: string;
+  categories: { id: string; name: string }[];
+  activeId: string | null;
+}) {
+  const base = routes.b(businessId).parties;
+  return (
+    <div className="mb-5 flex flex-wrap items-center gap-2">
+      <Link
+        href={base}
+        className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+          !activeId
+            ? "border-primary bg-primary/5 text-primary"
+            : "border-input text-muted-foreground hover:border-ring hover:text-foreground"
+        }`}
+      >
+        All
+      </Link>
+      {categories.map((c) => (
+        <Link
+          key={c.id}
+          href={`${base}?category=${c.id}`}
+          className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+            activeId === c.id
+              ? "border-primary bg-primary/5 text-primary"
+              : "border-input text-muted-foreground hover:border-ring hover:text-foreground"
+          }`}
+        >
+          {c.name}
+        </Link>
+      ))}
+    </div>
   );
 }
 

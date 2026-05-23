@@ -4,6 +4,64 @@ Append-only. Format: `## [YYYY-MM-DD] <operation> | <title>`
 
 ---
 
+## [2026-05-23] build | PR7-B — Party categories + Party Settings scaffold + filter
+
+Second of the five-PR Parties V1 sequence. Surfaces the existing
+`party_categories` table (shipped in PR1) end-to-end — owner-defined
+workspace categories, optional party tagging, and a URL-driven filter on
+the parties list. Mirrors the item-categories pattern for code shape +
+RBAC. **Zero schema migrations.**
+
+What landed:
+- `lib/schemas/party-category.ts` — create/update/list Zod
+- `lib/repositories/party-categories.ts` — insert / list / get / update /
+  softDelete; tenant-scoped via business_members; 23505 maps in service
+- `lib/services/party-categories.ts` — RBAC (`party_category:manage`) +
+  audit on create / update / delete; rename supported in V1 (deviation
+  from item-categories, which only adds + deletes)
+- `app/api/party-categories/route.ts` + `[id]/route.ts` — POST / GET /
+  PATCH / DELETE
+- `lib/rbac.ts` — new `party_category:manage` permission (owner / admin /
+  accountant), aligned to the `item_category:manage` scope
+- `app/b/[businessId]/settings/party-categories/page.tsx` +
+  `PartyCategoriesPanel.tsx` — add / inline-rename (pencil → Check/X) /
+  soft-delete
+- `components/app/SettingsNav.tsx` — Party categories + Item categories
+  tabs added so the settings shell has a consistent tab strip
+- `app/b/[businessId]/settings/item-categories/page.tsx` — wrapped with
+  the same shell (PageHeader → SettingsNav → content) so the tab strip
+  shows on it too. Behaviour unchanged
+- `lib/routes.ts` — `settings.partyCategories`
+- `app/b/[businessId]/parties/PartyForm.tsx` — Category dropdown in the
+  General details card with a "Manage categories →" link; renders an
+  inline empty-state pointer when no categories exist yet
+- `app/b/[businessId]/parties/new/page.tsx` +
+  `[id]/edit/page.tsx` — fetch + pass categories to the form; edit
+  prefills the saved categoryId
+- `app/b/[businessId]/parties/page.tsx` — URL-driven category filter
+  (chip strip above the KPI tiles, `?category=<id>`); new Category
+  column on the table; KPI tiles + balance counts reflect the filtered
+  set (the filter narrows what the owner is actually looking at)
+- `app/b/[businessId]/parties/[id]/page.tsx` — category badge in the
+  party header
+
+Why rename in V1 (deviates from item_categories):
+Owners commonly retitle a category as their thinking sharpens
+("Wholesale" → "Wholesale (Bulk)"). Avoiding rename forces them to
+delete + re-add, which orphans every tagged party. The inline pencil-to-
+input flow with Esc-to-cancel is no more code than a Trash button.
+
+Why URL-driven filter, not a client toggle:
+The owner needs to send a link to "all parties in Wholesale" to
+themselves or a partner. URL state makes that free and survives reload.
+
+What's deferred:
+- Multi-category per party (still 1-to-N; we can grow to many-to-many in
+  V2 if the data demands it).
+- Bulk re-categorise.
+
+Typecheck clean. next build green.
+
 ## [2026-05-23] build | PR7-A — Opening balance + KPI tiles + Balance column
 
 First of the five-PR Parties V1 sequence (see [[decision/full-ledger-pivot]]).

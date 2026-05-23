@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { INDIAN_STATES } from "@/lib/constants/indian-states";
+import type { PartyCategory } from "@/lib/db/schema";
 import { routes } from "@/lib/routes";
 
 export type PartyTypeOption = "customer" | "supplier";
@@ -49,6 +50,8 @@ export interface PartyFormInitial {
   email: string;
   gstin: string;
   panNumber: string;
+  /** Empty string = no category (sent as null on submit). */
+  categoryId: string;
   creditPeriodDays: string;
   creditLimit: string;
   contactPersonName: string;
@@ -72,6 +75,7 @@ const blank: PartyFormInitial = {
   email: "",
   gstin: "",
   panNumber: "",
+  categoryId: "",
   creditPeriodDays: "30",
   creditLimit: "0",
   contactPersonName: "",
@@ -123,6 +127,7 @@ export function PartyForm({
   editingPartyId,
   initial,
   openingBalanceLocked = false,
+  categories = [],
 }: {
   businessId: string;
   editingPartyId?: string;
@@ -131,6 +136,9 @@ export function PartyForm({
    *  opening balance card renders read-only with a reason; the field is
    *  omitted from the PATCH payload so the server-side guard never trips. */
   openingBalanceLocked?: boolean;
+  /** Workspace party categories, fetched server-side. Empty list = the
+   *  Category dropdown is replaced by an inline "manage categories" link. */
+  categories?: PartyCategory[];
 }) {
   const isEdit = Boolean(editingPartyId);
   const [f, setF] = useState<PartyFormInitial>(initial ?? blank);
@@ -170,6 +178,7 @@ export function PartyForm({
         panNumber: f.panNumber.trim()
           ? f.panNumber.trim().toUpperCase()
           : null,
+        categoryId: f.categoryId || null,
         creditPeriodDays: Number(f.creditPeriodDays) || 0,
         creditLimit: f.creditLimit.trim() || "0",
         contactPersonName: f.contactPersonName.trim() || null,
@@ -300,6 +309,47 @@ export function PartyForm({
                 value={f.email}
                 onChange={(e) => set("email", e.target.value)}
               />
+            </div>
+            <div className="flex flex-col gap-2 md:col-span-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="category">Category</Label>
+                <a
+                  href={routes.b(businessId).settings.partyCategories}
+                  target="_blank"
+                  rel="noopener"
+                  className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  Manage categories →
+                </a>
+              </div>
+              {categories.length === 0 ? (
+                <p className="rounded-md border border-dashed border-input px-3 py-2 text-sm text-muted-foreground">
+                  No categories yet. Add one in{" "}
+                  <a
+                    href={routes.b(businessId).settings.partyCategories}
+                    target="_blank"
+                    rel="noopener"
+                    className="text-primary hover:underline"
+                  >
+                    Party settings
+                  </a>
+                  .
+                </p>
+              ) : (
+                <select
+                  id="category"
+                  value={f.categoryId}
+                  onChange={(e) => set("categoryId", e.target.value)}
+                  className={SELECT_CLASS}
+                >
+                  <option value="">— no category —</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
         </CardContent>

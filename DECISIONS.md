@@ -8,7 +8,7 @@ The single source of truth for every binding technical and product decision.
 - Changing a decision = edit the row here, then grep the wiki for stale copies.
 - `wiki/decision/*.md` pages carry rationale only — they must never restate a fact, only link here.
 
-Last reconciled: 2026-05-23 (PR7-A — Opening balance posts as a `ledger_entries` row with `voucher_type='opening_balance'`; immutable post-activity. Parties list now ledger-driven with To Collect / To Pay KPI tiles + balance column. Schema unchanged — PR1 already shipped the substrate.)
+Last reconciled: 2026-05-23 (PR7-A — Opening balance posts as a `ledger_entries` row with `voucher_type='opening_balance'`; immutable post-activity. Parties list now ledger-driven with To Collect / To Pay KPI tiles + balance column. PR7-B — `party_categories` surfaced: per-business named categories, optional party tagging, URL-driven `?category=` filter on the list, SettingsNav extended with Party / Item Categories tabs, new `party_category:manage` permission. Schema unchanged through both — PR1 already shipped the substrate.)
 
 ---
 

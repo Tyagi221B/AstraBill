@@ -21,6 +21,8 @@ export function SettingsNav({ businessId }: { businessId: string }) {
   const tabs = [
     { label: "Branding", href: s.branding },
     { label: "Payments", href: s.payments },
+    { label: "Party categories", href: s.partyCategories },
+    { label: "Item categories", href: s.itemCategories },
   ] as const;
 
   return (

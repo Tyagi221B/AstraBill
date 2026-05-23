@@ -11,6 +11,7 @@ import {
   getBillingAddressForParty,
   getDefaultShippingAddressForParty,
 } from "@/lib/repositories/party-addresses";
+import { listPartyCategoriesForUser } from "@/lib/repositories/party-categories";
 import { getParty } from "@/lib/services/parties";
 import { requireUser } from "@/lib/session";
 import {
@@ -53,12 +54,14 @@ export default async function EditPartyPage({
   const party = await getParty(id, user.id);
   if (!party || party.businessId !== business.id) notFound();
 
-  const [billing, shipping, openingEntry, openingLocked] = await Promise.all([
-    getBillingAddressForParty(party.id),
-    getDefaultShippingAddressForParty(party.id),
-    getOpeningBalanceEntryForParty(party.id),
-    hasNonOpeningActivityForParty(party.id),
-  ]);
+  const [billing, shipping, openingEntry, openingLocked, categories] =
+    await Promise.all([
+      getBillingAddressForParty(party.id),
+      getDefaultShippingAddressForParty(party.id),
+      getOpeningBalanceEntryForParty(party.id),
+      hasNonOpeningActivityForParty(party.id),
+      listPartyCategoriesForUser({ userId: user.id, businessId }),
+    ]);
 
   const openingAmount = openingEntry
     ? (openingEntry.debitAmount ?? openingEntry.creditAmount ?? "")
@@ -78,6 +81,7 @@ export default async function EditPartyPage({
     email: party.email ?? "",
     gstin: party.gstin ?? "",
     panNumber: party.panNumber ?? "",
+    categoryId: party.categoryId ?? "",
     creditPeriodDays: String(party.creditPeriodDays ?? 30),
     creditLimit: party.creditLimit ?? "0",
     contactPersonName: party.contactPersonName ?? "",
@@ -99,6 +103,7 @@ export default async function EditPartyPage({
         editingPartyId={party.id}
         initial={initial}
         openingBalanceLocked={openingLocked}
+        categories={categories}
       />
     </div>
   );
