@@ -2040,3 +2040,33 @@ Bug squashed: Opening balance amount input was being squeezed to ~0px. Cause: `$
 User confirmation: "wow lets fucking commit and push." Validates the [[astrabill-feels-light-like-zoho]] direction stays correct when explicitly compared against myBillBook (UX, not just our taste).
 
 Commit: `adb79d3`.
+
+## [2026-05-24] build | PR7-G — Item form parity with myBillBook (modal + left-rail tabs)
+
+Second form to receive the myBillBook treatment after PartyForm. Side-by-side comparison with myBillBook's "Create New Item" surface showed they use a centered modal with a left-rail of tabs (Basic Details required, then an Advance Details group: Stock / Pricing / Party Wise Prices / Custom Fields). Our 4-card vertical scroll on `/items/new` looked weak next to it. User confirmed: "exactly like billbook." Chose modal over full-page after asking — matches benchmark exactly, deep links still work via redirect.
+
+Architecture:
+- **Page → modal**: `ItemForm.tsx` deleted. New `ItemFormModal.tsx` is centered (`max-w-4xl`, `max-h-[90vh]`), header / left-rail+content body / footer. Esc + backdrop close (unless busy). All form state in one place.
+- **Trigger pattern split**: `ItemsCreateController` (button + local-state modal, also opens itself if server passed `initialOpen=true` from `?create=1`) vs `ItemsEditController` (URL-driven, mounted only when server resolved `?edit=<id>` to a real item; close → `router.replace(pathname)`).
+- **Deep links preserved**: `/items/new` → `redirect("/items?create=1")`, `/items/[id]/edit` → `redirect("/items?edit=<id>")`. Refresh on the edit URL still works because the server fetches the item and passes initial data into the modal.
+
+Tab content (all inline in `ItemFormModal.tsx` to avoid premature splitting):
+- **Basic Details**: Item Type (Product/Service toggle) | Category (combobox+inline-create) ; Name spans 2 col ; Sales Price (with `With Tax` / `Without Tax` pill suffix inside the input) | GST Rate select ; Measuring Unit | Opening Stock (with unit suffix).
+- **Stock Details**: Item Code | HSN/SAC ; Measuring Unit | Alternative Unit (revealed via `+ Alternative Unit` disclosure) ; Opening Stock | As of Date ; Low stock warning behind `+ Enable low stock quantity warning` disclosure (`Remove` link to collapse back) ; Description.
+- **Pricing Details**: Sales | Purchase, both with the With/Without Tax pill.
+- **Party Wise Prices** + **Custom Fields**: empty-state "save the item first" — schema exists (`item_party_prices`, `item_custom_field_definitions/values`) but the editor UI ships later (not in scope per "save-first" choice).
+- **Save & New** footer button on create only: posts, clears form to blank, refocuses Name, keeps modal open. Toast confirms each add. Batch entry done in seconds.
+
+Two new tiny components extracted only where they earn their keep:
+- `ItemCategoryField.tsx` — near-clone of `PartyCategoryField`, hits `/api/item-categories`. Trigger button + popover panel + "+ Create category" CTA → centered create modal (z-60, above the form modal at z-50).
+- `PriceWithTaxInput` + `ValueWithUnitSuffix` — composite inputs inline within `ItemFormModal.tsx` (not separate files; they're 15 LOC each and only used here).
+
+Deliberate drops vs myBillBook (laid out in plan, no pushback):
+- "Show Item in Online Store" toggle — we have no online store; dead toggle is worse than no toggle.
+- "Generate Barcode" link inside Item Code — no barcode generation.
+- "Find HSN Code" link — no HSN lookup integration.
+- Image upload dropzone (5 PNG/JPEG, 5MB) — PR8 deferred. User reaffirmed: "we can always add images for items," so PR8 is now informally scoped to items at minimum.
+
+User confirmation: "Damn bro, looks damn good right now. We can move forward with this." Validates [[astrabill-feels-light-like-zoho]] direction for the second time post-explicit myBillBook comparison. Plan going forward: SalesInvoiceForm next (5 doc types benefit — shared form), then Payments / Branding / Onboarding lower priority.
+
+Commit: TBD on push.

@@ -17,10 +17,19 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
-import { listItemsForUser } from "@/lib/services/items";
+import { getBusinessForUser } from "@/lib/repositories/businesses";
+import { listItemCategoriesForUser } from "@/lib/repositories/item-categories";
+import { listUnitsForUser } from "@/lib/repositories/item-units";
+import { getItem, listItemsForUser } from "@/lib/services/items";
 import { getCurrentStockForItems } from "@/lib/repositories/stock-movements";
 import { routes } from "@/lib/routes";
 import { requireUser } from "@/lib/session";
+
+import {
+  ItemsCreateController,
+  ItemsEditController,
+} from "./ItemsModalControllers";
+import type { ItemFormInitial } from "./ItemFormModal";
 
 export const metadata: Metadata = {
   title: "Items · AstraBill",
@@ -37,18 +46,55 @@ function fmtGst(rate: string | null): string {
 
 export default async function ItemsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ businessId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const user = await requireUser();
   const { businessId } = await params;
+  const sp = await searchParams;
   const b = routes.b(businessId);
 
-  const items = await listItemsForUser({
-    userId: user.id,
-    businessId,
-    limit: 500,
-  });
+  const createOpen = sp.create === "1";
+  const editId = typeof sp.edit === "string" ? sp.edit : null;
+
+  const business = await getBusinessForUser(user.id, businessId);
+  if (!business) {
+    // requireUser already ran; treat as 404-ish by returning empty page guard.
+    return null;
+  }
+
+  const [items, units, categories, editingItem] = await Promise.all([
+    listItemsForUser({ userId: user.id, businessId, limit: 500 }),
+    listUnitsForUser({ userId: user.id, businessId }),
+    listItemCategoriesForUser({ userId: user.id, businessId }),
+    editId ? getItem(editId, user.id) : Promise.resolve(null),
+  ]);
+
+  const validEdit =
+    editingItem && editingItem.businessId === businessId ? editingItem : null;
+  const editInitial: ItemFormInitial | null = validEdit
+    ? {
+        type: validEdit.type,
+        name: validEdit.name,
+        categoryId: validEdit.categoryId ?? "",
+        code: validEdit.code ?? "",
+        hsnSacCode: validEdit.hsnSacCode ?? "",
+        measuringUnitCode: validEdit.measuringUnitCode ?? "PCS",
+        alternativeUnitCode: validEdit.alternativeUnitCode ?? "",
+        salesPrice: validEdit.salesPrice ?? "",
+        salesPriceIncludesTax: validEdit.salesPriceIncludesTax,
+        purchasePrice: validEdit.purchasePrice ?? "",
+        purchasePriceIncludesTax: validEdit.purchasePriceIncludesTax,
+        gstRate: validEdit.gstRate,
+        openingStock: validEdit.openingStock ?? "",
+        openingStockAsOfDate: validEdit.openingStockAsOfDate ?? "",
+        enableLowStockWarning: validEdit.enableLowStockWarning,
+        lowStockThreshold: validEdit.lowStockThreshold ?? "",
+        description: validEdit.description ?? "",
+      }
+    : null;
 
   const stockMap = await getCurrentStockForItems(items.map((i) => i.id));
 
@@ -97,9 +143,13 @@ export default async function ItemsPage({
             >
               Categories
             </Link>
-            <Link href={b.newItem} className={buttonClasses("primary", "sm")}>
-              + New item
-            </Link>
+            <ItemsCreateController
+              businessId={businessId}
+              units={units}
+              initialCategories={categories}
+              initialOpen={createOpen}
+              label="New item"
+            />
           </>
         }
       />
@@ -123,12 +173,12 @@ export default async function ItemsPage({
           title="No items yet"
           description="Items are what you buy and sell — products with stock, or services billed by the hour. Add one to start invoicing."
           action={
-            <Link
-              href={b.newItem}
-              className={buttonClasses("primary", "sm")}
-            >
-              + Add your first item
-            </Link>
+            <ItemsCreateController
+              businessId={businessId}
+              units={units}
+              initialCategories={categories}
+              label="Add your first item"
+            />
           }
         />
       ) : (
@@ -228,6 +278,16 @@ export default async function ItemsPage({
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {validEdit && editInitial && (
+        <ItemsEditController
+          businessId={businessId}
+          units={units}
+          initialCategories={categories}
+          editingItemId={validEdit.id}
+          initial={editInitial}
+        />
       )}
     </>
   );
