@@ -29,6 +29,7 @@ import {
   type GstinLookupAdapter,
   GstinNotFoundError,
   type GstinProfile,
+  panFromGstin,
 } from "./types";
 
 const SANDBOX_HOST = "https://api.sandbox.co.in";
@@ -322,8 +323,10 @@ export class SandboxGstinAdapter implements GstinLookupAdapter {
       pincode: (addr.pncd ?? null) || null,
     };
 
+    const resolvedGstin = data.gstin ?? gstin;
     return {
-      gstin: data.gstin ?? gstin,
+      gstin: resolvedGstin,
+      pan: panFromGstin(resolvedGstin),
       legalName: (data.lgnm ?? null) || null,
       tradeName: (data.tradeNam ?? null) || null,
       address,

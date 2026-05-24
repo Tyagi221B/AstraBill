@@ -26,6 +26,12 @@ export interface GstinAddress {
 export interface GstinProfile {
   /** Always uppercase, always 15 chars. */
   gstin: string;
+  /**
+   * 10-char PAN derived from the GSTIN itself (chars 3-12 by spec).
+   * Sandbox doesn't return PAN as a separate field — it's embedded in
+   * the GSTIN, so we slice it locally. Never null when `gstin` is valid.
+   */
+  pan: string;
   /** Legal name (matches PAN). Some sole-proprietorships only have a trade
    *  name; this can be null when the vendor returns a blank for it. */
   legalName: string | null;
@@ -38,6 +44,11 @@ export interface GstinProfile {
   registrationDate: string | null;
   /** "Regular" / "Composition" / "Casual" / "Non-Resident". */
   businessType: string | null;
+}
+
+/** Spec-derived: GSTIN positions 3-12 are the entity's PAN. */
+export function panFromGstin(gstin: string): string {
+  return gstin.slice(2, 12);
 }
 
 export interface GstinLookupAdapter {

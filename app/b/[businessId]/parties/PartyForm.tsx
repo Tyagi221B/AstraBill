@@ -113,6 +113,9 @@ function isGstinFormatValid(s: string): boolean {
 interface GstinLookupResponse {
   profile: {
     gstin: string;
+    /** Derived server-side from gstin chars 3-12 (PAN is embedded in GSTIN
+     *  by spec). Always present when gstin is valid. */
+    pan: string;
     legalName: string | null;
     tradeName: string | null;
     address: {
@@ -205,16 +208,28 @@ export function PartyForm({
       }
       const { profile, source, vendor } = json.data;
       const partyName = profile.legalName?.trim() || profile.tradeName?.trim() || "";
+      const derivedPan = profile.pan?.trim().toUpperCase() ?? "";
 
-      // Auto-fill rules:
-      //   - Name: overwrite if blank, otherwise ask
-      //   - Billing address: overwrite if blank, otherwise ask
+      // Auto-fill rules — same shape for every field:
+      //   - empty target → fill silently
+      //   - non-empty target + same value → no-op
+      //   - non-empty target + different value → window.confirm
       const shouldOverwriteName =
         partyName !== "" &&
         (!f.name.trim() ||
-          window.confirm(
-            `Replace party name with "${partyName}" from the GST portal?`,
-          ));
+          (f.name.trim() !== partyName &&
+            window.confirm(
+              `Replace party name with "${partyName}" from the GST portal?`,
+            )));
+
+      const existingPan = f.panNumber.trim().toUpperCase();
+      const shouldOverwritePan =
+        derivedPan !== "" &&
+        (!existingPan ||
+          (existingPan !== derivedPan &&
+            window.confirm(
+              `Replace PAN with "${derivedPan}" derived from this GSTIN?`,
+            )));
 
       const billingIsEmpty = addressIsEmpty(f.billing);
       const newBilling: AddressFormFields = {
@@ -238,6 +253,7 @@ export function PartyForm({
       setF((prev) => ({
         ...prev,
         name: shouldOverwriteName ? partyName : prev.name,
+        panNumber: shouldOverwritePan ? derivedPan : prev.panNumber,
         billing: shouldOverwriteBilling ? newBilling : prev.billing,
       }));
 

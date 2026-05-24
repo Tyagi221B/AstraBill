@@ -15,6 +15,7 @@ import "server-only";
 import {
   type GstinLookupAdapter,
   type GstinProfile,
+  panFromGstin,
 } from "./types";
 
 export class MockGstinAdapter implements GstinLookupAdapter {
@@ -27,6 +28,7 @@ export class MockGstinAdapter implements GstinLookupAdapter {
     const pan = gstin.slice(2, 12);
     return {
       gstin,
+      pan: panFromGstin(gstin),
       legalName: `Mock Enterprises (${pan})`,
       tradeName: `Mock Trading Co.`,
       address: {

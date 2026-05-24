@@ -24,6 +24,7 @@ import {
   GstinAdapterUnavailableError,
   type GstinProfile,
   normaliseGstin,
+  panFromGstin,
 } from "./types";
 import {
   findGstinCacheRow,
@@ -130,6 +131,10 @@ function rowToProfile(row: {
 }): GstinProfile {
   return {
     gstin: row.gstin,
+    // Cache table doesn't store PAN — derive every read. The DB's
+    // `gstin_cache_gstin_format` CHECK guarantees row.gstin is 15 chars,
+    // so panFromGstin's slice(2, 12) is always a valid PAN.
+    pan: panFromGstin(row.gstin),
     legalName: row.legalName,
     tradeName: row.tradeName,
     address: {
