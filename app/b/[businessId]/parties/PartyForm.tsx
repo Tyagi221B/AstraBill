@@ -588,7 +588,10 @@ export function PartyForm({
                   id="billing-state"
                   value={f.billing.stateCode}
                   onChange={(e) => setBilling("stateCode", e.target.value)}
-                  className={SELECT_CLASS}
+                  className={cn(
+                    SELECT_CLASS,
+                    !f.billing.stateCode && "text-muted-foreground/50",
+                  )}
                   aria-label="State"
                 >
                   <option value="">State</option>
@@ -650,8 +653,13 @@ export function PartyForm({
                     <select
                       id="ship-state"
                       value={f.shipping.stateCode}
-                      onChange={(e) => setShipping("stateCode", e.target.value)}
-                      className={SELECT_CLASS}
+                      onChange={(e) =>
+                        setShipping("stateCode", e.target.value)
+                      }
+                      className={cn(
+                        SELECT_CLASS,
+                        !f.shipping.stateCode && "text-muted-foreground/50",
+                      )}
                       aria-label="State"
                     >
                       <option value="">State</option>
@@ -721,7 +729,7 @@ export function PartyForm({
                 id="cp-name"
                 value={f.contactPersonName}
                 onChange={(e) => set("contactPersonName", e.target.value)}
-                placeholder="Ankit Mishra"
+                placeholder="Asmit Tyagi"
               />
             </div>
             <div className="flex flex-col gap-2">

@@ -105,7 +105,12 @@ export function PartyCategoryField({
             "hover:border-ring focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
           )}
         >
-          <span className={cn("truncate", !selected && "text-muted-foreground")}>
+          <span
+            className={cn(
+              "truncate",
+              !selected && "text-muted-foreground/50",
+            )}
+          >
             {selected ? selected.name : "Search categories"}
           </span>
           <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
