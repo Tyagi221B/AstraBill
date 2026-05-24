@@ -7,15 +7,21 @@
  * `*Tx` variants are for use inside an enclosing transaction.
  */
 import "server-only";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db, type Tx } from "../db";
 import {
   type NewParty,
   type Party,
   businessMembers,
+  ledgerEntries,
   parties,
 } from "../db/schema";
+
+/** A party row with its computed running balance (debit − credit). Positive
+ *  = party owes the business (receivable, "to collect"); negative = business
+ *  owes party (payable, "to pay"); zero = settled. */
+export type PartyWithBalance = Party & { balance: string };
 
 export async function insertPartyTx(
   tx: Tx,
@@ -127,6 +133,58 @@ export async function listPartiesForUser(opts: {
     .where(and(...whereParts))
     .orderBy(desc(parties.createdAt))
     .limit(opts.limit ?? 200);
+}
+
+/**
+ * Same as `listPartiesForUser`, plus each row carries a `balance` string
+ * (debit minus credit) computed from non-reversed `ledger_entries` rows.
+ * Used by the party picker on document create/edit so the user can see
+ * which parties owe them money before picking one.
+ */
+export async function listPartiesWithBalanceForUser(opts: {
+  userId: string;
+  businessId: string;
+  type?: Party["type"];
+  limit?: number;
+}): Promise<PartyWithBalance[]> {
+  const memberBusinessIds = db
+    .select({ id: businessMembers.businessId })
+    .from(businessMembers)
+    .where(
+      and(
+        eq(businessMembers.userId, opts.userId),
+        isNull(businessMembers.deletedAt),
+      ),
+    );
+
+  const whereParts = [
+    inArray(parties.businessId, memberBusinessIds),
+    eq(parties.businessId, opts.businessId),
+    isNull(parties.deletedAt),
+  ];
+  if (opts.type) whereParts.push(eq(parties.type, opts.type));
+
+  const balanceExpr = sql<string>`COALESCE(SUM(${ledgerEntries.debitAmount}), 0) - COALESCE(SUM(${ledgerEntries.creditAmount}), 0)`;
+
+  const rows = await db
+    .select({
+      party: parties,
+      balance: balanceExpr,
+    })
+    .from(parties)
+    .leftJoin(
+      ledgerEntries,
+      and(
+        eq(ledgerEntries.partyId, parties.id),
+        isNull(ledgerEntries.reversedByLedgerEntryId),
+      ),
+    )
+    .where(and(...whereParts))
+    .groupBy(parties.id)
+    .orderBy(desc(parties.createdAt))
+    .limit(opts.limit ?? 200);
+
+  return rows.map((r) => ({ ...r.party, balance: r.balance ?? "0" }));
 }
 
 export interface PartyPatch {

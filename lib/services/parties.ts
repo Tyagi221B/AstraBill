@@ -31,6 +31,7 @@ import {
   getPartyForUserTx,
   insertPartyTx,
   listPartiesForUser,
+  listPartiesWithBalanceForUser,
   softDeletePartyTx,
   updatePartyTx,
 } from "../repositories/parties";
@@ -429,4 +430,4 @@ export async function ensureCashSalePartyTx(
   });
 }
 
-export { findPartyById, listPartiesForUser };
+export { findPartyById, listPartiesForUser, listPartiesWithBalanceForUser };

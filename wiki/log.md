@@ -2070,3 +2070,90 @@ Deliberate drops vs myBillBook (laid out in plan, no pushback):
 User confirmation: "Damn bro, looks damn good right now. We can move forward with this." Validates [[astrabill-feels-light-like-zoho]] direction for the second time post-explicit myBillBook comparison. Plan going forward: SalesInvoiceForm next (5 doc types benefit — shared form), then Payments / Branding / Onboarding lower priority.
 
 Commit: `9f6965c`.
+
+## [2026-05-24] build | PR7-H part 1 — Document form parity with myBillBook (layout + modals)
+
+Side-by-side comparison with myBillBook's Create Sales Invoice surface drove
+this rewrite. SalesInvoiceForm was already merged into DocumentForm (PR7-H
+prep, commit `d958aa5`), so one redesign ships parity to all 8 doc types
+at once (sales_invoice, quotation, credit_note, purchase_invoice,
+debit_note, delivery_challan, estimate, proforma_invoice).
+
+Cross-questioning surfaced three real gotchas before coding: (1) ship-to
+support existed on SalesInvoiceForm but not DocumentForm — ported as a
+`usesShipTo` config flag on TYPE_CONFIGS (true only for `sales_invoice`
+today; other sales-side docs can opt in later when the model extends);
+(2) no `listPartiesWithBalanceForUser` helper existed — built one that
+joins `ledger_entries` and groups by party, skipping reversed rows;
+(3) `money_accounts` + `paymentMethod` enum schemas confirmed already
+present, so the inline payment panel can land without schema work.
+
+Layout changes (DocumentForm rewritten end-to-end):
+- **Sticky top bar**: back arrow + capitalised title + `Save & New` (create
+  only) + `Save`. Replaces our old bottom-right ghost/outline/primary trio.
+- **Header section 60/40**: Bill-to dashed card on the left opens
+  `PartyPickerModal` (search + balance with ↑/↓ direction arrow + nested
+  QuickAddPartyModal for new parties); compact meta cluster on the right
+  with auto-assigned number placeholder, doc date, removable Payment Terms
+  cluster, Place of Supply select, and conditional Supplier Inv No (for
+  purchase docs).
+- **Ship-to card**: only renders when `cfg.usesShipTo` + party picked +
+  party has a billing address. Existing /api/parties/[id]/addresses fetch
+  preserved verbatim.
+- **Line items table**: matches myBillBook columns exactly — NO /
+  Items/Services / HSN/SAC / Qty / Price/Item / Discount % / Tax / Amount
+  with a per-row trash. Empty-row state replaced by a single full-width
+  dashed `+ Add Item` CTA that opens `ItemPickerModal`. Subtotal row
+  appears below once at least one line exists. Scan Barcode dropped (no
+  scanner integration yet).
+- **Footer 2-col**: left = Notes / removable Terms & Conditions / Bank
+  Details (auto from business settings, per-doc Remove) / Payment QR (UPI
+  ID with [[astrabill-upi-qr-computed]] note) / Authorized signatory
+  (image when uploaded, empty box otherwise). Right = Taxable Amount /
+  CGST+SGST or IGST / Discount / Auto Round Off checkbox + computed
+  delta / **Total Amount** bold / inline payment panel (create-only):
+  Mark-as-paid checkbox, Amount Received with payment-mode pill (Cash /
+  UPI / Bank Transfer / Card / Cheque / Other) / **Balance Amount** in
+  green when zero.
+
+Two new modals (`components/documents/`):
+- `PartyPickerModal.tsx` — search by name/mobile, table of parties with
+  `₹X ↑` (red, receivable) / `₹X ↓` (green, payable) / `₹0` (muted),
+  nested `QuickAddPartyModal` captures Name + Mobile + GSTIN and POSTs
+  to /api/parties. The full party form is one click away for owners who
+  need address / credit terms / opening balance.
+- `ItemPickerModal.tsx` — search by name/code/HSN + category dropdown +
+  link to /items?create=1 in a new tab. Multi-select with per-row
+  quantity stepper (− / value / + / unit suffix). Keyboard nav: ↑↓ moves
+  focus, Enter toggles selection, F7 confirms, ESC cancels. Footer
+  shows running selected count.
+
+Backend additions:
+- `listPartiesWithBalanceForUser` in `lib/repositories/parties.ts` +
+  exported through `lib/services/parties.ts`. Drizzle aggregate:
+  `COALESCE(SUM(debit_amount),0) - COALESCE(SUM(credit_amount),0)` joined
+  with non-reversed `ledger_entries` (exclude rows with
+  `reversed_by_ledger_entry_id`). Used by every doc-type new/edit page.
+
+Page wiring (10 files touched — all doc-type new + edit pages now pass
+`business`, `itemCategories`, `moneyAccounts`, and the balance-augmented
+`parties`):
+- sales-invoices, quotations, credit-notes (sales)
+- purchase-invoices, debit-notes (purchases)
+PageHeader removed from each — DocumentForm renders its own sticky title.
+
+Deliberate scope split (PR7-H part 2 next):
+- **Inline payment write** is captured in form state (`amountReceived`,
+  `paymentMode`, Mark-as-paid) but the chained server write is NOT yet
+  wired. The user picked atomic server-side firstPayment in the
+  cross-questioning round; that requires extracting `finaliseDocumentTx`
+  and `recordPaymentTx` from existing services and extending
+  `createDocument` to chain them in one transaction. Lands as its own
+  commit so the diff is reviewable.
+- Settings gear (red dot in myBillBook) — dropped per cross-questioning
+  picker (no equivalent product yet).
+- Next-doc-number preview (Phase 3.2) — deferred; form shows
+  "Auto-assigned on save" placeholder for the doc number until the
+  preview helper is wired.
+
+Commit: TBD on push.

@@ -2,11 +2,12 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
 import { DocumentForm } from "@/components/documents/DocumentForm";
-import { PageHeader } from "@/components/app/PageHeader";
 import { applyCityPlaceholder } from "@/lib/constants/doc-type-defaults";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
+import { listItemCategoriesForUser } from "@/lib/repositories/item-categories";
 import { listItemsForUser } from "@/lib/services/items";
-import { listPartiesForUser } from "@/lib/services/parties";
+import { listMoneyAccountsForUser } from "@/lib/services/money-accounts";
+import { listPartiesWithBalanceForUser } from "@/lib/services/parties";
 import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = { title: "New purchase invoice · AstraBill" };
@@ -20,22 +21,26 @@ export default async function NewPurchaseInvoicePage({
   const { businessId } = await params;
   const business = await getBusinessForUser(user.id, businessId);
   if (!business) notFound();
-  const [parties, items] = await Promise.all([
-    listPartiesForUser({ userId: user.id, businessId, limit: 500 }),
+  const [parties, items, itemCategories, moneyAccounts] = await Promise.all([
+    listPartiesWithBalanceForUser({ userId: user.id, businessId, limit: 500 }),
     listItemsForUser({ userId: user.id, businessId, limit: 500 }),
+    listItemCategoriesForUser({ userId: user.id, businessId }),
+    listMoneyAccountsForUser({ userId: user.id, businessId }),
   ]);
   const seededTC =
     business.docTypeDefaults?.purchase_invoice?.termsConditions ?? "";
   const defaultTC = applyCityPlaceholder(seededTC, business.city);
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader title="New purchase invoice" />
       <DocumentForm
         businessId={business.id}
         businessStateCode={business.stateCode}
+        business={business}
         docType="purchase_invoice"
         parties={parties}
         items={items}
+        itemCategories={itemCategories}
+        moneyAccounts={moneyAccounts}
         defaultTermsConditions={defaultTC}
       />
     </div>

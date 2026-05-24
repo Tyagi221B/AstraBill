@@ -1,12 +1,16 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
-import { DocumentForm, type DocumentFormInitial } from "@/components/documents/DocumentForm";
-import { PageHeader } from "@/components/app/PageHeader";
+import {
+  DocumentForm,
+  type DocumentFormInitial,
+} from "@/components/documents/DocumentForm";
 import { ConflictError } from "@/lib/errors";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
+import { listItemCategoriesForUser } from "@/lib/repositories/item-categories";
 import { listItemsForUser } from "@/lib/services/items";
-import { listPartiesForUser } from "@/lib/services/parties";
+import { listMoneyAccountsForUser } from "@/lib/services/money-accounts";
+import { listPartiesWithBalanceForUser } from "@/lib/services/parties";
 import { getDocumentDetail } from "@/lib/services/documents";
 import { requireUser } from "@/lib/session";
 
@@ -29,9 +33,11 @@ export default async function EditQuotationPage({
     throw new ConflictError("This quotation is finalised.");
   }
 
-  const [parties, items] = await Promise.all([
-    listPartiesForUser({ userId: user.id, businessId, limit: 500 }),
+  const [parties, items, itemCategories, moneyAccounts] = await Promise.all([
+    listPartiesWithBalanceForUser({ userId: user.id, businessId, limit: 500 }),
     listItemsForUser({ userId: user.id, businessId, limit: 500 }),
+    listItemCategoriesForUser({ userId: user.id, businessId }),
+    listMoneyAccountsForUser({ userId: user.id, businessId }),
   ]);
 
   const initial: DocumentFormInitial = {
@@ -59,13 +65,15 @@ export default async function EditQuotationPage({
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader title={`Edit · draft quotation`} />
       <DocumentForm
         businessId={business.id}
         businessStateCode={business.stateCode}
+        business={business}
         docType="quotation"
         parties={parties}
         items={items}
+        itemCategories={itemCategories}
+        moneyAccounts={moneyAccounts}
         editingId={id}
         initial={initial}
         defaultTermsConditions=""

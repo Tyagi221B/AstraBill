@@ -6,11 +6,12 @@ import type {
   DocumentFormInitial,
   LineDraft,
 } from "@/components/documents/DocumentForm";
-import { PageHeader } from "@/components/app/PageHeader";
 import { ConflictError } from "@/lib/errors";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
+import { listItemCategoriesForUser } from "@/lib/repositories/item-categories";
 import { listItemsForUser } from "@/lib/services/items";
-import { listPartiesForUser } from "@/lib/services/parties";
+import { listMoneyAccountsForUser } from "@/lib/services/money-accounts";
+import { listPartiesWithBalanceForUser } from "@/lib/services/parties";
 import { getDocumentDetail } from "@/lib/services/documents";
 import { requireUser } from "@/lib/session";
 
@@ -38,9 +39,11 @@ export default async function EditSalesInvoicePage({
     throw new ConflictError("This invoice is finalised — cancel before edit.");
   }
 
-  const [parties, items] = await Promise.all([
-    listPartiesForUser({ userId: user.id, businessId, limit: 500 }),
+  const [parties, items, itemCategories, moneyAccounts] = await Promise.all([
+    listPartiesWithBalanceForUser({ userId: user.id, businessId, limit: 500 }),
     listItemsForUser({ userId: user.id, businessId, limit: 500 }),
+    listItemCategoriesForUser({ userId: user.id, businessId }),
+    listMoneyAccountsForUser({ userId: user.id, businessId }),
   ]);
 
   const lines: LineDraft[] = detail.lines.map((line) => ({
@@ -70,13 +73,15 @@ export default async function EditSalesInvoicePage({
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader title={`Edit · draft sales invoice`} />
       <DocumentForm
         businessId={business.id}
         businessStateCode={business.stateCode}
+        business={business}
         docType="sales_invoice"
         parties={parties}
         items={items}
+        itemCategories={itemCategories}
+        moneyAccounts={moneyAccounts}
         editingId={id}
         initial={initial}
         defaultTermsConditions=""
