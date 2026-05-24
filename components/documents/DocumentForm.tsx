@@ -772,10 +772,15 @@ export function DocumentForm({
         {/* Header — 3-col when ship-to is in play (Bill | Ship | Meta),
             otherwise 2-col (Bill | Meta). Stays steady across empty /
             filled states so the form doesn't bounce when a party is
-            picked. */}
+            picked.
+            `lg:items-start` keeps each cell at its natural content height
+            instead of stretching to match the (always-taller) Meta
+            cluster — without it, empty Bill / Ship cards balloon into
+            giant dashed rectangles that visually crash into the table
+            below. */}
         <div
           className={cn(
-            "grid grid-cols-1 gap-4",
+            "grid grid-cols-1 gap-4 lg:items-start",
             cfg.usesShipTo
               ? "lg:grid-cols-10"
               : "lg:grid-cols-5",
@@ -789,7 +794,7 @@ export function DocumentForm({
               {cfg.partyLabel}
             </p>
             {selectedParty ? (
-              <div className="flex h-full min-h-22 flex-col rounded-md border border-input bg-background p-3">
+              <div className="flex min-h-22 flex-col rounded-md border border-input bg-background p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-foreground">
@@ -819,7 +824,7 @@ export function DocumentForm({
               <button
                 type="button"
                 onClick={() => setPartyPickerOpen(true)}
-                className="flex h-full min-h-22 w-full items-center justify-center rounded-md border-2 border-dashed border-primary/40 bg-background text-sm font-medium text-primary hover:bg-primary/5"
+                className="flex min-h-22 w-full items-center justify-center rounded-md border-2 border-dashed border-primary/40 bg-background text-sm font-medium text-primary hover:bg-primary/5"
               >
                 + Add Party
               </button>
@@ -833,11 +838,11 @@ export function DocumentForm({
                 Ship to
               </p>
               {!f.partyId ? (
-                <div className="flex h-full min-h-22 w-full items-center justify-center rounded-md border border-dashed border-input bg-muted/20 text-xs text-muted-foreground">
+                <div className="flex min-h-22 w-full items-center justify-center rounded-md border border-dashed border-input bg-muted/20 text-xs text-muted-foreground">
                   Pick a party first
                 </div>
               ) : (
-                <div className="flex h-full min-h-22 flex-col rounded-md border border-input bg-background p-3">
+                <div className="flex min-h-22 flex-col rounded-md border border-input bg-background p-3">
                   {partyAddrs &&
                   partyAddrs.shippingAddresses.length > 0 ? (
                     <>
