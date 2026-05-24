@@ -2157,3 +2157,66 @@ Deliberate scope split (PR7-H part 2 next):
   preview helper is wired.
 
 Commit: `6803678`.
+
+## [2026-05-24] build | PR7-H part 2 — Atomic firstPayment server-side + UI wire
+
+Completes PR7-H. The inline `Amount Received` / `Mark as fully paid` panel
+on the sales-invoice and purchase-invoice forms now records a payment in
+the same transaction that creates and finalises the document — exactly as
+the user picked during the cross-questioning round ("server-side atomic
+— extend POST /api/documents to accept firstPayment, write both in one
+transaction").
+
+Backend extractions (no behaviour change for existing callers):
+- `finaliseDocumentTx(tx, documentId, actorUserId, ctx)` extracted from
+  `finaliseDocument`. The public wrapper now just opens a tx and
+  delegates. All ledger / stock / audit logic preserved.
+- `recordPaymentTx(tx, input, actorUserId, ctx)` extracted from
+  `recordPayment`. Permission check + allocation-sum validation stay in
+  the wrapper (which calls `validatePaymentInput` then opens its own tx).
+  The Tx-variant skips both because the orchestrating caller has already
+  done the permission check.
+
+Schema:
+- `firstPaymentInputSchema` added to `lib/schemas/document.ts`: amount
+  (positive money), paymentMode (enum matching paymentMethod), and
+  moneyAccountId (UUID). Optional on `createDocumentSchema`.
+
+Atomic chain in `createDocument` (one transaction):
+  1. Insert document (draft) + line items + additional charges + audit.
+  2. If `firstPayment` present:
+     a. `finaliseDocumentTx` → reserves the doc number, posts the
+        receivable/payable ledger leg, writes stock movements.
+     b. Server-side guard: `firstPayment.amount <= grandTotal`.
+     c. Build `CreatePaymentEntryInput` with a single allocation = full
+        amount; call `recordPaymentTx`.
+  3. Return the finalised document.
+Any throw inside the block rolls back the whole tx — no orphan docs, no
+orphan payments. Caller (form) sees nothing was created.
+
+Server-side allow-list — `FIRST_PAYMENT_TYPE` maps `sales_invoice` →
+`payment_in` and `purchase_invoice` → `payment_out`. Other doc types
+reject `firstPayment` with a clear `ValidationError` ("use the payments
+flow after issuing the document"). Caller also needs `payment:record`
+permission for the atomic path.
+
+Frontend wire:
+- `DocTypeUiConfig.supportsFirstPayment` added to all 8 entries
+  (true for sales_invoice / purchase_invoice). Inline payment panel
+  hides for the other 6 doc types — matches the server allow-list.
+- `pickMoneyAccount()` chooses cash money_account for `paymentMode=cash`,
+  otherwise bank. Falls back to first available; throws a clear pre-submit
+  error if the business has zero accounts ("Add one in Settings → Payments").
+- `buildPayload()` now emits a `firstPayment` field when applicable.
+- `save()` reads `hasFirstPayment` from the payload; if true, the server
+  already finalised, so the client skips the separate
+  `/api/documents/[id]/finalise` POST. Toast distinguishes "saved" vs
+  "saved · payment recorded".
+
+Out of scope (still pending):
+- Next-doc-number preview (Phase 3.2) — form still shows
+  "Auto-assigned on save" placeholder. Real preview requires a separate
+  `previewNextNumber` repo helper that doesn't bump the counter.
+- Settings gear — dropped per cross-questioning picker.
+
+Commit: TBD on push.

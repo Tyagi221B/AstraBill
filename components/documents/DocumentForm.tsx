@@ -14,10 +14,13 @@
  *   - "Validity date" instead of "Due date" (quotation, estimate)
  *   - Ship-to picker (sales_invoice only today)
  *
- * Save flow today:
- *   "Save" → POST/PATCH /api/documents → POST /api/documents/[id]/finalise
- * Amount Received + Mark-as-paid are captured in local state today;
- * atomic write to /api/payment-entries lands in a follow-up commit.
+ * Save flow:
+ *   - Edit:   PATCH /api/documents/[id] → POST /api/documents/[id]/finalise.
+ *   - Create without payment:  POST /api/documents → POST /api/documents/[id]/finalise.
+ *   - Create with Amount Received (sales_invoice / purchase_invoice only):
+ *     POST /api/documents with `firstPayment` — the server finalises the
+ *     doc and records the payment in one transaction. Skip the separate
+ *     finalise call client-side.
  *
  * Totals on screen are a client-side preview (decimal.js); server runs the
  * authoritative math (lib/gst.ts) on save.
@@ -125,6 +128,10 @@ export interface DocTypeUiConfig {
   /** If true, this is a money-in doc (sales-side); the payment panel records
    *  a `payment_in`. False for purchase-side docs (payment_out). */
   isSalesSide: boolean;
+  /** If true, surface the inline Amount Received + Mark-as-paid panel on
+   *  create. Only true for sales_invoice and purchase_invoice today (matches
+   *  the server-side FIRST_PAYMENT_TYPE allow-list). */
+  supportsFirstPayment: boolean;
   /** Route to return to on save success. */
   detailRoute: (businessId: string, id: string) => string;
 }
@@ -141,6 +148,7 @@ const TYPE_CONFIGS: Record<DocTypeValue, DocTypeUiConfig> = {
     showsOriginalDoc: false,
     usesShipTo: true,
     isSalesSide: true,
+    supportsFirstPayment: true,
     detailRoute: (b, id) => routes.b(b).salesInvoice(id),
   },
   estimate: {
@@ -154,6 +162,7 @@ const TYPE_CONFIGS: Record<DocTypeValue, DocTypeUiConfig> = {
     showsOriginalDoc: false,
     usesShipTo: false,
     isSalesSide: true,
+    supportsFirstPayment: false,
     detailRoute: (b, id) => `/b/${b}/sales/estimates/${id}`,
   },
   delivery_challan: {
@@ -167,6 +176,7 @@ const TYPE_CONFIGS: Record<DocTypeValue, DocTypeUiConfig> = {
     showsOriginalDoc: false,
     usesShipTo: false,
     isSalesSide: true,
+    supportsFirstPayment: false,
     detailRoute: (b, id) => `/b/${b}/sales/delivery-challans/${id}`,
   },
   credit_note: {
@@ -180,6 +190,7 @@ const TYPE_CONFIGS: Record<DocTypeValue, DocTypeUiConfig> = {
     showsOriginalDoc: false,
     usesShipTo: false,
     isSalesSide: true,
+    supportsFirstPayment: false,
     detailRoute: (b, id) => routes.b(b).creditNote(id),
   },
   purchase_invoice: {
@@ -193,6 +204,7 @@ const TYPE_CONFIGS: Record<DocTypeValue, DocTypeUiConfig> = {
     showsOriginalDoc: true,
     usesShipTo: false,
     isSalesSide: false,
+    supportsFirstPayment: true,
     detailRoute: (b, id) => routes.b(b).purchaseInvoice(id),
   },
   debit_note: {
@@ -206,6 +218,7 @@ const TYPE_CONFIGS: Record<DocTypeValue, DocTypeUiConfig> = {
     showsOriginalDoc: true,
     usesShipTo: false,
     isSalesSide: false,
+    supportsFirstPayment: false,
     detailRoute: (b, id) => routes.b(b).debitNote(id),
   },
   quotation: {
@@ -219,6 +232,7 @@ const TYPE_CONFIGS: Record<DocTypeValue, DocTypeUiConfig> = {
     showsOriginalDoc: false,
     usesShipTo: false,
     isSalesSide: true,
+    supportsFirstPayment: false,
     detailRoute: (b, id) => routes.b(b).quotation(id),
   },
   proforma_invoice: {
@@ -232,6 +246,7 @@ const TYPE_CONFIGS: Record<DocTypeValue, DocTypeUiConfig> = {
     showsOriginalDoc: false,
     usesShipTo: false,
     isSalesSide: true,
+    supportsFirstPayment: false,
     detailRoute: (b, id) => `/b/${b}/sales/proforma-invoices/${id}`,
   },
 };
@@ -524,6 +539,31 @@ export function DocumentForm({
     amountReceived,
   ]);
 
+  /** Pick the right money_account for the chosen payment mode. Cash mode
+   *  uses the default cash account; everything else uses the default bank
+   *  account. Falls back to the first account of matching type, then to
+   *  any account. Returns null if the business has no money accounts. */
+  function pickMoneyAccount(): string | null {
+    if (moneyAccounts.length === 0) return null;
+    const targetType: "cash" | "bank" = paymentMode === "cash" ? "cash" : "bank";
+    const sameTypeDefault = moneyAccounts.find(
+      (m) => m.type === targetType && m.isDefault,
+    );
+    if (sameTypeDefault) return sameTypeDefault.id;
+    const anySameType = moneyAccounts.find((m) => m.type === targetType);
+    if (anySameType) return anySameType.id;
+    return moneyAccounts[0]!.id;
+  }
+
+  /** True when the user has typed an Amount Received and the doc type
+   *  supports an inline first payment, AND we're creating (not editing). */
+  function shouldIncludeFirstPayment(): boolean {
+    if (isEdit) return false;
+    if (!cfg.supportsFirstPayment) return false;
+    const n = Number(amountReceived);
+    return Number.isFinite(n) && n > 0;
+  }
+
   function buildPayload() {
     const lines = f.lines
       .filter((l) => l.itemName.trim() !== "" && Number(l.qty) > 0)
@@ -544,6 +584,27 @@ export function DocumentForm({
     if (cfg.showsOriginalDoc && !f.originalDocNumber.trim()) {
       throw new Error("Original supplier invoice number is required for ITC");
     }
+
+    const includeFirstPayment = shouldIncludeFirstPayment();
+    let firstPayment: {
+      amount: string;
+      paymentMode: typeof paymentMode;
+      moneyAccountId: string;
+    } | null = null;
+    if (includeFirstPayment) {
+      const moneyAccountId = pickMoneyAccount();
+      if (!moneyAccountId) {
+        throw new Error(
+          "No cash/bank account configured. Add one in Settings → Payments before recording payment.",
+        );
+      }
+      firstPayment = {
+        amount: amountReceived,
+        paymentMode,
+        moneyAccountId,
+      };
+    }
+
     return {
       docType,
       docDate: f.docDate,
@@ -559,6 +620,7 @@ export function DocumentForm({
       notes: f.notes || null,
       ...(cfg.usesShipTo ? { shipToAddressId: f.shipToAddressId } : {}),
       lines,
+      ...(firstPayment ? { firstPayment } : {}),
     };
   }
 
@@ -567,6 +629,7 @@ export function DocumentForm({
     setBusy(true);
     try {
       const payload = buildPayload();
+      const hasFirstPayment = "firstPayment" in payload;
       const url = isEdit ? `/api/documents/${editingId}` : "/api/documents";
       const method = isEdit ? "PATCH" : "POST";
       const body = isEdit ? payload : { ...payload, businessId };
@@ -576,28 +639,37 @@ export function DocumentForm({
         body: JSON.stringify(body),
       });
       const json = (await res.json()) as
-        | { ok: true; data: { id: string } }
+        | { ok: true; data: { id: string; docNumber?: string | null } }
         | { ok: false; error: { message: string } };
       if (!json.ok) {
         toast.error(json.error.message);
         return;
       }
       const docId = isEdit ? editingId! : json.data.id;
-      // Auto-finalise so the doc gets a number — matches myBillBook's "Save"
-      // which always produces a billable doc, not a perpetual draft.
-      const fres = await fetch(`/api/documents/${docId}/finalise`, {
-        method: "POST",
-      });
-      const fjson = (await fres.json()) as
-        | { ok: true; data: { docNumber: string } }
-        | { ok: false; error: { message: string } };
-      if (!fjson.ok) {
-        toast.error(fjson.error.message);
-        return;
+
+      // With firstPayment, the server finalises atomically inside POST
+      // /api/documents — skip the separate finalise call. Without it, run
+      // the legacy finalise step so the doc gets a number.
+      let docNumber: string | null = json.data.docNumber ?? null;
+      if (!hasFirstPayment) {
+        const fres = await fetch(`/api/documents/${docId}/finalise`, {
+          method: "POST",
+        });
+        const fjson = (await fres.json()) as
+          | { ok: true; data: { docNumber: string } }
+          | { ok: false; error: { message: string } };
+        if (!fjson.ok) {
+          toast.error(fjson.error.message);
+          return;
+        }
+        docNumber = fjson.data.docNumber;
       }
-      toast.success(`${cfg.title} ${fjson.data.docNumber} saved`);
+      toast.success(
+        hasFirstPayment
+          ? `${cfg.title} ${docNumber ?? ""} saved · payment recorded`
+          : `${cfg.title} ${docNumber ?? ""} saved`,
+      );
       if (saveAndNew && !isEdit) {
-        // Clear form, stay on page
         setF(
           blankInitial({
             docDate: new Date().toISOString().slice(0, 10),
@@ -1280,9 +1352,12 @@ export function DocumentForm({
               </div>
             </dl>
 
-            {/* Inline payment capture (create-only). Wiring to /api/payment-entries
-                lands in the next commit; today this is local state only. */}
-            {!isEdit && (
+            {/* Inline payment capture — create-only, and only for doc
+                types where the server allow-lists firstPayment
+                (sales_invoice / purchase_invoice). Sent atomically inside
+                POST /api/documents so the doc + finalise + payment land
+                together or not at all. */}
+            {!isEdit && cfg.supportsFirstPayment && (
               <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4">
                 <label className="flex items-center justify-end gap-2 text-sm">
                   <input

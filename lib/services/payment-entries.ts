@@ -84,8 +84,11 @@ export async function recordPayment(
   ctx: ServiceContext = {},
 ): Promise<PaymentEntry> {
   await requirePermission(actorUserId, input.businessId, "payment:record");
+  validatePaymentInput(input);
+  return db.transaction((tx) => recordPaymentTx(tx, input, actorUserId, ctx));
+}
 
-  // Sum of allocations must equal `amount` (settlement discount is separate).
+function validatePaymentInput(input: CreatePaymentEntryInput): void {
   const allocSum = input.allocations.reduce(
     (acc, a) => acc.plus(a.allocatedAmount),
     new Decimal(0),
@@ -95,140 +98,156 @@ export async function recordPayment(
       `Allocations (₹${allocSum.toFixed(2)}) must equal payment amount (₹${new Decimal(input.amount).toFixed(2)})`,
     );
   }
-
-  return db.transaction(async (tx) => {
-    // Resolve party + account + (each document is finalised in this biz).
-    const party = await getPartyForUserTx(tx, actorUserId, input.partyId);
-    if (!party || party.businessId !== input.businessId) {
-      throw new NotFoundError("Party not found");
-    }
-    const moneyAccount = await getMoneyAccountForUserTx(
-      tx,
-      actorUserId,
-      input.moneyAccountId,
-    );
-    if (!moneyAccount || moneyAccount.businessId !== input.businessId) {
-      throw new NotFoundError("Money account not found");
-    }
-
-    // Validate each referenced document: visible, in this biz, finalised
-    // (status != draft, != cancelled), allocation within outstanding balance.
-    for (const a of input.allocations) {
-      const doc = await getDocumentForUserTx(tx, actorUserId, a.documentId);
-      if (!doc || doc.businessId !== input.businessId) {
-        throw new NotFoundError(`Document ${a.documentId} not found`);
-      }
-      if (doc.status === "draft") {
-        throw new ConflictError(
-          `Can't record payment on draft document ${doc.id}`,
-        );
-      }
-      if (doc.status === "cancelled") {
-        throw new ConflictError(
-          `Can't record payment on cancelled document ${doc.id}`,
-        );
-      }
-      const outstanding = new Decimal(doc.grandTotal).sub(doc.amountReceived);
-      if (new Decimal(a.allocatedAmount).gt(outstanding)) {
-        throw new ValidationError(
-          `Allocation ₹${a.allocatedAmount} exceeds document outstanding ₹${outstanding.toFixed(2)}`,
-        );
-      }
-    }
-
-    // 1) Insert the payment_entry row itself.
-    const entry = await insertPaymentEntryTx(tx, {
-      businessId: input.businessId,
-      entryType: input.entryType,
-      entryDate: input.entryDate,
-      partyId: input.partyId,
-      moneyAccountId: input.moneyAccountId,
-      amount: new Decimal(input.amount).toFixed(2),
-      discountAmount: new Decimal(input.discountAmount ?? "0").toFixed(2),
-      paymentMode: input.paymentMode,
-      reference: input.reference ?? null,
-      notes: input.notes ?? null,
-      status: "recorded",
-      createdBy: actorUserId,
-    });
-
-    // 2) Insert allocations.
-    await insertAllocationsTx(
-      tx,
-      input.allocations.map((a) => ({
-        businessId: input.businessId,
-        paymentEntryId: entry.id,
-        documentId: a.documentId,
-        allocatedAmount: new Decimal(a.allocatedAmount).toFixed(2),
-      })),
-    );
-
-    // 3) Two-leg ledger post (party + money_account) + optional discount leg.
-    const isIn = input.entryType === "payment_in";
-    const amountStr = new Decimal(input.amount).toFixed(2);
-
-    // Party leg
-    await insertLedgerEntryTx(tx, {
-      businessId: input.businessId,
-      voucherType: isIn ? "payment_in" : "payment_out",
-      entryDate: input.entryDate,
-      partyId: input.partyId,
-      paymentEntryId: entry.id,
-      debitAmount: isIn ? null : amountStr,
-      creditAmount: isIn ? amountStr : null,
-      narration: input.reference ?? null,
-    });
-
-    // Money account leg
-    await insertLedgerEntryTx(tx, {
-      businessId: input.businessId,
-      voucherType: isIn ? "payment_in" : "payment_out",
-      entryDate: input.entryDate,
-      moneyAccountId: input.moneyAccountId,
-      paymentEntryId: entry.id,
-      debitAmount: isIn ? amountStr : null,
-      creditAmount: isIn ? null : amountStr,
-      narration: input.reference ?? null,
-    });
-
-    // Settlement discount: third party-side leg, NO cash leg.
-    const discount = new Decimal(input.discountAmount ?? "0");
-    if (discount.gt(0)) {
-      await insertLedgerEntryTx(tx, {
-        businessId: input.businessId,
-        voucherType: "settlement_discount",
-        entryDate: input.entryDate,
-        partyId: input.partyId,
-        paymentEntryId: entry.id,
-        debitAmount: isIn ? null : discount.toFixed(2),
-        creditAmount: isIn ? discount.toFixed(2) : null,
-        narration: "Settlement discount",
-      });
-    }
-
-    // 4) Refresh amount_received + status on every touched document.
-    for (const a of input.allocations) {
-      await refreshDocumentReceiptTx(tx, a.documentId);
-    }
-
-    await writeAuditEntry(tx, {
-      action: isIn ? "payment.record" : "payment.record_out",
-      businessId: input.businessId,
-      actorUserId,
-      entityType: "payment_entry",
-      entityId: entry.id,
-      changes: {
-        amount: input.amount,
-        discount: input.discountAmount ?? "0",
-        allocations: input.allocations.length,
-      },
-      ipAddress: ctx.ipAddress ?? null,
-      userAgent: ctx.userAgent ?? null,
-    });
-
-    return entry;
-  });
 }
+
+/**
+ * Inner record-payment body — runs inside a caller-owned transaction so a
+ * payment can be recorded atomically alongside other writes (e.g. document
+ * create + finalise + first payment in one transaction). Public wrapper
+ * `recordPayment` opens its own tx and delegates here.
+ *
+ * Caller is responsible for the `payment:record` permission check and for
+ * pre-validating allocation totals (see `validatePaymentInput`).
+ */
+export async function recordPaymentTx(
+  tx: Tx,
+  input: CreatePaymentEntryInput,
+  actorUserId: string,
+  ctx: ServiceContext = {},
+): Promise<PaymentEntry> {
+  // Resolve party + account + (each document is finalised in this biz).
+  const party = await getPartyForUserTx(tx, actorUserId, input.partyId);
+  if (!party || party.businessId !== input.businessId) {
+    throw new NotFoundError("Party not found");
+  }
+  const moneyAccount = await getMoneyAccountForUserTx(
+    tx,
+    actorUserId,
+    input.moneyAccountId,
+  );
+  if (!moneyAccount || moneyAccount.businessId !== input.businessId) {
+    throw new NotFoundError("Money account not found");
+  }
+
+  // Validate each referenced document: visible, in this biz, finalised
+  // (status != draft, != cancelled), allocation within outstanding balance.
+  for (const a of input.allocations) {
+    const doc = await getDocumentForUserTx(tx, actorUserId, a.documentId);
+    if (!doc || doc.businessId !== input.businessId) {
+      throw new NotFoundError(`Document ${a.documentId} not found`);
+    }
+    if (doc.status === "draft") {
+      throw new ConflictError(
+        `Can't record payment on draft document ${doc.id}`,
+      );
+    }
+    if (doc.status === "cancelled") {
+      throw new ConflictError(
+        `Can't record payment on cancelled document ${doc.id}`,
+      );
+    }
+    const outstanding = new Decimal(doc.grandTotal).sub(doc.amountReceived);
+    if (new Decimal(a.allocatedAmount).gt(outstanding)) {
+      throw new ValidationError(
+        `Allocation ₹${a.allocatedAmount} exceeds document outstanding ₹${outstanding.toFixed(2)}`,
+      );
+    }
+  }
+
+  // 1) Insert the payment_entry row itself.
+  const entry = await insertPaymentEntryTx(tx, {
+    businessId: input.businessId,
+    entryType: input.entryType,
+    entryDate: input.entryDate,
+    partyId: input.partyId,
+    moneyAccountId: input.moneyAccountId,
+    amount: new Decimal(input.amount).toFixed(2),
+    discountAmount: new Decimal(input.discountAmount ?? "0").toFixed(2),
+    paymentMode: input.paymentMode,
+    reference: input.reference ?? null,
+    notes: input.notes ?? null,
+    status: "recorded",
+    createdBy: actorUserId,
+  });
+
+  // 2) Insert allocations.
+  await insertAllocationsTx(
+    tx,
+    input.allocations.map((a) => ({
+      businessId: input.businessId,
+      paymentEntryId: entry.id,
+      documentId: a.documentId,
+      allocatedAmount: new Decimal(a.allocatedAmount).toFixed(2),
+    })),
+  );
+
+  // 3) Two-leg ledger post (party + money_account) + optional discount leg.
+  const isIn = input.entryType === "payment_in";
+  const amountStr = new Decimal(input.amount).toFixed(2);
+
+  // Party leg
+  await insertLedgerEntryTx(tx, {
+    businessId: input.businessId,
+    voucherType: isIn ? "payment_in" : "payment_out",
+    entryDate: input.entryDate,
+    partyId: input.partyId,
+    paymentEntryId: entry.id,
+    debitAmount: isIn ? null : amountStr,
+    creditAmount: isIn ? amountStr : null,
+    narration: input.reference ?? null,
+  });
+
+  // Money account leg
+  await insertLedgerEntryTx(tx, {
+    businessId: input.businessId,
+    voucherType: isIn ? "payment_in" : "payment_out",
+    entryDate: input.entryDate,
+    moneyAccountId: input.moneyAccountId,
+    paymentEntryId: entry.id,
+    debitAmount: isIn ? amountStr : null,
+    creditAmount: isIn ? null : amountStr,
+    narration: input.reference ?? null,
+  });
+
+  // Settlement discount: third party-side leg, NO cash leg.
+  const discount = new Decimal(input.discountAmount ?? "0");
+  if (discount.gt(0)) {
+    await insertLedgerEntryTx(tx, {
+      businessId: input.businessId,
+      voucherType: "settlement_discount",
+      entryDate: input.entryDate,
+      partyId: input.partyId,
+      paymentEntryId: entry.id,
+      debitAmount: isIn ? null : discount.toFixed(2),
+      creditAmount: isIn ? discount.toFixed(2) : null,
+      narration: "Settlement discount",
+    });
+  }
+
+  // 4) Refresh amount_received + status on every touched document.
+  for (const a of input.allocations) {
+    await refreshDocumentReceiptTx(tx, a.documentId);
+  }
+
+  await writeAuditEntry(tx, {
+    action: isIn ? "payment.record" : "payment.record_out",
+    businessId: input.businessId,
+    actorUserId,
+    entityType: "payment_entry",
+    entityId: entry.id,
+    changes: {
+      amount: input.amount,
+      discount: input.discountAmount ?? "0",
+      allocations: input.allocations.length,
+    },
+    ipAddress: ctx.ipAddress ?? null,
+    userAgent: ctx.userAgent ?? null,
+  });
+
+  return entry;
+}
+
+export { validatePaymentInput };
 
 /**
  * Cancel a recorded payment. Writes reversal ledger entries for every

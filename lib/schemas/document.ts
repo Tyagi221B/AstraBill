@@ -77,6 +77,25 @@ export type AdditionalChargeInputDto = z.infer<
   typeof additionalChargeInputSchema
 >;
 
+/**
+ * Inline payment captured at invoice create. When present, the server
+ * finalises the doc and records a payment in one atomic transaction.
+ * Only honoured on POST (create), ignored on PATCH (edit).
+ */
+export const firstPaymentInputSchema = z.object({
+  amount: positiveMoney,
+  paymentMode: z.enum([
+    "upi",
+    "cash",
+    "bank_transfer",
+    "card",
+    "cheque",
+    "other",
+  ]),
+  moneyAccountId: z.string().uuid(),
+});
+export type FirstPaymentInputDto = z.infer<typeof firstPaymentInputSchema>;
+
 export const createDocumentSchema = z.object({
   businessId: z.string().uuid(),
   docType: docTypeSchema,
@@ -103,6 +122,10 @@ export const createDocumentSchema = z.object({
   ewayBillNumber: z.string().trim().max(40).nullable().optional(),
   lines: z.array(lineItemInputSchema).min(1, "At least one line item is required"),
   additionalCharges: z.array(additionalChargeInputSchema).optional(),
+  /** If present, the server will finalise the doc and record a
+   *  payment_in (sales side) / payment_out (purchase side) in the same
+   *  transaction. Amount must be <= grand total. */
+  firstPayment: firstPaymentInputSchema.optional(),
 });
 export type CreateDocumentInput = z.infer<typeof createDocumentSchema>;
 

@@ -33,7 +33,7 @@ import "server-only";
 import { randomBytes, randomUUID } from "node:crypto";
 import Decimal from "decimal.js";
 
-import { db } from "../db";
+import { db, type Tx } from "../db";
 import {
   type DocTypeValue,
   type Document,
@@ -81,12 +81,17 @@ import {
 } from "../repositories/documents";
 import { reserveNextNumberTx } from "./document-counters";
 import {
+  recordPaymentTx,
+  validatePaymentInput,
+} from "./payment-entries";
+import {
   insertLedgerEntryTx,
 } from "../repositories/ledger-entries";
 import { ledgerEntries } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { insertStockMovementWithLockTx } from "../repositories/stock-movements";
 import { getPartyForUserTx } from "../repositories/parties";
+import type { CreatePaymentEntryInput } from "../schemas/payment-entry";
 
 // ─── Posting policy ────────────────────────────────────────────────────────
 
@@ -313,12 +318,36 @@ function chargeRowsForInsert(
 
 // ─── Create / Update ───────────────────────────────────────────────────────
 
+/** docTypes that accept an inline firstPayment at create. Sales invoice
+ *  records a payment_in; purchase invoice records a payment_out. Other
+ *  doc types (quotation, credit_note, etc.) reject firstPayment with a
+ *  clear error — refunds and adjustments use the standalone payment flow. */
+const FIRST_PAYMENT_TYPE: Record<string, "payment_in" | "payment_out" | undefined> =
+  {
+    sales_invoice: "payment_in",
+    purchase_invoice: "payment_out",
+  };
+
 export async function createDocument(
   input: CreateDocumentInput,
   actorUserId: string,
   ctx: ServiceContext = {},
 ): Promise<Document> {
   await requirePermission(actorUserId, input.businessId, "document:create");
+
+  // If a firstPayment is requested, validate the docType up front + ensure
+  // the caller has payment:record permission. The actual atomic chain runs
+  // inside the createDocument transaction.
+  let firstPaymentEntryType: "payment_in" | "payment_out" | null = null;
+  if (input.firstPayment) {
+    firstPaymentEntryType = FIRST_PAYMENT_TYPE[input.docType] ?? null;
+    if (!firstPaymentEntryType) {
+      throw new ValidationError(
+        `Inline first payment is not supported for ${input.docType} — use the payments flow after issuing the document.`,
+      );
+    }
+    await requirePermission(actorUserId, input.businessId, "payment:record");
+  }
 
   return db.transaction(async (tx) => {
     // Resolve party + state for tax classification.
@@ -402,6 +431,43 @@ export async function createDocument(
       ipAddress: ctx.ipAddress ?? null,
       userAgent: ctx.userAgent ?? null,
     });
+
+    // Atomic finalise + firstPayment chain. If anything in this block
+    // throws, the whole transaction (incl. the doc insert above) rolls
+    // back — caller sees nothing was created.
+    if (input.firstPayment && firstPaymentEntryType) {
+      const finalised = await finaliseDocumentTx(
+        tx,
+        document.id,
+        actorUserId,
+        ctx,
+      );
+      const amount = new Decimal(input.firstPayment.amount);
+      const grandTotal = new Decimal(finalised.grandTotal);
+      if (amount.gt(grandTotal)) {
+        throw new ValidationError(
+          `First payment ₹${amount.toFixed(2)} exceeds grand total ₹${grandTotal.toFixed(2)}.`,
+        );
+      }
+      const paymentInput: CreatePaymentEntryInput = {
+        businessId: input.businessId,
+        entryType: firstPaymentEntryType,
+        entryDate: input.docDate,
+        partyId: input.partyId,
+        moneyAccountId: input.firstPayment.moneyAccountId,
+        amount: amount.toFixed(2),
+        paymentMode: input.firstPayment.paymentMode,
+        allocations: [
+          {
+            documentId: finalised.id,
+            allocatedAmount: amount.toFixed(2),
+          },
+        ],
+      };
+      validatePaymentInput(paymentInput);
+      await recordPaymentTx(tx, paymentInput, actorUserId, ctx);
+      return finalised;
+    }
 
     return document;
   });
@@ -528,106 +594,119 @@ export async function finaliseDocument(
   actorUserId: string,
   ctx: ServiceContext = {},
 ): Promise<Document> {
-  return db.transaction(async (tx) => {
-    const existing = await getDocumentForUserTx(tx, actorUserId, documentId);
-    if (!existing) throw new NotFoundError("Document not found");
-    if (existing.status !== "draft") {
-      throw new ConflictError(
-        `Document is already ${existing.status}; finalise applies to drafts only`,
-      );
-    }
-    await requirePermission(
-      actorUserId,
-      existing.businessId,
-      "document:finalize",
+  return db.transaction((tx) =>
+    finaliseDocumentTx(tx, documentId, actorUserId, ctx),
+  );
+}
+
+/**
+ * Inner finalise body — runs inside a caller-owned transaction so the doc
+ * can be finalised + a first payment recorded atomically. Public wrapper
+ * `finaliseDocument` opens its own tx and delegates here.
+ */
+export async function finaliseDocumentTx(
+  tx: Tx,
+  documentId: string,
+  actorUserId: string,
+  ctx: ServiceContext = {},
+): Promise<Document> {
+  const existing = await getDocumentForUserTx(tx, actorUserId, documentId);
+  if (!existing) throw new NotFoundError("Document not found");
+  if (existing.status !== "draft") {
+    throw new ConflictError(
+      `Document is already ${existing.status}; finalise applies to drafts only`,
     );
+  }
+  await requirePermission(
+    actorUserId,
+    existing.businessId,
+    "document:finalize",
+  );
 
-    const businessAccess = await getBusinessForUserTx(
-      tx,
-      actorUserId,
-      existing.businessId,
-    );
-    if (!businessAccess) throw new NotFoundError("Business not found");
-    const business = businessAccess.business;
+  const businessAccess = await getBusinessForUserTx(
+    tx,
+    actorUserId,
+    existing.businessId,
+  );
+  if (!businessAccess) throw new NotFoundError("Business not found");
+  const business = businessAccess.business;
 
-    // 1) Reserve the next document number (per-FY counter, FOR UPDATE lock).
-    const { number } = await reserveNextNumberTx(tx, {
-      businessId: existing.businessId,
-      docType: existing.docType,
-      docDate: existing.docDate,
-      fyStartMonth: business.fyStartMonth,
-    });
-
-    // 2) Update the doc row with number + token + status.
-    const finalised = await markFinalisedTx(tx, documentId, {
-      docNumber: number,
-      shareToken: newShareToken(),
-      finalisedAt: new Date(),
-    });
-
-    const policy = POSTING_POLICY[existing.docType];
-
-    // 3) Post ledger leg if the doc_type has one.
-    if (policy.ledgerSide && policy.ledgerVoucherType) {
-      const amount = existing.grandTotal;
-      if (new Decimal(amount).gt(0)) {
-        await insertLedgerEntryTx(tx, {
-          businessId: existing.businessId,
-          voucherType: policy.ledgerVoucherType,
-          entryDate: existing.docDate,
-          partyId: existing.partyId,
-          documentId: existing.id,
-          debitAmount: policy.ledgerSide === "debit" ? amount : null,
-          creditAmount: policy.ledgerSide === "credit" ? amount : null,
-          narration: `${prettyDocType(existing.docType)} ${number}`,
-        });
-      }
-    }
-
-    // 4) Write stock movements for items on this doc, if the policy says so.
-    if (policy.stockDirection && policy.stockTxnType) {
-      // Pull the line items now that they're saved on the doc row.
-      const lines = await tx
-        .select()
-        .from((await import("../db/schema")).documentLineItems)
-        .where(
-          eq(
-            (await import("../db/schema")).documentLineItems.documentId,
-            existing.id,
-          ),
-        );
-      const directionSign = policy.stockDirection === "in" ? 1 : -1;
-      for (const line of lines) {
-        if (!line.itemId) continue; // free-text line, no stock movement
-        const qty = new Decimal(line.quantity).times(directionSign);
-        if (qty.eq(0)) continue;
-        await insertStockMovementWithLockTx(tx, {
-          businessId: existing.businessId,
-          itemId: line.itemId,
-          txnType: policy.stockTxnType,
-          qty: qty.toFixed(3),
-          txnDate: existing.docDate,
-          relatedDocId: existing.id,
-          relatedPartyId: existing.partyId,
-          createdBy: actorUserId,
-          notes: `${prettyDocType(existing.docType)} ${number}`,
-        });
-      }
-    }
-
-    await writeAuditEntry(tx, {
-      action: "document.finalize",
-      businessId: existing.businessId,
-      actorUserId,
-      entityType: "document",
-      entityId: existing.id,
-      changes: { docNumber: number, docType: existing.docType },
-      ipAddress: ctx.ipAddress ?? null,
-      userAgent: ctx.userAgent ?? null,
-    });
-
-    return finalised;
+  // 1) Reserve the next document number (per-FY counter, FOR UPDATE lock).
+  const { number } = await reserveNextNumberTx(tx, {
+    businessId: existing.businessId,
+    docType: existing.docType,
+    docDate: existing.docDate,
+    fyStartMonth: business.fyStartMonth,
   });
+
+  // 2) Update the doc row with number + token + status.
+  const finalised = await markFinalisedTx(tx, documentId, {
+    docNumber: number,
+    shareToken: newShareToken(),
+    finalisedAt: new Date(),
+  });
+
+  const policy = POSTING_POLICY[existing.docType];
+
+  // 3) Post ledger leg if the doc_type has one.
+  if (policy.ledgerSide && policy.ledgerVoucherType) {
+    const amount = existing.grandTotal;
+    if (new Decimal(amount).gt(0)) {
+      await insertLedgerEntryTx(tx, {
+        businessId: existing.businessId,
+        voucherType: policy.ledgerVoucherType,
+        entryDate: existing.docDate,
+        partyId: existing.partyId,
+        documentId: existing.id,
+        debitAmount: policy.ledgerSide === "debit" ? amount : null,
+        creditAmount: policy.ledgerSide === "credit" ? amount : null,
+        narration: `${prettyDocType(existing.docType)} ${number}`,
+      });
+    }
+  }
+
+  // 4) Write stock movements for items on this doc, if the policy says so.
+  if (policy.stockDirection && policy.stockTxnType) {
+    const lines = await tx
+      .select()
+      .from((await import("../db/schema")).documentLineItems)
+      .where(
+        eq(
+          (await import("../db/schema")).documentLineItems.documentId,
+          existing.id,
+        ),
+      );
+    const directionSign = policy.stockDirection === "in" ? 1 : -1;
+    for (const line of lines) {
+      if (!line.itemId) continue; // free-text line, no stock movement
+      const qty = new Decimal(line.quantity).times(directionSign);
+      if (qty.eq(0)) continue;
+      await insertStockMovementWithLockTx(tx, {
+        businessId: existing.businessId,
+        itemId: line.itemId,
+        txnType: policy.stockTxnType,
+        qty: qty.toFixed(3),
+        txnDate: existing.docDate,
+        relatedDocId: existing.id,
+        relatedPartyId: existing.partyId,
+        createdBy: actorUserId,
+        notes: `${prettyDocType(existing.docType)} ${number}`,
+      });
+    }
+  }
+
+  await writeAuditEntry(tx, {
+    action: "document.finalize",
+    businessId: existing.businessId,
+    actorUserId,
+    entityType: "document",
+    entityId: existing.id,
+    changes: { docNumber: number, docType: existing.docType },
+    ipAddress: ctx.ipAddress ?? null,
+    userAgent: ctx.userAgent ?? null,
+  });
+
+  return finalised;
 }
 
 // ─── Cancel ────────────────────────────────────────────────────────────────
