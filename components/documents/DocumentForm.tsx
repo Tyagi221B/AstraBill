@@ -277,6 +277,29 @@ export const blankLine = (): LineDraft => ({
   discountPercent: "",
 });
 
+/**
+ * Normalize a rate string from Drizzle's `numeric(5,2)` (returns "18.00")
+ * to the canonical form ("18") so it matches the GST_OPTIONS / discount
+ * option values. Without this, the select falls back to its first option
+ * and silently misrepresents the line — even though the math is correct.
+ *
+ * "18.00" → "18", "0.10" → "0.1", "0" → "0", "" / null → "".
+ */
+function normalizeRate(v: string | null | undefined): string {
+  if (v == null || v === "") return "";
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "";
+  return String(n);
+}
+
+function normalizeLineRates(line: LineDraft): LineDraft {
+  return {
+    ...line,
+    gstRate: normalizeRate(line.gstRate),
+    discountPercent: normalizeRate(line.discountPercent),
+  };
+}
+
 export interface DocumentFormInitial {
   partyId: string;
   docDate: string;
@@ -352,13 +375,18 @@ export function DocumentForm({
 }) {
   const cfg = TYPE_CONFIGS[docType];
   const isEdit = Boolean(editingId);
-  const [f, setF] = useState<DocumentFormInitial>(
-    initial ??
+  const [f, setF] = useState<DocumentFormInitial>(() => {
+    const base =
+      initial ??
       blankInitial({
         docDate: new Date().toISOString().slice(0, 10),
         termsConditions: defaultTermsConditions,
-      }),
-  );
+      });
+    // Numeric rates from the DB come through as "18.00" / "0.10"; the
+    // select options use the canonical "18" / "0.1" form. Normalize here
+    // so the dropdown shows the right rate on edit + after item picks.
+    return { ...base, lines: base.lines.map(normalizeLineRates) };
+  });
   const [partyList, setPartyList] = useState<PickerParty[]>(parties);
   const [busy, setBusy] = useState(false);
 
@@ -456,18 +484,20 @@ export function DocumentForm({
 
   function appendPickedItems(picked: PickedItem[]) {
     const usePurchasePrice = !cfg.isSalesSide;
-    const newLines: LineDraft[] = picked.map(({ item, quantity }) => ({
-      itemId: item.id,
-      itemName: item.name,
-      hsn: item.hsnSacCode ?? "",
-      unit: item.measuringUnitCode ?? "PCS",
-      qty: quantity,
-      price: usePurchasePrice
-        ? item.purchasePrice ?? item.salesPrice ?? "0"
-        : item.salesPrice ?? "0",
-      gstRate: item.gstRate ?? "",
-      discountPercent: "",
-    }));
+    const newLines: LineDraft[] = picked.map(({ item, quantity }) =>
+      normalizeLineRates({
+        itemId: item.id,
+        itemName: item.name,
+        hsn: item.hsnSacCode ?? "",
+        unit: item.measuringUnitCode ?? "PCS",
+        qty: quantity,
+        price: usePurchasePrice
+          ? item.purchasePrice ?? item.salesPrice ?? "0"
+          : item.salesPrice ?? "0",
+        gstRate: item.gstRate ?? "",
+        discountPercent: "",
+      }),
+    );
     setF((prev) => ({ ...prev, lines: [...prev.lines, ...newLines] }));
     setItemPickerOpen(false);
   }
@@ -739,46 +769,135 @@ export function DocumentForm({
       </div>
 
       <div className="flex flex-col gap-4 px-6 py-5">
-        {/* Header section: Bill To card + meta cluster */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+        {/* Header — 3-col when ship-to is in play (Bill | Ship | Meta),
+            otherwise 2-col (Bill | Meta). Stays steady across empty /
+            filled states so the form doesn't bounce when a party is
+            picked. */}
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-4",
+            cfg.usesShipTo
+              ? "lg:grid-cols-10"
+              : "lg:grid-cols-5",
+          )}
+        >
           {/* Bill To card */}
-          <div className="lg:col-span-3">
-            <p className="mb-2 text-sm font-medium text-foreground">
+          <div
+            className={cfg.usesShipTo ? "lg:col-span-3" : "lg:col-span-3"}
+          >
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {cfg.partyLabel}
             </p>
             {selectedParty ? (
-              <div className="flex items-center justify-between rounded-md border border-input bg-background px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">
-                    {selectedParty.name}
-                  </p>
-                  {selectedParty.mobileNumber && (
-                    <p className="text-xs text-muted-foreground">
-                      {selectedParty.mobileNumber}
+              <div className="flex h-full min-h-22 flex-col rounded-md border border-input bg-background p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">
+                      {selectedParty.name}
                     </p>
-                  )}
+                    {selectedParty.mobileNumber && (
+                      <p className="truncate text-xs text-muted-foreground">
+                        {selectedParty.mobileNumber}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPartyPickerOpen(true)}
+                    className="shrink-0 text-xs font-medium text-primary hover:underline"
+                  >
+                    Change
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setPartyPickerOpen(true)}
-                  className="text-sm font-medium text-primary hover:underline"
-                >
-                  Change
-                </button>
+                {cfg.usesShipTo && partyAddrs?.billing && (
+                  <address className="mt-2 not-italic text-xs leading-relaxed text-muted-foreground whitespace-pre-line">
+                    {formatAddressLine(partyAddrs.billing)}
+                  </address>
+                )}
               </div>
             ) : (
               <button
                 type="button"
                 onClick={() => setPartyPickerOpen(true)}
-                className="flex min-h-22 w-full items-center justify-center rounded-md border-2 border-dashed border-primary/40 bg-background text-sm font-medium text-primary hover:bg-primary/5"
+                className="flex h-full min-h-22 w-full items-center justify-center rounded-md border-2 border-dashed border-primary/40 bg-background text-sm font-medium text-primary hover:bg-primary/5"
               >
                 + Add Party
               </button>
             )}
           </div>
 
+          {/* Ship To card — only for doc types where it's meaningful */}
+          {cfg.usesShipTo && (
+            <div className="lg:col-span-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Ship to
+              </p>
+              {!f.partyId ? (
+                <div className="flex h-full min-h-22 w-full items-center justify-center rounded-md border border-dashed border-input bg-muted/20 text-xs text-muted-foreground">
+                  Pick a party first
+                </div>
+              ) : (
+                <div className="flex h-full min-h-22 flex-col rounded-md border border-input bg-background p-3">
+                  {partyAddrs &&
+                  partyAddrs.shippingAddresses.length > 0 ? (
+                    <>
+                      <select
+                        value={f.shipToAddressId ?? ""}
+                        onChange={(e) =>
+                          set("shipToAddressId", e.target.value || null)
+                        }
+                        className={cn(SELECT_CLASS, "h-8 text-xs")}
+                      >
+                        <option value="">— Same as billing —</option>
+                        {partyAddrs.shippingAddresses.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {(s.label ?? "(no label)") +
+                              (s.isDefault ? " · default" : "")}
+                          </option>
+                        ))}
+                      </select>
+                      {f.shipToAddressId &&
+                        (() => {
+                          const picked = partyAddrs.shippingAddresses.find(
+                            (s) => s.id === f.shipToAddressId,
+                          );
+                          if (!picked) return null;
+                          return (
+                            <address className="mt-2 not-italic text-xs leading-relaxed text-muted-foreground whitespace-pre-line">
+                              {formatAddressLine(picked)}
+                            </address>
+                          );
+                        })()}
+                      {!f.shipToAddressId && partyAddrs.billing && (
+                        <address className="mt-2 not-italic text-xs leading-relaxed text-muted-foreground whitespace-pre-line">
+                          {formatAddressLine(partyAddrs.billing)}
+                        </address>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        Same as billing
+                      </p>
+                      {partyAddrs?.billing && (
+                        <address className="mt-2 not-italic text-xs leading-relaxed text-muted-foreground whitespace-pre-line">
+                          {formatAddressLine(partyAddrs.billing)}
+                        </address>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Meta cluster */}
-          <div className="rounded-md border border-input bg-background p-4 lg:col-span-2">
+          <div
+            className={cn(
+              "rounded-md border border-input bg-background p-4",
+              cfg.usesShipTo ? "lg:col-span-4" : "lg:col-span-2",
+            )}
+          >
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1">
                 <Label className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -932,62 +1051,6 @@ export function DocumentForm({
           </div>
         </div>
 
-        {/* Ship-to card */}
-        {cfg.usesShipTo && f.partyId && partyAddrs?.billing && (
-          <div className="rounded-md border border-input bg-background p-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Bill to
-                </h2>
-                <address className="not-italic text-sm leading-relaxed text-foreground whitespace-pre-line">
-                  {formatAddressLine(partyAddrs.billing)}
-                </address>
-              </div>
-              <div>
-                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Ship to
-                </h2>
-                {partyAddrs.shippingAddresses.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Same as billing
-                  </p>
-                ) : (
-                  <>
-                    <select
-                      value={f.shipToAddressId ?? ""}
-                      onChange={(e) =>
-                        set("shipToAddressId", e.target.value || null)
-                      }
-                      className={cn(SELECT_CLASS, "h-9")}
-                    >
-                      <option value="">— Same as billing —</option>
-                      {partyAddrs.shippingAddresses.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {(s.label ?? "(no label)") +
-                            (s.isDefault ? " · default" : "")}
-                        </option>
-                      ))}
-                    </select>
-                    {f.shipToAddressId &&
-                      (() => {
-                        const picked = partyAddrs.shippingAddresses.find(
-                          (s) => s.id === f.shipToAddressId,
-                        );
-                        if (!picked) return null;
-                        return (
-                          <address className="mt-2 not-italic text-sm leading-relaxed text-foreground whitespace-pre-line">
-                            {formatAddressLine(picked)}
-                          </address>
-                        );
-                      })()}
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Line items table */}
         <div className="overflow-hidden rounded-md border border-input bg-background">
           <table className="w-full text-sm">
@@ -1004,29 +1067,25 @@ export function DocumentForm({
                 </th>
                 <th className="px-2 py-2 text-right font-medium">Discount</th>
                 <th className="px-2 py-2 text-left font-medium">Tax</th>
-                <th className="px-2 py-2 text-right font-medium">
-                  Amount (₹)
+                <th className="whitespace-nowrap px-2 py-2 text-right font-medium">
+                  Amount
                 </th>
                 <th className="px-2 py-2" />
               </tr>
             </thead>
             <tbody>
               {f.lines.map((line, idx) => {
-                const lineAmount = new Decimal(line.qty || "0")
+                const lineTaxable = new Decimal(line.qty || "0")
                   .times(line.price || "0")
                   .times(
                     new Decimal(1).minus(
                       new Decimal(line.discountPercent || "0").div(100),
                     ),
-                  )
-                  .times(
-                    line.gstRate
-                      ? new Decimal(1).plus(
-                          new Decimal(line.gstRate).div(100),
-                        )
-                      : new Decimal(1),
-                  )
-                  .toFixed(2);
+                  );
+                const lineTaxAmt = line.gstRate
+                  ? lineTaxable.times(line.gstRate).div(100)
+                  : new Decimal(0);
+                const lineAmount = lineTaxable.plus(lineTaxAmt).toFixed(2);
                 return (
                   <tr
                     key={idx}
@@ -1108,6 +1167,11 @@ export function DocumentForm({
                           </option>
                         ))}
                       </select>
+                      {line.gstRate && lineTaxAmt.gt(0) && (
+                        <p className="mt-1 text-right text-xs tabular-nums text-muted-foreground">
+                          ₹ {lineTaxAmt.toFixed(2)}
+                        </p>
+                      )}
                     </td>
                     <td className="px-2 py-2 text-right tabular-nums font-medium">
                       ₹ {lineAmount}

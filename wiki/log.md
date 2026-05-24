@@ -2220,3 +2220,51 @@ Out of scope (still pending):
 - Settings gear — dropped per cross-questioning picker.
 
 Commit: `be98026`.
+
+## [2026-05-24] polish | PR7-H pt3 — DocumentForm UI fixes after smoke test
+
+User sat with the new form on `localhost:3000` and surfaced 4 issues
+worth fixing in one polish pass. Cross-questioned the plan first
+(verified the bug hypothesis against schema), then shipped.
+
+**Correctness bug** (the load-bearing one):
+- TAX column was rendering "Exempt" while the math correctly applied
+  18%. Drizzle returns `numeric(5,2)` rate columns as `"18.00"`, but
+  `GST_OPTIONS` use the canonical `"18"`. The select couldn't find a
+  matching `<option value="18.00">` and silently fell back to the first
+  option ("Exempt"). Math used `new Decimal("18.00")` which normalized
+  on its own, so the totals were right and the line cells lied.
+- Fix: `normalizeRate("18.00") → "18"` + `normalizeLineRates(line)`
+  helper applied in two boundaries: `useState` initializer (covers
+  edit pages loading from DB) and `appendPickedItems` (covers item
+  picker selections). Same normalization handles `discountPercent`
+  since it's also a `numeric(5,2)` column.
+
+**Layout**:
+- Header was 2-col (Bill 60% | Meta 40%) with an orphan Bill-to /
+  Ship-to card landing _below_ the meta cluster after party select.
+  Vertical bouncing on selection — empty `+ Add Party` card was huge,
+  then shrunk, then a new card appeared underneath.
+- New layout: 3-col `lg:grid-cols-10` (Bill 30% / Ship 30% / Meta 40%)
+  for `cfg.usesShipTo` (today only `sales_invoice`); 2-col 60/40 for
+  the other 7 doc types. Bill-to card now carries the billing address
+  inline once a party is picked; Ship-to card is a real card with
+  "Pick a party first" empty state. Orphan card below removed entirely.
+
+**Line cell polish**:
+- TAX column: rate select on top, computed `₹ X.XX` line tax muted
+  below (only when rate > 0). Mirrors myBillBook's two-line tax cells.
+- AMOUNT column header: dropped redundant `(₹)` (rows already show
+  the rupee symbol) + `whitespace-nowrap` so it stays on one line.
+
+**Deferred (explicit non-shortcut choices)**:
+- Discount `%`/`₹` toggle — schema friction, separate PR.
+- Item description inline — would double row height; defer until
+  needed.
+- Place of Supply collapse — required field for India GST, leaving
+  visible.
+- Next-doc-number preview — needs a separate `previewNextNumber` repo
+  helper that doesn't bump the counter.
+- `IGST@18` rate-aware label in totals — needs single-rate detection.
+
+Commit: TBD on push.
