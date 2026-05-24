@@ -2039,4 +2039,4 @@ Bug squashed: Opening balance amount input was being squeezed to ~0px. Cause: `$
 
 User confirmation: "wow lets fucking commit and push." Validates the [[astrabill-feels-light-like-zoho]] direction stays correct when explicitly compared against myBillBook (UX, not just our taste).
 
-Commit: <pending>.
+Commit: `adb79d3`.
