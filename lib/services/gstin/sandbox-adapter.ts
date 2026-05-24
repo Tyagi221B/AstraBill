@@ -41,10 +41,13 @@ const LOOKUP_API_VERSION = "1.0";
 interface SandboxAddressBlock {
   bno?: string;
   bnm?: string;
+  flno?: string;
   st?: string;
   loc?: string;
   dst?: string;
   city?: string;
+  /** **State NAME** (e.g. "Karnataka", "Uttarakhand"), not the 2-digit code.
+   *  The 2-digit code is the first two chars of the GSTIN itself. */
   stcd?: string;
   pncd?: string;
 }
@@ -59,15 +62,31 @@ interface SandboxGstinDataBlock {
   pradr?: { addr?: SandboxAddressBlock; adr?: string };
 }
 
-/** Lenient lookup-response envelope — Sandbox has flipped between top-
- *  level, `data`, and `result` across product lines. We accept any. */
+/** The inner envelope under `data` — Sandbox wraps the GSTIN payload in a
+ *  status-coded inner block: `{ data, status_cd, error? }`. */
+interface SandboxInnerEnvelope {
+  data?: SandboxGstinDataBlock;
+  status_cd?: string;
+  error?: { error_cd?: string; message?: string };
+}
+
+/**
+ * Sandbox lookup-response envelope.
+ *
+ * Confirmed shape from developer.sandbox.co.in:
+ *   { code, data: { data: <profile>, status_cd: "1" | "0", error? },
+ *     timestamp, transaction_id }
+ *
+ * Other product lines (Setu, Cleartax-via-adapter) flatten this differently;
+ * the extractor tries the documented double-nesting first, then falls back.
+ */
 interface SandboxLookupEnvelope {
   code?: number | string;
   http_response_code?: number;
   message?: string;
-  data?: SandboxGstinDataBlock;
+  data?: SandboxInnerEnvelope | SandboxGstinDataBlock;
   result?: SandboxGstinDataBlock;
-  // ...or the data block lives at top level
+  // ...or the data block lives at top level (defensive)
   gstin?: string;
   lgnm?: string;
   tradeNam?: string;
@@ -91,7 +110,9 @@ interface SandboxAuthEnvelope {
 }
 
 function joinAddressLine(addr: SandboxAddressBlock): string | null {
-  const parts = [addr.bno, addr.bnm, addr.st, addr.loc]
+  // Include `flno` (floor number) — confirmed present in real Sandbox
+  // responses; useful for B2B parties in multi-storey buildings.
+  const parts = [addr.bno, addr.bnm, addr.flno, addr.st, addr.loc]
     .map((p) => (p ?? "").trim())
     .filter(Boolean);
   return parts.length > 0 ? parts.join(", ") : null;
@@ -105,23 +126,49 @@ function parseRegDate(input: string | undefined): string | null {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-/** Pick the data block from any of the known envelope shapes. Returns
- *  `null` only if NONE of them contain a `gstin`. */
-function extractDataBlock(
-  env: SandboxLookupEnvelope,
-): SandboxGstinDataBlock | null {
-  if (env.data?.gstin) return env.data;
-  if (env.result?.gstin) return env.result;
+/**
+ * Pick the data block from any of the known envelope shapes.
+ *
+ * Sandbox's documented shape is **double-nested** — the GSTIN profile sits
+ * at `env.data.data.gstin`, with `env.data.status_cd` discriminating
+ * success ("1") from no-records ("0"). Earlier attempts looked at
+ * `env.data.gstin` (single-nested) which never matched, surfacing as a
+ * shape-mismatch / 404 to the user.
+ *
+ * Returns `null` only if no recognised shape contains a `gstin`. Returns
+ * an explicit `"not_found"` when the envelope says no records exist (so
+ * the caller can throw the right error type).
+ */
+type DataBlockResult =
+  | { kind: "found"; block: SandboxGstinDataBlock }
+  | { kind: "not_found" }
+  | { kind: "shape_miss" };
+
+function extractDataBlock(env: SandboxLookupEnvelope): DataBlockResult {
+  // Inner-envelope path (Sandbox's documented shape).
+  if (env.data && typeof env.data === "object") {
+    const inner = env.data as SandboxInnerEnvelope & SandboxGstinDataBlock;
+    // Documented double-nest first.
+    if (inner.data?.gstin) return { kind: "found", block: inner.data };
+    // Explicit not-found markers from Sandbox.
+    if (inner.error?.error_cd) return { kind: "not_found" };
+    if (inner.status_cd === "0") return { kind: "not_found" };
+    // Single-nest fallback in case Sandbox flattens in some plans.
+    if (inner.gstin) return { kind: "found", block: inner };
+  }
+  if (env.result?.gstin) return { kind: "found", block: env.result };
   if (env.gstin) {
-    // Top-level shape — coerce to data block view.
     return {
-      gstin: env.gstin,
-      lgnm: env.lgnm,
-      tradeNam: env.tradeNam,
-      pradr: env.pradr,
+      kind: "found",
+      block: {
+        gstin: env.gstin,
+        lgnm: env.lgnm,
+        tradeNam: env.tradeNam,
+        pradr: env.pradr,
+      },
     };
   }
-  return null;
+  return { kind: "shape_miss" };
 }
 
 function extractAccessToken(env: SandboxAuthEnvelope): {
@@ -222,8 +269,9 @@ export class SandboxGstinAdapter implements GstinLookupAdapter {
       );
     }
 
-    // OK status — but the docs aren't explicit on shape. Read text first so
-    // we can log it on shape miss, then JSON.parse it ourselves.
+    // OK status — but Sandbox's not-found path is HTTP 200 with status_cd
+    // == "0", so we MUST parse the body even on 200. Read as text first so
+    // a non-JSON payload or shape miss is loggable verbatim.
     const bodyText = await res.text();
     let envelope: SandboxLookupEnvelope;
     try {
@@ -237,36 +285,45 @@ export class SandboxGstinAdapter implements GstinLookupAdapter {
       );
     }
 
-    const data = extractDataBlock(envelope);
-    if (!data || !data.gstin) {
-      // Could be a "code=404" / "no record" response, or a shape we haven't
-      // seen yet. Log the body so we can either fix the parser or confirm
-      // it's a genuine not-found.
+    // HTTP 422 / 400 from Sandbox = invalid GSTIN pattern. We pre-validate
+    // format upstream, so this shouldn't fire — log if it ever does.
+    if (envelope.code === 422 || envelope.code === 400) {
+      console.error(
+        `[sandbox] lookup rejected (code=${envelope.code}) body=${bodyText.slice(0, 400)}`,
+      );
+      throw new GstinNotFoundError(gstin);
+    }
+
+    const result = extractDataBlock(envelope);
+    if (result.kind === "not_found") {
+      // Documented Sandbox "no records" response — return as such.
+      throw new GstinNotFoundError(gstin);
+    }
+    if (result.kind === "shape_miss") {
       console.error(
         `[sandbox] lookup found no data block gstin=${gstin} body=${bodyText.slice(0, 800)}`,
       );
-      // If the envelope explicitly says 404, treat as not-found; otherwise
-      // surface as adapter-unavailable so the UI doesn't claim "no record"
-      // when the real issue is a shape mismatch.
-      if (envelope.code === 404 || envelope.http_response_code === 404) {
-        throw new GstinNotFoundError(gstin);
-      }
       throw new GstinAdapterUnavailableError(
         envelope.message ?? "Sandbox returned an unexpected response shape",
       );
     }
 
+    const data = result.block;
     const addr = data.pradr?.addr ?? {};
     const address: GstinAddress = {
       streetAddress: joinAddressLine(addr),
       city: (addr.dst ?? addr.city ?? addr.loc ?? null) || null,
-      state: null,
-      stateCode: (addr.stcd ?? null) || null,
+      // `stcd` is the state NAME ("Karnataka", "Uttarakhand") in Sandbox's
+      // response, not a 2-digit code. The 2-digit GST state code is the
+      // first two characters of the GSTIN itself (true by spec), so derive
+      // from there to keep the rate-class lookup deterministic.
+      state: (addr.stcd ?? null) || null,
+      stateCode: gstin.slice(0, 2),
       pincode: (addr.pncd ?? null) || null,
     };
 
     return {
-      gstin: data.gstin,
+      gstin: data.gstin ?? gstin,
       legalName: (data.lgnm ?? null) || null,
       tradeName: (data.tradeNam ?? null) || null,
       address,
