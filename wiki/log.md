@@ -2267,4 +2267,4 @@ worth fixing in one polish pass. Cross-questioned the plan first
   helper that doesn't bump the counter.
 - `IGST@18` rate-aware label in totals — needs single-rate detection.
 
-Commit: TBD on push.
+Commit: `6ca5023`.
