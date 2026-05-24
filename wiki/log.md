@@ -2311,3 +2311,31 @@ Tracked as a future task: card-per-line layout for `< sm:` breakpoint +
 bottom-sheet variants of PartyPicker / ItemPicker modals.
 
 Commit: `3a6d86b`.
+
+## [2026-05-24] polish | PR7-H pt5 — Empty Bill/Ship cards no longer balloon
+
+User screenshot showed the empty `+ Add Party` and `Pick a party first`
+cards looking like giant dashed rectangles "going behind" the line items
+table. Not a z-index issue — CSS Grid's default `align-items: stretch`
+combined with my `h-full min-h-22` on the inner cards was making the
+empty cells fill the full row height (matching the tall Meta cluster ~
+430px). Two giant empty cards sitting flush against the table border
+below = "crashing into" feel.
+
+**Root cause** in our terms: Grid stretches every cell to the tallest
+sibling. Meta is always tallest (number + date + payment terms cluster +
+place of supply + sometimes supplier inv fields). Bill/Ship's empty
+state has trivial content but `h-full` honored the stretched cell →
+balloon. myBillBook doesn't have this because their cards are filled
+with the customer's 3-4 line address (natural height ~= Meta).
+
+**Fix — one line**: add `lg:items-start` to the header grid. Each cell
+sizes to its own content; empty Bill/Ship stay at `min-h-22`, Meta keeps
+its natural height, table starts cleanly under the tallest column.
+After party-select the cards grow naturally with address content (the
+myBillBook layout we were trying to mimic all along).
+
+**Cleanup**: removed redundant `h-full` from the four Bill/Ship inner
+elements (defensive code for the stretch behavior we just disabled).
+
+Commit: `724c4b8`.
