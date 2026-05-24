@@ -30,7 +30,7 @@ export default async function NewPartyPage({
   ]);
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-6xl">
       <PageHeader title="New party" />
       <PartyForm
         businessId={business.id}

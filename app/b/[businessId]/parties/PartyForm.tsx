@@ -22,6 +22,8 @@ import type {
   PartyCustomFieldDefinition,
 } from "@/lib/db/schema";
 import { routes } from "@/lib/routes";
+import { cn } from "@/lib/utils";
+import { PartyCategoryField } from "./PartyCategoryField";
 
 export type PartyTypeOption = "customer" | "supplier";
 export type OpeningBalanceDirection = "to_collect" | "to_pay";
@@ -192,6 +194,9 @@ export function PartyForm({
   const [f, setF] = useState<PartyFormInitial>(initial ?? blank);
   const [busy, setBusy] = useState(false);
   const [gstinFetching, setGstinFetching] = useState(false);
+  // Local mirror of the server-supplied list so inline-created categories
+  // appear in the dropdown without a page reload.
+  const [categoryList, setCategoryList] = useState<PartyCategory[]>(categories);
 
   async function fetchGstinDetails() {
     const gstin = f.gstin.trim().toUpperCase();
@@ -392,37 +397,12 @@ export function PartyForm({
       <Card>
         <CardContent className="pt-6">
           <h2 className="mb-4 text-base font-semibold">General details</h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="flex flex-col gap-2 md:col-span-2">
-              <Label>
-                Party type <span className="text-destructive">*</span>
-              </Label>
-              <div className="flex gap-3">
-                {(["customer", "supplier"] as const).map((t) => (
-                  <label
-                    key={t}
-                    className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm capitalize transition-colors ${
-                      f.type === t
-                        ? "border-primary bg-primary/5 text-primary"
-                        : "border-input bg-background text-foreground hover:border-ring"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="type"
-                      value={t}
-                      checked={f.type === t}
-                      onChange={() => set("type", t)}
-                      className="sr-only"
-                    />
-                    {t}
-                  </label>
-                ))}
-              </div>
-            </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            {/* Row 1 — identity + opening balance */}
             <div className="flex flex-col gap-2">
               <Label htmlFor="name">
-                Name <span className="text-destructive">*</span>
+                Party name <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="name"
@@ -448,92 +428,133 @@ export function PartyForm({
                 type="email"
                 value={f.email}
                 onChange={(e) => set("email", e.target.value)}
+                placeholder="Enter email"
               />
             </div>
-            <div className="flex flex-col gap-2 md:col-span-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="category">Category</Label>
-                <a
-                  href={routes.b(businessId).settings.partyCategories}
-                  target="_blank"
-                  rel="noopener"
-                  className="text-xs text-muted-foreground hover:text-foreground hover:underline"
-                >
-                  Manage categories →
-                </a>
-              </div>
-              {categories.length === 0 ? (
-                <p className="rounded-md border border-dashed border-input px-3 py-2 text-sm text-muted-foreground">
-                  No categories yet. Add one in{" "}
-                  <a
-                    href={routes.b(businessId).settings.partyCategories}
-                    target="_blank"
-                    rel="noopener"
-                    className="text-primary hover:underline"
-                  >
-                    Party settings
-                  </a>
-                  .
-                </p>
-              ) : (
-                <select
-                  id="category"
-                  value={f.categoryId}
-                  onChange={(e) => set("categoryId", e.target.value)}
-                  className={SELECT_CLASS}
-                >
-                  <option value="">— no category —</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="pt-6">
-          <h2 className="mb-4 text-base font-semibold">GST &amp; PAN</h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <div className="flex items-end justify-between gap-2">
-                <Label htmlFor="gstin">GSTIN</Label>
-                {gstinLookupEnabled && (
-                  <button
-                    type="button"
-                    onClick={fetchGstinDetails}
-                    disabled={!isGstinFormatValid(f.gstin) || gstinFetching}
-                    className="text-xs font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+              <Label htmlFor="opening-balance-amount">
+                Opening balance
+                {openingBalanceLocked && (
+                  <span
+                    title="Locked because this party already has invoices or payments"
+                    className="ml-1 text-muted-foreground"
+                    aria-label="locked"
                   >
-                    {gstinFetching ? "Fetching…" : "Get details"}
-                  </button>
+                    🔒
+                  </span>
                 )}
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="opening-balance-amount"
+                  value={f.openingBalanceAmount}
+                  onChange={(e) => set("openingBalanceAmount", e.target.value)}
+                  placeholder="₹ 0"
+                  inputMode="decimal"
+                  disabled={openingBalanceLocked}
+                  className="flex-1"
+                />
+                <select
+                  id="opening-balance-direction"
+                  value={f.openingBalanceDirection}
+                  onChange={(e) =>
+                    set(
+                      "openingBalanceDirection",
+                      e.target.value as OpeningBalanceDirection,
+                    )
+                  }
+                  className={cn(SELECT_CLASS, "w-32 shrink-0")}
+                  disabled={openingBalanceLocked}
+                  aria-label="Direction"
+                >
+                  <option value="to_collect">To collect</option>
+                  <option value="to_pay">To pay</option>
+                </select>
               </div>
+            </div>
+
+            {/* Row 2 — GSTIN | Get Details | PAN | (empty) */}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="gstin">GSTIN</Label>
               <Input
                 id="gstin"
                 value={f.gstin}
                 onChange={(e) => set("gstin", e.target.value.toUpperCase())}
-                placeholder="29XXXXX9438X1XX"
+                placeholder="ex: 29XXXXX9438X1XX"
                 className="font-mono uppercase"
               />
-              <p className="text-xs text-muted-foreground">
-                {gstinLookupEnabled
-                  ? `Enter a 15-character GSTIN, then "Get details" to auto-fill name and billing address from the GST portal.`
-                  : "15-character GSTIN. Optional — leave blank for unregistered parties."}
-              </p>
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="pan">PAN</Label>
+              <Label>&nbsp;</Label>
+              {gstinLookupEnabled ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={fetchGstinDetails}
+                  disabled={!isGstinFormatValid(f.gstin) || gstinFetching}
+                  className="h-10"
+                >
+                  {gstinFetching ? "Fetching…" : "Get details"}
+                </Button>
+              ) : (
+                <div className="hidden md:block" aria-hidden />
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="pan">PAN number</Label>
               <Input
                 id="pan"
                 value={f.panNumber}
                 onChange={(e) => set("panNumber", e.target.value.toUpperCase())}
-                placeholder="ABCDE1234F"
+                placeholder="Enter party PAN number"
                 className="font-mono uppercase"
+              />
+            </div>
+            <div className="hidden md:block" aria-hidden />
+
+            {gstinLookupEnabled && (
+              <p className="text-xs text-muted-foreground md:col-span-4">
+                Note: You can auto-populate party details from GSTIN.
+              </p>
+            )}
+
+            {/* Row 3 — Party type | Category | (empty 2 cols) */}
+            <div className="flex flex-col gap-2 md:col-span-2">
+              <Label>
+                Party type <span className="text-destructive">*</span>
+              </Label>
+              <div className="inline-flex w-fit rounded-md border border-input bg-background p-0.5">
+                {(["customer", "supplier"] as const).map((t) => (
+                  <label
+                    key={t}
+                    className={`cursor-pointer rounded px-5 py-1.5 text-sm capitalize transition-colors ${
+                      f.type === t
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="type"
+                      value={t}
+                      checked={f.type === t}
+                      onChange={() => set("type", t)}
+                      className="sr-only"
+                    />
+                    {t}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="md:col-span-2">
+              <PartyCategoryField
+                businessId={businessId}
+                value={f.categoryId}
+                onChange={(id) => set("categoryId", id)}
+                categories={categoryList}
+                onCategoryCreated={(c) =>
+                  setCategoryList((prev) => [...prev, c])
+                }
               />
             </div>
           </div>
@@ -542,54 +563,114 @@ export function PartyForm({
 
       <Card>
         <CardContent className="pt-6">
-          <h2 className="mb-1 text-base font-semibold">Opening balance</h2>
-          <p className="mb-4 text-xs text-muted-foreground">
-            Any pending balance carried over from before AstraBill.
-            {openingBalanceLocked
-              ? " — locked because this party already has invoices or payments."
-              : ""}
-          </p>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="opening-balance-amount">Amount (₹)</Label>
-              <Input
-                id="opening-balance-amount"
-                value={f.openingBalanceAmount}
-                onChange={(e) => set("openingBalanceAmount", e.target.value)}
-                placeholder="0"
-                inputMode="decimal"
-                disabled={openingBalanceLocked}
+          <h2 className="mb-4 text-base font-semibold">Address</h2>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            {/* Billing */}
+            <div className="flex flex-col gap-3">
+              <Label htmlFor="billing-street" className="text-sm">
+                Billing address
+              </Label>
+              <Textarea
+                id="billing-street"
+                rows={3}
+                value={f.billing.streetAddress}
+                onChange={(e) => setBilling("streetAddress", e.target.value)}
+                placeholder="Enter billing address"
               />
+              <div className="grid grid-cols-3 gap-3">
+                <Input
+                  id="billing-city"
+                  value={f.billing.city}
+                  onChange={(e) => setBilling("city", e.target.value)}
+                  placeholder="City"
+                />
+                <select
+                  id="billing-state"
+                  value={f.billing.stateCode}
+                  onChange={(e) => setBilling("stateCode", e.target.value)}
+                  className={SELECT_CLASS}
+                  aria-label="State"
+                >
+                  <option value="">State</option>
+                  {INDIAN_STATES.map((s) => (
+                    <option key={s.code} value={s.code}>
+                      {s.name} ({s.code})
+                    </option>
+                  ))}
+                </select>
+                <Input
+                  id="billing-pin"
+                  value={f.billing.pincode}
+                  onChange={(e) => setBilling("pincode", e.target.value)}
+                  placeholder="Pincode"
+                  inputMode="numeric"
+                />
+              </div>
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="opening-balance-direction">Direction</Label>
-              <select
-                id="opening-balance-direction"
-                value={f.openingBalanceDirection}
-                onChange={(e) =>
-                  set(
-                    "openingBalanceDirection",
-                    e.target.value as OpeningBalanceDirection,
-                  )
-                }
-                className={SELECT_CLASS}
-                disabled={openingBalanceLocked}
-              >
-                <option value="to_collect">To collect (party owes me)</option>
-                <option value="to_pay">To pay (I owe party)</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="opening-balance-date">As of date</Label>
-              <Input
-                id="opening-balance-date"
-                type="date"
-                value={f.openingBalanceAsOfDate}
-                onChange={(e) =>
-                  set("openingBalanceAsOfDate", e.target.value)
-                }
-                disabled={openingBalanceLocked}
-              />
+
+            {/* Shipping */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="ship-street" className="text-sm">
+                  Shipping address
+                </Label>
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={f.shippingSameAsBilling}
+                    onChange={(e) =>
+                      set("shippingSameAsBilling", e.target.checked)
+                    }
+                  />
+                  Same as billing address
+                </label>
+              </div>
+              {f.shippingSameAsBilling ? (
+                <div className="flex min-h-40 flex-1 items-center justify-center rounded-md border border-dashed border-input bg-muted/30 p-4 text-center text-sm text-muted-foreground">
+                  Using the billing address.
+                </div>
+              ) : (
+                <>
+                  <Textarea
+                    id="ship-street"
+                    rows={3}
+                    value={f.shipping.streetAddress}
+                    onChange={(e) =>
+                      setShipping("streetAddress", e.target.value)
+                    }
+                    placeholder="Enter shipping address"
+                  />
+                  <div className="grid grid-cols-3 gap-3">
+                    <Input
+                      id="ship-city"
+                      value={f.shipping.city}
+                      onChange={(e) => setShipping("city", e.target.value)}
+                      placeholder="City"
+                    />
+                    <select
+                      id="ship-state"
+                      value={f.shipping.stateCode}
+                      onChange={(e) => setShipping("stateCode", e.target.value)}
+                      className={SELECT_CLASS}
+                      aria-label="State"
+                    >
+                      <option value="">State</option>
+                      {INDIAN_STATES.map((s) => (
+                        <option key={s.code} value={s.code}>
+                          {s.name} ({s.code})
+                        </option>
+                      ))}
+                    </select>
+                    <Input
+                      id="ship-pin"
+                      value={f.shipping.pincode}
+                      onChange={(e) => setShipping("pincode", e.target.value)}
+                      placeholder="Pincode"
+                      inputMode="numeric"
+                    />
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </CardContent>
@@ -600,22 +681,28 @@ export function PartyForm({
           <h2 className="mb-4 text-base font-semibold">Credit terms</h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="credit-period">Credit period (days)</Label>
-              <Input
-                id="credit-period"
-                type="number"
-                min={0}
-                value={f.creditPeriodDays}
-                onChange={(e) => set("creditPeriodDays", e.target.value)}
-              />
+              <Label htmlFor="credit-period">Credit period</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="credit-period"
+                  type="number"
+                  min={0}
+                  value={f.creditPeriodDays}
+                  onChange={(e) => set("creditPeriodDays", e.target.value)}
+                  className="flex-1"
+                />
+                <span className="flex items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground">
+                  Days
+                </span>
+              </div>
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="credit-limit">Credit limit (₹)</Label>
+              <Label htmlFor="credit-limit">Credit limit</Label>
               <Input
                 id="credit-limit"
                 value={f.creditLimit}
                 onChange={(e) => set("creditLimit", e.target.value)}
-                placeholder="0"
+                placeholder="₹ 0"
               />
             </div>
           </div>
@@ -624,135 +711,12 @@ export function PartyForm({
 
       <Card>
         <CardContent className="pt-6">
-          <h2 className="mb-4 text-base font-semibold">Billing address</h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div className="flex flex-col gap-2 md:col-span-3">
-              <Label htmlFor="billing-street">Street address</Label>
-              <Textarea
-                id="billing-street"
-                rows={2}
-                value={f.billing.streetAddress}
-                onChange={(e) => setBilling("streetAddress", e.target.value)}
-                placeholder="Shop no. / building / area"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="billing-city">City</Label>
-              <Input
-                id="billing-city"
-                value={f.billing.city}
-                onChange={(e) => setBilling("city", e.target.value)}
-                placeholder="Roorkee"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="billing-state">State</Label>
-              <select
-                id="billing-state"
-                value={f.billing.stateCode}
-                onChange={(e) => setBilling("stateCode", e.target.value)}
-                className={SELECT_CLASS}
-              >
-                <option value="">— select state —</option>
-                {INDIAN_STATES.map((s) => (
-                  <option key={s.code} value={s.code}>
-                    {s.name} ({s.code})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="billing-pin">Pincode</Label>
-              <Input
-                id="billing-pin"
-                value={f.billing.pincode}
-                onChange={(e) => setBilling("pincode", e.target.value)}
-                placeholder="247667"
-                inputMode="numeric"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="pt-6">
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <h2 className="text-base font-semibold">Shipping address</h2>
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={f.shippingSameAsBilling}
-                onChange={(e) =>
-                  set("shippingSameAsBilling", e.target.checked)
-                }
-              />
-              Same as billing
-            </label>
-          </div>
-          {f.shippingSameAsBilling ? (
-            <p className="text-sm text-muted-foreground">
-              The billing address above will be used for shipments. Uncheck
-              to enter a different shipping address.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div className="flex flex-col gap-2 md:col-span-3">
-                <Label htmlFor="ship-street">Street address</Label>
-                <Textarea
-                  id="ship-street"
-                  rows={2}
-                  value={f.shipping.streetAddress}
-                  onChange={(e) =>
-                    setShipping("streetAddress", e.target.value)
-                  }
-                  placeholder="Warehouse / branch / site"
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="ship-city">City</Label>
-                <Input
-                  id="ship-city"
-                  value={f.shipping.city}
-                  onChange={(e) => setShipping("city", e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="ship-state">State</Label>
-                <select
-                  id="ship-state"
-                  value={f.shipping.stateCode}
-                  onChange={(e) => setShipping("stateCode", e.target.value)}
-                  className={SELECT_CLASS}
-                >
-                  <option value="">— select state —</option>
-                  {INDIAN_STATES.map((s) => (
-                    <option key={s.code} value={s.code}>
-                      {s.name} ({s.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="ship-pin">Pincode</Label>
-                <Input
-                  id="ship-pin"
-                  value={f.shipping.pincode}
-                  onChange={(e) => setShipping("pincode", e.target.value)}
-                  inputMode="numeric"
-                />
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="pt-6">
-          <h2 className="mb-4 text-base font-semibold">Contact person</h2>
+          <h2 className="mb-4 text-base font-semibold">
+            Contact person details
+          </h2>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="cp-name">Name</Label>
+              <Label htmlFor="cp-name">Contact person name</Label>
               <Input
                 id="cp-name"
                 value={f.contactPersonName}

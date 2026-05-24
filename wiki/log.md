@@ -2019,3 +2019,24 @@ Code-side deletion:
 - Legacy entries from `routes.ts` (customers / newCustomer / customer / editCustomer / invoices / newInvoice / invoice / editInvoice / products / newProduct / editProduct) and the Legacy sidebar group.
 
 Supabase snapshot before the migration runs (DECISIONS calls for this even with no real users). Suggested sequencing: ship the 3 cross-domain migrations as separate commits first (each verifiable in isolation), then one final atomic demolition commit that drops the code + runs the migration together.
+
+## [2026-05-24] build | PR7-F — Party form parity with myBillBook + inline category create
+
+Side-by-side comparison with myBillBook revealed our Party form looked sparse and clunky — 9 vertically-stacked cards, each using 2 cols max, lots of dead whitespace. Rewrote `PartyForm.tsx` to match myBillBook's density while staying on our tokens.
+
+Layout:
+- **9 cards → 4**: `General details` (4-col grid: Name / Mobile / Email / Opening balance ; GSTIN / Get details / PAN ; Party type + Category), `Address` (Billing | Shipping side-by-side with same-as-billing toggle), `Credit terms` (Period with "Days" suffix | Limit), `Contact person details` (Name | DOB).
+- Opening balance folded into General details — amount + direction in one inline cluster (the "as of date" field is hidden in the dense view; defaults to today, preserved on edit).
+- Page wrapper bumped `max-w-3xl` → `max-w-6xl` to match every other create/edit page (parties was the lone outlier at 768px).
+
+New `PartyCategoryField.tsx` — combobox + modal, matching myBillBook's pattern from screenshots:
+- Custom trigger button (looks like `<select>`, chevron from lucide).
+- Click → popover panel: list of existing categories + "+ Create category" CTA at the bottom (border-separated).
+- Click CTA → small modal: Name input + Cancel / Add buttons. Esc / backdrop cancel; Enter or Add → POST `/api/party-categories`, append to local list, auto-select, close.
+- No portal library, no headless deps — fixed overlay div + outside-click hook. Stays consistent with [[astrabill-feels-light-like-zoho]].
+
+Bug squashed: Opening balance amount input was being squeezed to ~0px. Cause: `${SELECT_CLASS} w-32` was plain template concat, not `cn()`, so `w-full` from `SELECT_CLASS` won over `w-32` and the direction dropdown ate the whole cell. Fixed with `cn(SELECT_CLASS, "w-32 shrink-0")`.
+
+User confirmation: "wow lets fucking commit and push." Validates the [[astrabill-feels-light-like-zoho]] direction stays correct when explicitly compared against myBillBook (UX, not just our taste).
+
+Commit: <pending>.

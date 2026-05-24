@@ -124,7 +124,7 @@ export default async function EditPartyPage({
   };
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div className="mx-auto max-w-6xl">
       <PageHeader title={`Edit · ${party.name}`} />
       <PartyForm
         businessId={business.id}
