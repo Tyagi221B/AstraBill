@@ -2310,4 +2310,4 @@ fallback for now:
 Tracked as a future task: card-per-line layout for `< sm:` breakpoint +
 bottom-sheet variants of PartyPicker / ItemPicker modals.
 
-Commit: TBD on push.
+Commit: `3a6d86b`.
