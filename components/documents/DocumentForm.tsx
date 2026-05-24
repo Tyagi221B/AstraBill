@@ -1051,9 +1051,11 @@ export function DocumentForm({
           </div>
         </div>
 
-        {/* Line items table */}
-        <div className="overflow-hidden rounded-md border border-input bg-background">
-          <table className="w-full text-sm">
+        {/* Line items table — horizontal scroll on narrow screens; locks a
+            sensible min-width so columns don't compress into unusable
+            slivers on mobile. PWA mobile gets a card layout in a later PR. */}
+        <div className="overflow-x-auto rounded-md border border-input bg-background">
+          <table className="w-full min-w-[860px] text-sm">
             <thead className="bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-2 py-2 text-left font-medium">NO</th>
@@ -1105,7 +1107,7 @@ export function DocumentForm({
                     </td>
                     <td className="px-2 py-2">
                       <Input
-                        className={cn(COMPACT_INPUT, "font-mono text-xs")}
+                        className={cn(COMPACT_INPUT, "max-w-24 font-mono text-xs")}
                         value={line.hsn}
                         onChange={(e) =>
                           setLine(idx, { hsn: e.target.value })
@@ -1114,7 +1116,10 @@ export function DocumentForm({
                     </td>
                     <td className="px-2 py-2">
                       <Input
-                        className={cn(COMPACT_INPUT, "text-right tabular-nums")}
+                        className={cn(
+                          COMPACT_INPUT,
+                          "max-w-16 text-right tabular-nums",
+                        )}
                         value={line.qty}
                         onChange={(e) =>
                           setLine(idx, { qty: e.target.value })
@@ -1124,7 +1129,10 @@ export function DocumentForm({
                     </td>
                     <td className="px-2 py-2">
                       <Input
-                        className={cn(COMPACT_INPUT, "text-right tabular-nums")}
+                        className={cn(
+                          COMPACT_INPUT,
+                          "max-w-24 text-right tabular-nums",
+                        )}
                         value={line.price}
                         onChange={(e) =>
                           setLine(idx, { price: e.target.value })
@@ -1137,7 +1145,7 @@ export function DocumentForm({
                         <Input
                           className={cn(
                             COMPACT_INPUT,
-                            "text-right tabular-nums",
+                            "max-w-16 text-right tabular-nums",
                           )}
                           value={line.discountPercent}
                           onChange={(e) =>
@@ -1173,7 +1181,7 @@ export function DocumentForm({
                         </p>
                       )}
                     </td>
-                    <td className="px-2 py-2 text-right tabular-nums font-medium">
+                    <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums font-medium">
                       ₹ {lineAmount}
                     </td>
                     <td className="px-2 py-2">

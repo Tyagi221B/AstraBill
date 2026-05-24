@@ -2268,3 +2268,46 @@ worth fixing in one polish pass. Cross-questioned the plan first
 - `IGST@18` rate-aware label in totals — needs single-rate detection.
 
 Commit: `6ca5023`.
+
+## [2026-05-24] polish | PR7-H pt4 — Line items column rebalance + mobile horizontal scroll
+
+Follow-up to pt3 after user pointed out DISCOUNT was eating ~22% of the
+line items table width while TAX was cramped at ~8% and AMOUNT was so
+narrow that "₹" wrapped to a second line.
+
+**Root cause** (text/select preferred-width asymmetry):
+The `<table>` uses default `table-layout: auto`, so columns size based
+on each cell's natural preferred width. The DISCOUNT input is a
+`<Input>` component which carries `w-full min-w-0` and inherits the
+~175px default preferred width of `<input type="text">`. The TAX cell
+is a native `<select>` with a much smaller preferred width. Browser
+gives DISCOUNT what it asks for → column grows fat, TAX and AMOUNT
+get squeezed.
+
+**Fix — cap the greedy inputs** (7 small changes in DocumentForm.tsx):
+- HSN Input → `max-w-24` (8-digit max)
+- QTY Input → `max-w-16` (4-digit qty)
+- PRICE Input → `max-w-24` (8-digit ₹99,99,999.99)
+- DISCOUNT Input → `max-w-16` (3-digit percent)
+- AMOUNT cell → `whitespace-nowrap` so the rupee symbol doesn't wrap
+Auto layout redistributes the freed space to ITEMS/SERVICES (which
+should be widest) and TAX (which now has room for the rate + computed
+₹ pt3 added).
+
+**Mobile** — flagged honestly:
+User asked "what happens on mobile?" The form's overall structure
+(sticky bar, 3-col header, 2-col footer) collapses fine via existing
+`lg:` breakpoints, but the line items table was breaking — 9 columns
+in `w-full` inside a `overflow-hidden` wrapper meant columns compressed
+into ~30px slivers on phones. User confirmed myBillBook also doesn't
+optimize the web app for mobile (they ship a separate mobile app), so
+agreed to defer the proper mobile pass and ship a horizontal-scroll
+fallback for now:
+- Wrapper: `overflow-hidden` → `overflow-x-auto`
+- `<table>`: add `min-w-[860px]` so the table keeps desktop proportions
+  on narrow viewports and scrolls horizontally instead of compressing
+
+Tracked as a future task: card-per-line layout for `< sm:` breakpoint +
+bottom-sheet variants of PartyPicker / ItemPicker modals.
+
+Commit: TBD on push.
