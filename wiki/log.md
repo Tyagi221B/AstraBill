@@ -2069,4 +2069,4 @@ Deliberate drops vs myBillBook (laid out in plan, no pushback):
 
 User confirmation: "Damn bro, looks damn good right now. We can move forward with this." Validates [[astrabill-feels-light-like-zoho]] direction for the second time post-explicit myBillBook comparison. Plan going forward: SalesInvoiceForm next (5 doc types benefit — shared form), then Payments / Branding / Onboarding lower priority.
 
-Commit: TBD on push.
+Commit: `9f6965c`.
