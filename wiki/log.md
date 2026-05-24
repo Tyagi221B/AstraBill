@@ -2219,4 +2219,4 @@ Out of scope (still pending):
   `previewNextNumber` repo helper that doesn't bump the counter.
 - Settings gear — dropped per cross-questioning picker.
 
-Commit: TBD on push.
+Commit: `be98026`.
