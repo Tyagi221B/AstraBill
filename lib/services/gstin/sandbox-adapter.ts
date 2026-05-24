@@ -32,7 +32,10 @@ import {
 } from "./types";
 
 const SANDBOX_HOST = "https://api.sandbox.co.in";
-const API_VERSION = "1.0";
+// Sandbox uses semantic-versioning header values; "1.0" is silently rejected
+// (response masquerades as 404 / shape miss). The user-supplied cURL pinned
+// the correct value at "1.0.0" — keep this in sync if Sandbox ever bumps.
+const API_VERSION = "1.0.0";
 
 interface SandboxAddressBlock {
   bno?: string;
@@ -286,6 +289,9 @@ export class SandboxGstinAdapter implements GstinLookupAdapter {
           "x-api-key": this.apiKey,
           "x-api-secret": this.apiSecret,
           "x-api-version": API_VERSION,
+          // Sandbox's auth cURL example sets Content-Type even though there's
+          // no body. Matching exactly to dodge any strict header validation.
+          "content-type": "application/json",
         },
         signal: AbortSignal.timeout(5_000),
       });
