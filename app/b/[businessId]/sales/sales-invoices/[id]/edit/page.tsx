@@ -1,6 +1,11 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
+import { DocumentForm } from "@/components/documents/DocumentForm";
+import type {
+  DocumentFormInitial,
+  LineDraft,
+} from "@/components/documents/DocumentForm";
 import { PageHeader } from "@/components/app/PageHeader";
 import { ConflictError } from "@/lib/errors";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
@@ -8,11 +13,6 @@ import { listItemsForUser } from "@/lib/services/items";
 import { listPartiesForUser } from "@/lib/services/parties";
 import { getDocumentDetail } from "@/lib/services/documents";
 import { requireUser } from "@/lib/session";
-import {
-  SalesInvoiceForm,
-  type LineDraft,
-  type SalesInvoiceFormInitial,
-} from "../../SalesInvoiceForm";
 
 export const metadata: Metadata = {
   title: "Edit sales invoice · AstraBill",
@@ -54,12 +54,14 @@ export default async function EditSalesInvoicePage({
     discountPercent: line.discountPercent ?? "",
   }));
 
-  const initial: SalesInvoiceFormInitial = {
+  const initial: DocumentFormInitial = {
     partyId: detail.document.partyId,
     docDate: detail.document.docDate,
     paymentTermsDays: String(detail.document.paymentTermsDays ?? 30),
     dueDate: detail.document.dueDate ?? "",
     placeOfSupplyStateCode: detail.document.placeOfSupplyStateCode ?? "",
+    originalDocNumber: detail.document.originalDocNumber ?? "",
+    originalDocDate: detail.document.originalDocDate ?? "",
     notes: detail.document.notes ?? "",
     termsConditions: detail.document.termsConditions ?? "",
     lines: lines.length ? lines : [],
@@ -69,9 +71,10 @@ export default async function EditSalesInvoicePage({
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader title={`Edit · draft sales invoice`} />
-      <SalesInvoiceForm
+      <DocumentForm
         businessId={business.id}
         businessStateCode={business.stateCode}
+        docType="sales_invoice"
         parties={parties}
         items={items}
         editingId={id}

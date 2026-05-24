@@ -15,7 +15,7 @@
  * Totals on screen are a client-side preview (decimal.js); server runs the
  * authoritative math (lib/gst.ts) on save.
  */
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import Decimal from "decimal.js";
@@ -26,8 +26,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { INDIAN_STATES } from "@/lib/constants/indian-states";
-import type { DocTypeValue, Item, Party } from "@/lib/db/schema";
+import type { DocTypeValue, Item, Party, PartyAddress } from "@/lib/db/schema";
 import { routes } from "@/lib/routes";
+
+function formatAddressLine(a: PartyAddress): string {
+  return [
+    a.streetAddress,
+    [a.city, a.state, a.pincode].filter(Boolean).join(", ") || null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
 
 const SELECT_CLASS =
   "h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
@@ -59,6 +68,10 @@ export interface DocTypeUiConfig {
   paymentTermsLabel: string;
   /** If true, the form surfaces Original Doc Number / Date inputs. */
   showsOriginalDoc: boolean;
+  /** If true, surface a Bill-to / Ship-to address block and ship-to override
+   *  picker. Today only `sales_invoice` uses this; other sales docs like
+   *  quotation / delivery_challan can opt in later when we extend the model. */
+  usesShipTo: boolean;
   /** Route to return to on save success. */
   detailRoute: (businessId: string, id: string) => string;
 }
@@ -70,6 +83,7 @@ const TYPE_CONFIGS: Record<DocTypeValue, DocTypeUiConfig> = {
     dueDateLabel: "Due date",
     paymentTermsLabel: "Payment terms (days)",
     showsOriginalDoc: false,
+    usesShipTo: true,
     detailRoute: (b, id) => routes.b(b).salesInvoice(id),
   },
   estimate: {
@@ -78,6 +92,7 @@ const TYPE_CONFIGS: Record<DocTypeValue, DocTypeUiConfig> = {
     dueDateLabel: "Validity date",
     paymentTermsLabel: "Valid for (days)",
     showsOriginalDoc: false,
+    usesShipTo: false,
     detailRoute: (b, id) => `/b/${b}/sales/estimates/${id}`,
   },
   delivery_challan: {
@@ -86,6 +101,7 @@ const TYPE_CONFIGS: Record<DocTypeValue, DocTypeUiConfig> = {
     dueDateLabel: "Delivery date",
     paymentTermsLabel: "Delivery in (days)",
     showsOriginalDoc: false,
+    usesShipTo: false,
     detailRoute: (b, id) => `/b/${b}/sales/delivery-challans/${id}`,
   },
   credit_note: {
@@ -94,6 +110,7 @@ const TYPE_CONFIGS: Record<DocTypeValue, DocTypeUiConfig> = {
     dueDateLabel: "Due date",
     paymentTermsLabel: "Payment terms (days)",
     showsOriginalDoc: false,
+    usesShipTo: false,
     detailRoute: (b, id) => routes.b(b).creditNote(id),
   },
   purchase_invoice: {
@@ -102,6 +119,7 @@ const TYPE_CONFIGS: Record<DocTypeValue, DocTypeUiConfig> = {
     dueDateLabel: "Due date",
     paymentTermsLabel: "Payment terms (days)",
     showsOriginalDoc: true,
+    usesShipTo: false,
     detailRoute: (b, id) => routes.b(b).purchaseInvoice(id),
   },
   debit_note: {
@@ -110,6 +128,7 @@ const TYPE_CONFIGS: Record<DocTypeValue, DocTypeUiConfig> = {
     dueDateLabel: "Due date",
     paymentTermsLabel: "Payment terms (days)",
     showsOriginalDoc: true,
+    usesShipTo: false,
     detailRoute: (b, id) => routes.b(b).debitNote(id),
   },
   quotation: {
@@ -118,6 +137,7 @@ const TYPE_CONFIGS: Record<DocTypeValue, DocTypeUiConfig> = {
     dueDateLabel: "Validity date",
     paymentTermsLabel: "Valid for (days)",
     showsOriginalDoc: false,
+    usesShipTo: false,
     detailRoute: (b, id) => routes.b(b).quotation(id),
   },
   proforma_invoice: {
@@ -126,6 +146,7 @@ const TYPE_CONFIGS: Record<DocTypeValue, DocTypeUiConfig> = {
     dueDateLabel: "Due date",
     paymentTermsLabel: "Payment terms (days)",
     showsOriginalDoc: false,
+    usesShipTo: false,
     detailRoute: (b, id) => `/b/${b}/sales/proforma-invoices/${id}`,
   },
 };
@@ -163,6 +184,9 @@ export interface DocumentFormInitial {
   notes: string;
   termsConditions: string;
   lines: LineDraft[];
+  /** Only meaningful when the doc type's `usesShipTo` is true.
+   *  `null` = ship-to is the party's billing address (the V1 default). */
+  shipToAddressId: string | null;
 }
 
 const blankInitial = (defaults: {
@@ -180,6 +204,7 @@ const blankInitial = (defaults: {
   notes: "",
   termsConditions: defaults.termsConditions,
   lines: [blankLine()],
+  shipToAddressId: null,
 });
 
 export function DocumentForm({
@@ -211,6 +236,54 @@ export function DocumentForm({
       }),
   );
   const [busy, setBusy] = useState(false);
+  /** Party billing + shipping addresses for the ship-to picker. Only fetched
+   *  when `cfg.usesShipTo` is true. `null` until first fetch resolves. */
+  const [partyAddrs, setPartyAddrs] = useState<{
+    billing: PartyAddress | null;
+    shippingAddresses: PartyAddress[];
+  } | null>(null);
+
+  // Fetch addresses when the picked party changes (ship-to doc types only).
+  // Auto-selects the party's default shipping on first load.
+  useEffect(() => {
+    if (!cfg.usesShipTo || !f.partyId) {
+      setPartyAddrs(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/parties/${f.partyId}/addresses`);
+        const json = (await res.json()) as
+          | {
+              ok: true;
+              data: {
+                billing: PartyAddress | null;
+                shippingAddresses: PartyAddress[];
+              };
+            }
+          | { ok: false; error: { message: string } };
+        if (cancelled || !json.ok) return;
+        setPartyAddrs(json.data);
+        if (f.shipToAddressId === null) {
+          const def = json.data.shippingAddresses.find((s) => s.isDefault);
+          if (def) {
+            setF((prev) =>
+              prev.shipToAddressId === null
+                ? { ...prev, shipToAddressId: def.id }
+                : prev,
+            );
+          }
+        }
+      } catch {
+        // Block just doesn't render — saving still works.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [f.partyId, cfg.usesShipTo]);
 
   function set<K extends keyof DocumentFormInitial>(
     key: K,
@@ -342,6 +415,7 @@ export function DocumentForm({
       originalDocDate: f.originalDocDate || null,
       termsConditions: f.termsConditions || null,
       notes: f.notes || null,
+      ...(cfg.usesShipTo ? { shipToAddressId: f.shipToAddressId } : {}),
       lines,
     };
   }
@@ -500,6 +574,69 @@ export function DocumentForm({
           </div>
         </CardContent>
       </Card>
+
+      {cfg.usesShipTo && f.partyId && partyAddrs?.billing && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+              <div>
+                <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Bill to
+                </h2>
+                <address className="not-italic text-sm leading-relaxed text-foreground whitespace-pre-line">
+                  {formatAddressLine(partyAddrs.billing)}
+                </address>
+              </div>
+              <div>
+                <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                  Ship to
+                </h2>
+                {partyAddrs.shippingAddresses.length === 0 ? (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      Same as billing
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Add a shipping address from the party's edit page to
+                      pick it here.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <select
+                      value={f.shipToAddressId ?? ""}
+                      onChange={(e) =>
+                        set("shipToAddressId", e.target.value || null)
+                      }
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-xs focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+                    >
+                      <option value="">— Same as billing —</option>
+                      {partyAddrs.shippingAddresses.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {(s.label ?? "(no label)") +
+                            (s.isDefault ? " · default" : "")}
+                        </option>
+                      ))}
+                    </select>
+                    {f.shipToAddressId &&
+                      (() => {
+                        const picked = partyAddrs.shippingAddresses.find(
+                          (s) => s.id === f.shipToAddressId,
+                        );
+                        if (!picked) return null;
+                        return (
+                          <address className="mt-2 not-italic text-sm leading-relaxed text-foreground whitespace-pre-line">
+                            {formatAddressLine(picked)}
+                          </address>
+                        );
+                      })()}
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="pt-6">

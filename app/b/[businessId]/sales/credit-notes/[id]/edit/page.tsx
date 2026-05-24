@@ -51,6 +51,7 @@ export default async function EditCreditNotePage({
       gstRate: line.gstRate ?? "",
       discountPercent: line.discountPercent ?? "",
     })),
+    shipToAddressId: detail.document.shipToAddressId ?? null,
   };
   return (
     <div className="mx-auto max-w-6xl">

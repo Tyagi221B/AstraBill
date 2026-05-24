@@ -54,6 +54,7 @@ export default async function EditQuotationPage({
       gstRate: line.gstRate ?? "",
       discountPercent: line.discountPercent ?? "",
     })),
+    shipToAddressId: detail.document.shipToAddressId ?? null,
   };
 
   return (

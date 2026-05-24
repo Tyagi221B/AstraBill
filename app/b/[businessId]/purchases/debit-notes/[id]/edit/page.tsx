@@ -51,6 +51,7 @@ export default async function EditDebitNotePage({
       gstRate: line.gstRate ?? "",
       discountPercent: line.discountPercent ?? "",
     })),
+    shipToAddressId: detail.document.shipToAddressId ?? null,
   };
   return (
     <div className="mx-auto max-w-6xl">

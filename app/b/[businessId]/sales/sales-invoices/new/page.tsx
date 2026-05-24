@@ -1,13 +1,13 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
+import { DocumentForm } from "@/components/documents/DocumentForm";
 import { PageHeader } from "@/components/app/PageHeader";
 import { applyCityPlaceholder } from "@/lib/constants/doc-type-defaults";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
 import { listItemsForUser } from "@/lib/services/items";
 import { listPartiesForUser } from "@/lib/services/parties";
 import { requireUser } from "@/lib/session";
-import { SalesInvoiceForm } from "../SalesInvoiceForm";
 
 export const metadata: Metadata = {
   title: "New sales invoice · AstraBill",
@@ -37,9 +37,10 @@ export default async function NewSalesInvoicePage({
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader title="New sales invoice" />
-      <SalesInvoiceForm
+      <DocumentForm
         businessId={business.id}
         businessStateCode={business.stateCode}
+        docType="sales_invoice"
         parties={parties}
         items={items}
         defaultTermsConditions={defaultTC}
