@@ -1,42 +1,25 @@
 /**
  * Sandbox API adapter for GSTIN lookup.
  *
- * Sandbox API — api.sandbox.co.in — exposes a GSTIN search endpoint that
- * proxies the GSTN public search. Pricing: ~₹1/call after a free trial
- * tier. Auth is API-key based (no OAuth flow); the key sits in
- * `SANDBOX_API_KEY` + `SANDBOX_API_SECRET` env vars and never reaches the
- * client.
- *
  * Endpoint (Authenticate → Search):
  *   POST https://api.sandbox.co.in/authenticate
  *     headers: x-api-key, x-api-secret, x-api-version: 1.0
- *     returns: { access_token, expires_at }
+ *     returns: a JWT token under `access_token` (and/or `data.access_token`)
+ *
  *   POST https://api.sandbox.co.in/gst/compliance/public/gstin/search
- *     headers: authorization: <access_token>, x-api-key, x-api-version: 1.0,
- *              content-type: application/json
- *     body:    { "gstin": "<15-char-uppercase-gstin>" }
+ *     headers: authorization: <token>   ← raw JWT, NO "Bearer " prefix
+ *              x-api-key, x-api-version: 1.0, content-type: application/json
+ *     body:    { "gstin": "<15-char-uppercase>" }
  *
- * NB: my initial implementation used `GET .../gstin/{gstin}` (URL-path
- * param) — that returned 404 on prod for every real GSTIN. Sandbox's
- * actual shape is POST + JSON body, confirmed against their dev docs at
- * developer.sandbox.co.in/reference/search-gstin-api.
+ * Response shape note: the docs index lists the endpoint but doesn't show
+ * the response body verbatim, and an earlier guess at the shape lost us
+ * the first round of prod traffic to false-404s. This implementation:
+ *   - parses leniently (tries `data.*`, `result.*`, and top-level)
+ *   - on ANY non-success or shape mismatch, console.errors the raw body
+ *     (sans secrets) so the next attempt produces ground-truth in logs
  *
- * Response shape (subset we care about, observed in their docs):
- *   { code, timestamp, data: {
- *       gstin, lgnm: legalName, tradeNam: tradeName, sts: status,
- *       rgdt: registrationDate (DD/MM/YYYY), ctb: businessType,
- *       pradr: { addr: { bno, st, loc, dst, stcd, pncd }, ... }
- *     }
- *   }
- *
- * We pluck the principal address only (pradr) — alternative branch
- * addresses live elsewhere in the payload and aren't material for the
- * "fill the party form" use case.
- *
- * Re-auth: the access token is cached in-process. Vercel functions cold-
- * start often enough that a single auth call per warm instance is fine;
- * a per-deploy expectation of ~10–20 auths total is well within Sandbox's
- * limits.
+ * Auth caching is in-process. Vercel functions cold-start often enough
+ * that a single auth call per warm instance is acceptable.
  */
 import "server-only";
 
@@ -51,12 +34,6 @@ import {
 const SANDBOX_HOST = "https://api.sandbox.co.in";
 const API_VERSION = "1.0";
 
-interface SandboxAuthResponse {
-  access_token: string;
-  expires_at: number;
-  expires_in: number;
-}
-
 interface SandboxAddressBlock {
   bno?: string;
   bnm?: string;
@@ -68,20 +45,45 @@ interface SandboxAddressBlock {
   pncd?: string;
 }
 
-interface SandboxLookupResponse {
-  code: number;
-  timestamp?: number;
-  data?: {
-    gstin?: string;
-    lgnm?: string;
-    tradeNam?: string;
-    sts?: string;
-    rgdt?: string;
-    ctb?: string;
-    pradr?: { addr?: SandboxAddressBlock; adr?: string };
-  };
-  error?: string;
+interface SandboxGstinDataBlock {
+  gstin?: string;
+  lgnm?: string;
+  tradeNam?: string;
+  sts?: string;
+  rgdt?: string;
+  ctb?: string;
+  pradr?: { addr?: SandboxAddressBlock; adr?: string };
+}
+
+/** Lenient lookup-response envelope — Sandbox has flipped between top-
+ *  level, `data`, and `result` across product lines. We accept any. */
+interface SandboxLookupEnvelope {
+  code?: number | string;
+  http_response_code?: number;
   message?: string;
+  data?: SandboxGstinDataBlock;
+  result?: SandboxGstinDataBlock;
+  // ...or the data block lives at top level
+  gstin?: string;
+  lgnm?: string;
+  tradeNam?: string;
+  pradr?: { addr?: SandboxAddressBlock };
+}
+
+interface SandboxAuthEnvelope {
+  // Different Sandbox endpoints have surfaced the token under any of these.
+  access_token?: string;
+  accessToken?: string;
+  token?: string;
+  data?: {
+    access_token?: string;
+    accessToken?: string;
+    token?: string;
+    expires_at?: number;
+    expires_in?: number;
+  };
+  expires_at?: number;
+  expires_in?: number;
 }
 
 function joinAddressLine(addr: SandboxAddressBlock): string | null {
@@ -93,11 +95,64 @@ function joinAddressLine(addr: SandboxAddressBlock): string | null {
 
 function parseRegDate(input: string | undefined): string | null {
   if (!input) return null;
-  // Sandbox returns DD/MM/YYYY — convert to ISO YYYY-MM-DD for our `date`.
   const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(input);
   if (!m) return null;
   const [, dd, mm, yyyy] = m;
   return `${yyyy}-${mm}-${dd}`;
+}
+
+/** Pick the data block from any of the known envelope shapes. Returns
+ *  `null` only if NONE of them contain a `gstin`. */
+function extractDataBlock(
+  env: SandboxLookupEnvelope,
+): SandboxGstinDataBlock | null {
+  if (env.data?.gstin) return env.data;
+  if (env.result?.gstin) return env.result;
+  if (env.gstin) {
+    // Top-level shape — coerce to data block view.
+    return {
+      gstin: env.gstin,
+      lgnm: env.lgnm,
+      tradeNam: env.tradeNam,
+      pradr: env.pradr,
+    };
+  }
+  return null;
+}
+
+function extractAccessToken(env: SandboxAuthEnvelope): {
+  token: string;
+  expiresAt: number;
+} | null {
+  const tok =
+    env.access_token ??
+    env.accessToken ??
+    env.token ??
+    env.data?.access_token ??
+    env.data?.accessToken ??
+    env.data?.token;
+  if (!tok) return null;
+  const now = Date.now();
+  const expiresIn = env.expires_in ?? env.data?.expires_in;
+  const expiresAt =
+    typeof env.expires_at === "number"
+      ? env.expires_at * 1000
+      : typeof env.data?.expires_at === "number"
+        ? env.data.expires_at * 1000
+        : now + (expiresIn ?? 3600) * 1000;
+  return { token: tok, expiresAt };
+}
+
+/** Read the response body once, safely. Returns the trimmed text (max 800
+ *  chars) so we never spam the log stream. Reads as text so a non-JSON
+ *  error page still surfaces. */
+async function safeBodySnippet(res: Response): Promise<string> {
+  try {
+    const text = await res.text();
+    return text.length > 800 ? `${text.slice(0, 800)}…(truncated)` : text;
+  } catch {
+    return "(failed to read body)";
+  }
 }
 
 export class SandboxGstinAdapter implements GstinLookupAdapter {
@@ -126,11 +181,8 @@ export class SandboxGstinAdapter implements GstinLookupAdapter {
             "x-api-key": this.apiKey,
             "x-api-version": API_VERSION,
             "content-type": "application/json",
-            accept: "application/json",
           },
           body: JSON.stringify({ gstin }),
-          // 8s — typical p95 from their docs is ~2s, leaves headroom for
-          // GSTN backend slowness without holding the route too long.
           signal: AbortSignal.timeout(8_000),
         },
       );
@@ -142,44 +194,75 @@ export class SandboxGstinAdapter implements GstinLookupAdapter {
       );
     }
 
-    if (res.status === 404) {
-      throw new GstinNotFoundError(gstin);
-    }
     if (res.status === 401 || res.status === 403) {
-      // Bad key / expired auth — invalidate the cached token and surface as
-      // unavailable. The next call will reauth.
       this.cachedToken = null;
+      const body = await safeBodySnippet(res);
+      console.error(
+        `[sandbox] auth rejected on lookup status=${res.status} body=${body}`,
+      );
       throw new GstinAdapterUnavailableError(
         `Sandbox auth rejected (${res.status})`,
       );
     }
+
     if (!res.ok) {
+      const body = await safeBodySnippet(res);
+      console.error(
+        `[sandbox] lookup non-ok status=${res.status} body=${body}`,
+      );
+      if (res.status === 404) {
+        throw new GstinNotFoundError(gstin);
+      }
       throw new GstinAdapterUnavailableError(
         `Sandbox lookup failed: ${res.status}`,
       );
     }
 
-    const json = (await res.json()) as SandboxLookupResponse;
-    if (json.code === 404 || !json.data || !json.data.gstin) {
-      throw new GstinNotFoundError(gstin);
+    // OK status — but the docs aren't explicit on shape. Read text first so
+    // we can log it on shape miss, then JSON.parse it ourselves.
+    const bodyText = await res.text();
+    let envelope: SandboxLookupEnvelope;
+    try {
+      envelope = JSON.parse(bodyText) as SandboxLookupEnvelope;
+    } catch {
+      console.error(
+        `[sandbox] lookup body not JSON status=${res.status} body=${bodyText.slice(0, 800)}`,
+      );
+      throw new GstinAdapterUnavailableError(
+        "Sandbox returned a non-JSON response",
+      );
     }
 
-    const data = json.data;
+    const data = extractDataBlock(envelope);
+    if (!data || !data.gstin) {
+      // Could be a "code=404" / "no record" response, or a shape we haven't
+      // seen yet. Log the body so we can either fix the parser or confirm
+      // it's a genuine not-found.
+      console.error(
+        `[sandbox] lookup found no data block gstin=${gstin} body=${bodyText.slice(0, 800)}`,
+      );
+      // If the envelope explicitly says 404, treat as not-found; otherwise
+      // surface as adapter-unavailable so the UI doesn't claim "no record"
+      // when the real issue is a shape mismatch.
+      if (envelope.code === 404 || envelope.http_response_code === 404) {
+        throw new GstinNotFoundError(gstin);
+      }
+      throw new GstinAdapterUnavailableError(
+        envelope.message ?? "Sandbox returned an unexpected response shape",
+      );
+    }
+
     const addr = data.pradr?.addr ?? {};
     const address: GstinAddress = {
       streetAddress: joinAddressLine(addr),
       city: (addr.dst ?? addr.city ?? addr.loc ?? null) || null,
-      // Sandbox doesn't return the full state name — only the code (`stcd`).
-      // The party form looks the name up from INDIAN_STATES at display time,
-      // so we leave `state` null here and rely on the caller to derive it
-      // from `stateCode`.
       state: null,
       stateCode: (addr.stcd ?? null) || null,
       pincode: (addr.pncd ?? null) || null,
     };
 
     return {
-      gstin: data.gstin ?? gstin,
+      gstin: data.gstin,
       legalName: (data.lgnm ?? null) || null,
       tradeName: (data.tradeNam ?? null) || null,
       address,
@@ -203,7 +286,6 @@ export class SandboxGstinAdapter implements GstinLookupAdapter {
           "x-api-key": this.apiKey,
           "x-api-secret": this.apiSecret,
           "x-api-version": API_VERSION,
-          accept: "application/json",
         },
         signal: AbortSignal.timeout(5_000),
       });
@@ -216,23 +298,39 @@ export class SandboxGstinAdapter implements GstinLookupAdapter {
     }
 
     if (!res.ok) {
+      const body = await safeBodySnippet(res);
+      console.error(
+        `[sandbox] auth non-ok status=${res.status} body=${body}`,
+      );
       throw new GstinAdapterUnavailableError(
         `Sandbox auth failed: ${res.status}`,
       );
     }
 
-    const json = (await res.json()) as SandboxAuthResponse;
-    if (!json.access_token) {
+    const bodyText = await res.text();
+    let envelope: SandboxAuthEnvelope;
+    try {
+      envelope = JSON.parse(bodyText) as SandboxAuthEnvelope;
+    } catch {
+      console.error(
+        `[sandbox] auth body not JSON body=${bodyText.slice(0, 400)}`,
+      );
+      throw new GstinAdapterUnavailableError(
+        "Sandbox auth returned a non-JSON response",
+      );
+    }
+
+    const extracted = extractAccessToken(envelope);
+    if (!extracted) {
+      console.error(
+        `[sandbox] auth response had no recognised token field body=${bodyText.slice(0, 400)}`,
+      );
       throw new GstinAdapterUnavailableError(
         "Sandbox auth response missing access_token",
       );
     }
 
-    const expiresAt =
-      typeof json.expires_at === "number"
-        ? json.expires_at * 1000
-        : now + (json.expires_in ?? 3600) * 1000;
-    this.cachedToken = { token: json.access_token, expiresAt };
-    return json.access_token;
+    this.cachedToken = extracted;
+    return extracted.token;
   }
 }
