@@ -2156,4 +2156,4 @@ Deliberate scope split (PR7-H part 2 next):
   "Auto-assigned on save" placeholder for the doc number until the
   preview helper is wired.
 
-Commit: TBD on push.
+Commit: `6803678`.
