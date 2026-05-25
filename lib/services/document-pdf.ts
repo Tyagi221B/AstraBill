@@ -469,7 +469,7 @@ async function postRender(payload: RenderRequest): Promise<Buffer> {
 }
 
 /**
- * Visual branding fields the /settings/branding preview lets the user fiddle
+ * Visual branding fields the /settings/print-settings preview lets the user fiddle
  * with. Shape mirrors what the right-pane iframe needs — `showFooterMark` is
  * derived server-side from the plan to keep a free user from faking removal.
  */

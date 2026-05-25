@@ -1,5 +1,5 @@
 /**
- * GET /i/preview — branding preview PDF for the /settings/branding iframe.
+ * GET /i/preview — branding preview PDF for the /settings/print-settings iframe.
  *
  * The branding-editor's right pane is an iframe pointed here; its query string
  * carries the *unsaved* settings the user is dragging around. Renders the

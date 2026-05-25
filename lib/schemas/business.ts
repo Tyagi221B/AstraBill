@@ -174,8 +174,8 @@ export const updateBusinessProfileSchema = z
     industryType: z.enum(INDUSTRY_TYPES).nullable(),
     businessRegistrationType: z.enum(BUSINESS_REGISTRATION_TYPES).nullable(),
 
-    // --- Logo (also editable from /settings/branding; profile is the
-    //     primary surface, branding edits it via its own dedicated PATCH). ---
+    // --- Logo (also editable from /settings/print-settings; this is the
+    //     primary surface — print-settings edits it via its own PATCH). ---
     logoUrl: z.string().url().max(500).nullable(),
 
     // --- Signature block (prints at the bottom of every invoice) ---

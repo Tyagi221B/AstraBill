@@ -46,10 +46,10 @@ export function SettingsRail({ businessId }: { businessId: string }) {
   const s = routes.b(businessId).settings;
 
   const primary: RailItem[] = [
-    { label: "Account", href: s.account, icon: UserCircle, soon: true },
+    { label: "Account", href: s.account, icon: UserCircle },
     { label: "Manage Business", href: s.manageBusiness, icon: Building2 },
     { label: "Invoice Settings", href: s.invoiceSettings, icon: Receipt },
-    { label: "Print Settings", href: s.printSettings, icon: Printer, soon: true },
+    { label: "Print Settings", href: s.printSettings, icon: Printer },
     { label: "Manage Users", href: s.manageUsers, icon: Users, soon: true },
     { label: "Reminders", href: s.reminders, icon: Bell, soon: true },
     { label: "CA Reports Sharing", href: s.caReports, icon: FileBarChart, soon: true },
@@ -62,7 +62,6 @@ export function SettingsRail({ businessId }: { businessId: string }) {
   // bottom of the rail so they're reachable from the UI but don't compete with
   // the primary set above (which mirrors the myBillBook IA).
   const advanced: RailItem[] = [
-    { label: "Branding", href: s.branding, icon: Printer },
     { label: "Payments", href: s.payments, icon: Receipt },
     { label: "Party categories", href: s.partyCategories, icon: Tag },
     { label: "Party fields", href: s.partyCustomFields, icon: FileText },

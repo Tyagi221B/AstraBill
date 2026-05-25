@@ -1,6 +1,9 @@
 "use client";
 /**
- * BrandingEditor — the interactive half of /settings/branding.
+ * PrintSettingsEditor — the interactive half of /settings/print-settings.
+ *
+ * Renamed from BrandingEditor in Phase 3; same UX (template, colour, font,
+ * columns, logo) — just relocated under the more discoverable IA bucket.
  *
  * Left pane: a logo uploader + a tabbed control set (Template · Colors · Font ·
  * Columns). Right pane: a live-preview iframe pointed at /i/preview, which
@@ -103,7 +106,7 @@ const COLOR_PRESETS = [
 
 // ---- types -------------------------------------------------------------
 
-export interface BrandingInitial {
+export interface PrintSettingsInitial {
   template: string;
   color: string;
   font: string;
@@ -119,7 +122,7 @@ type EditorState = {
   columns: ColumnFlags;
 };
 
-function toState(initial: BrandingInitial): EditorState {
+function toState(initial: PrintSettingsInitial): EditorState {
   return {
     template: asTemplate(initial.template),
     color: /^#[0-9a-fA-F]{6}$/.test(initial.color)
@@ -141,7 +144,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
 
 // ---- component ---------------------------------------------------------
 
-export function BrandingEditor({
+export function PrintSettingsEditor({
   businessId,
   canEdit,
   isFreePlan,
@@ -150,7 +153,7 @@ export function BrandingEditor({
   businessId: string;
   canEdit: boolean;
   isFreePlan: boolean;
-  initial: BrandingInitial;
+  initial: PrintSettingsInitial;
 }) {
   const [saved, setSaved] = useState(() => toState(initial));
   const [s, setS] = useState<EditorState>(saved);
@@ -274,7 +277,7 @@ export function BrandingEditor({
       if (!json.ok) throw new Error(json.error.message);
       setSaved(s);
       setJustSaved(true);
-      posthog.capture("branding_saved", {
+      posthog.capture("print_settings_saved", {
         business_id: businessId,
         template: s.template,
         font: s.font,
@@ -586,7 +589,7 @@ export function BrandingEditor({
               }
               onClick={save}
             >
-              {busy ? "Saving…" : "Save branding"}
+              {busy ? "Saving…" : "Save print settings"}
             </Button>
           </div>
         </div>

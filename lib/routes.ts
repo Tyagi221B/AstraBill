@@ -91,7 +91,7 @@ export const routes = {
         manageBusiness: `${base}/settings/manage-business`,
         /** Phase 2: real page (doc numbering + default T&C + signature mode). */
         invoiceSettings: `${base}/settings/invoice-settings`,
-        /** Phase 3: real page (alias for `branding` while it's the only print surface). */
+        /** Phase 3: real page (was /branding; same UX, renamed). */
         printSettings: `${base}/settings/print-settings`,
         /** Phase 3: real page (user name / email / password). */
         account: `${base}/settings/account`,
@@ -105,7 +105,6 @@ export const routes = {
         help: `${base}/settings/help`,
         /** Domain-specific surfaces — accessible from the rail's "Advanced" tray
          *  and also from deep links inside Parties / Items pages. */
-        branding: `${base}/settings/branding`,
         payments: `${base}/settings/payments`,
         itemCategories: `${base}/settings/item-categories`,
         partyCategories: `${base}/settings/party-categories`,
