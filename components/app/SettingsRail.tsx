@@ -1,35 +1,51 @@
 "use client";
 /**
- * SettingsRail — the secondary left-rail nav rendered inside the Settings
- * layout. The main sidebar (Dashboard / Items / ...) sits to its left; this
- * rail is the navigation INSIDE the settings surface.
+ * SettingsRail — the primary left rail shown while the user is "inside
+ * settings". Takes over the slot normally occupied by the main app
+ * <Sidebar> so the screen has one nav column, not two.
  *
- * Mirrors myBillBook's settings IA so users coming from there land somewhere
- * familiar. V2 items render today with a "Soon" chip — the URLs are
- * reserved so the chrome stays stable across launches.
+ * Three regions, mirroring the main sidebar's shape:
+ *   - Header   — business identity (avatar + name + GST badge) + a
+ *                "Back to Dashboard" button (the way out of settings mode).
+ *   - Nav      — settings sections (Primary group + Advanced group).
+ *                Primary group mirrors myBillBook's IA; V2 surfaces carry a
+ *                "Soon" chip but stay clickable (URLs reserved).
+ *                Advanced group surfaces our domain-specific pages
+ *                (Payments, Party categories, etc.) without competing with
+ *                the primary set.
+ *   - Footer   — UserMenu (sign out) + Powered-by-AstraBill mark.
  *
- * Below the `md` breakpoint the rail collapses into a horizontal scroll-strip
- * at the top of the page — same destinations, just a different shape so it
- * doesn't eat half the screen on a phone.
+ * `onNavigate` fires when any nav link is tapped — the mobile drawer uses
+ * it to close itself. Desktop callers don't need to pass it.
+ *
+ * Client component: `usePathname` for active state.
  */
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  ArrowLeft,
   Bell,
   Building2,
   FileBarChart,
   FileText,
   Gift,
   HelpCircle,
+  LogOut,
   Printer,
   Receipt,
   Tag,
   UserCircle,
   Users,
 } from "lucide-react";
+import posthog from "posthog-js";
+import { signOut } from "next-auth/react";
 import type { ComponentType } from "react";
 
+import { Logo } from "@/components/ui/Logo";
+import { BusinessAvatar } from "@/components/app/Sidebar";
+import type { Business } from "@/lib/db/schema";
 import { routes } from "@/lib/routes";
+import type { SessionUser } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 type RailItem = {
@@ -41,9 +57,20 @@ type RailItem = {
   soon?: boolean;
 };
 
-export function SettingsRail({ businessId }: { businessId: string }) {
+export interface SettingsRailProps {
+  business: Business;
+  user: SessionUser;
+  onNavigate?: () => void;
+}
+
+export function SettingsRail({
+  business,
+  user,
+  onNavigate,
+}: SettingsRailProps) {
   const pathname = usePathname();
-  const s = routes.b(businessId).settings;
+  const s = routes.b(business.id).settings;
+  const b = routes.b(business.id);
 
   const primary: RailItem[] = [
     { label: "Account", href: s.account, icon: UserCircle },
@@ -58,9 +85,6 @@ export function SettingsRail({ businessId }: { businessId: string }) {
     { label: "Help & Support", href: s.help, icon: HelpCircle, soon: true },
   ];
 
-  // Domain surfaces that already exist — folded into an "Advanced" tray at the
-  // bottom of the rail so they're reachable from the UI but don't compete with
-  // the primary set above (which mirrors the myBillBook IA).
   const advanced: RailItem[] = [
     { label: "Payments", href: s.payments, icon: Receipt },
     { label: "Party categories", href: s.partyCategories, icon: Tag },
@@ -72,55 +96,106 @@ export function SettingsRail({ businessId }: { businessId: string }) {
     pathname === href || pathname.startsWith(`${href}/`);
 
   return (
-    <>
-      {/* desktop: vertical rail */}
-      <aside
-        aria-label="Settings sections"
-        className="hidden w-60 shrink-0 md:block"
-      >
-        <nav className="flex flex-col gap-1">
-          {primary.map((item) => (
-            <RailLink key={item.href} item={item} active={isActive(item.href)} />
-          ))}
-        </nav>
-        <div className="mt-6 border-t border-border pt-4">
-          <div className="px-3 pb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-            Advanced
+    <div className="bg-sidebar text-sidebar-foreground flex h-full w-full flex-col overflow-y-auto">
+      {/* header: business identity + back-to-dashboard */}
+      <div className="border-b border-sidebar-border p-3">
+        <div className="flex items-center gap-2.5 rounded-lg p-1.5">
+          <BusinessAvatar business={business} className="h-9 w-9 text-sm" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold text-foreground">
+              {business.name}
+            </div>
+            <div className="truncate text-[11px] uppercase tracking-wider text-muted-foreground">
+              {business.gstin ? "GST · Registered" : "Estimates · Cash"}
+            </div>
           </div>
-          <nav className="flex flex-col gap-1">
-            {advanced.map((item) => (
-              <RailLink
-                key={item.href}
-                item={item}
-                active={isActive(item.href)}
-              />
-            ))}
-          </nav>
         </div>
-      </aside>
+        <Link
+          href={b.dashboard}
+          onClick={onNavigate}
+          className="mt-2 flex items-center gap-2 rounded-md border border-sidebar-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          <span>Back to Dashboard</span>
+        </Link>
+      </div>
 
-      {/* mobile: horizontal scroll strip */}
+      {/* nav */}
       <nav
         aria-label="Settings sections"
-        className="-mx-4 mb-4 flex gap-1 overflow-x-auto px-4 md:hidden"
+        className="flex flex-1 flex-col gap-5 px-3 py-4"
       >
-        {[...primary, ...advanced].map((item) => (
-          <RailChip key={item.href} item={item} active={isActive(item.href)} />
-        ))}
+        <NavGroup label="Settings">
+          {primary.map((item) => (
+            <RailLink
+              key={item.href}
+              item={item}
+              active={isActive(item.href)}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </NavGroup>
+        <NavGroup label="Advanced">
+          {advanced.map((item) => (
+            <RailLink
+              key={item.href}
+              item={item}
+              active={isActive(item.href)}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </NavGroup>
       </nav>
-    </>
+
+      {/* footer: user menu + powered-by mark */}
+      <div className="border-t border-sidebar-border p-3">
+        <UserMenu user={user} />
+        <div className="mt-2 flex items-center justify-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/70">
+          <span>Powered by</span>
+          <Logo variant="wordmark" className="h-3 w-auto opacity-70" />
+        </div>
+      </div>
+    </div>
   );
 }
 
-function RailLink({ item, active }: { item: RailItem; active: boolean }) {
+/* --------------------------------------------------------------------- */
+
+function NavGroup({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="px-3 pb-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function RailLink({
+  item,
+  active,
+  onNavigate,
+}: {
+  item: RailItem;
+  active: boolean;
+  onNavigate?: () => void;
+}) {
   const Icon = item.icon;
   return (
     <Link
       href={item.href}
+      onClick={onNavigate}
       className={cn(
-        "group flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors",
+        "group flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
         active
-          ? "bg-primary/10 font-medium text-primary"
+          ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
@@ -135,23 +210,37 @@ function RailLink({ item, active }: { item: RailItem; active: boolean }) {
   );
 }
 
-function RailChip({ item, active }: { item: RailItem; active: boolean }) {
+function UserMenu({ user }: { user: SessionUser }) {
+  const handleSignOut = () => {
+    posthog.reset();
+    signOut({ callbackUrl: routes.home });
+  };
+  const label = user.name ?? user.email ?? "Account";
+  const initials = label
+    .split(/[\s@]+/)
+    .map((s) => s[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
   return (
-    <Link
-      href={item.href}
-      className={cn(
-        "flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-        active
-          ? "border-primary bg-primary/10 text-primary"
-          : "border-border bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground",
-      )}
-    >
-      <span>{item.label}</span>
-      {item.soon && (
-        <span className="rounded-sm bg-muted px-1 text-[9px] uppercase tracking-wider text-muted-foreground">
-          Soon
-        </span>
-      )}
-    </Link>
+    <div className="flex items-center gap-2.5 px-1">
+      <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-foreground">
+        {initials || "?"}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm">{label}</div>
+      </div>
+      <button
+        type="button"
+        onClick={handleSignOut}
+        title="Sign out"
+        aria-label="Sign out"
+        className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      >
+        <LogOut className="h-4 w-4" />
+      </button>
+    </div>
   );
 }

@@ -1,15 +1,15 @@
 /**
- * App sidebar — the chrome that makes the product feel like the owner's
- * billing dashboard, not AstraBill's.
+ * App sidebar content — the inner body of the main nav rail.
  *
  * Three regions, top to bottom:
  *   - BusinessSwitcher  — current business at top; click to swap or add one
  *   - Nav               — Dashboard / Invoices / Customers / Products / Settings
  *   - Footer            — user identity, sign-out, "Powered by AstraBill"
  *
- * `SidebarContent` is the shared inner body — it renders inside the desktop
- * `<aside>` (`Sidebar`) AND inside the mobile drawer (`MobileNav`). The
- * `onNavigate` callback lets the drawer close itself when a link is tapped.
+ * `SidebarContent` is what `BrandedAppShell` renders inside its
+ * desktop `<aside>` slot AND its mobile drawer when the user is OUTSIDE
+ * settings. When inside settings, `SettingsRail` takes the same slots.
+ * The `onNavigate` callback lets the mobile drawer close itself on tap.
  *
  * Branding strategy: restrained. The brand colour shows on (1) the active
  * nav item's left edge, (2) the business avatar fallback. The rest stays
@@ -54,26 +54,10 @@ export interface SidebarProps {
   user: SessionUser;
 }
 
-/** Desktop sidebar — fixed-width column, hidden below the `md` breakpoint
- *  (where `MobileNav` takes over).
- *
- *  Phase 2E: `sticky top-0 h-dvh` keeps the sidebar glued to the viewport
- *  while main content scrolls. `h-dvh` (dynamic viewport height) handles
- *  mobile-browser-chrome resizing correctly; falls back to `100vh` on
- *  older browsers. The inner `SidebarContent` has `overflow-y-auto` so if
- *  the nav list ever exceeds viewport height (many businesses in the
- *  switcher), it can scroll within the column instead of pushing
- *  main-content scroll. The sidebar's flex children layout is unaffected.
- */
-export function Sidebar(props: SidebarProps) {
-  return (
-    <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 border-r border-sidebar-border md:flex">
-      <SidebarContent {...props} />
-    </aside>
-  );
-}
-
-/** The sidebar body — shared by the desktop `<aside>` and the mobile drawer.
+/** The sidebar body — used inside the desktop `<aside>` slot and the
+ *  mobile drawer of `BrandedAppShell`. The shell owns the framing
+ *  (`sticky`, `h-dvh`, width, border); this component is just the inner
+ *  scroll body.
  *  `onNavigate` fires when any nav/switcher link is followed, so the mobile
  *  drawer can close itself. */
 export function SidebarContent({

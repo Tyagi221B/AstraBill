@@ -1,22 +1,18 @@
 /**
- * /b/[businessId]/settings — shared chrome for every page under settings.
+ * /b/[businessId]/settings — shared chrome for every settings sub-page.
  *
- * Renders:
- *   - <PageHeader title="Settings"> at the top — every settings sub-page
- *     inherits this; sub-pages render their OWN section title inside the
- *     content area.
- *   - <SettingsRail> on the left — the secondary nav.
- *   - {children} on the right — the active sub-page's content.
+ * Renders nothing structural anymore — the path-aware `BrandedAppShell`
+ * (set up by the parent business layout) already swapped the main app
+ * sidebar for the SettingsRail when the user opened a settings URL. This
+ * layout just verifies membership and forwards children.
  *
- * Membership is already verified by the parent `/b/[businessId]/layout.tsx`;
- * we only re-fetch the business here to surface its name in the header
- * subtitle.
+ * Existing in-content section headers (each settings sub-page renders its
+ * own H2 + description) provide the per-page title — the shell's PageHeader
+ * is intentionally absent on settings pages.
  */
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { PageHeader } from "@/components/app/PageHeader";
-import { SettingsRail } from "@/components/app/SettingsRail";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
 import { requireUser } from "@/lib/session";
 
@@ -33,16 +29,5 @@ export default async function SettingsLayout({
   const business = await getBusinessForUser(user.id, businessId);
   if (!business) notFound();
 
-  return (
-    <>
-      <PageHeader
-        title="Settings"
-        description={`How ${business.name}’s business profile, invoices, and account behave.`}
-      />
-      <div className="flex flex-col gap-6 md:flex-row md:gap-8">
-        <SettingsRail businessId={business.id} />
-        <div className="min-w-0 flex-1">{children}</div>
-      </div>
-    </>
-  );
+  return <>{children}</>;
 }
