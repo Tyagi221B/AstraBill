@@ -384,7 +384,7 @@ function QtyStepper({
   onDec: () => void;
 }) {
   return (
-    <div className="mx-auto flex h-9 max-w-[160px] items-stretch overflow-hidden rounded-md border border-input bg-background">
+    <div className="mx-auto flex h-9 max-w-40 items-stretch overflow-hidden rounded-md border border-input bg-background">
       <button
         type="button"
         onClick={onDec}

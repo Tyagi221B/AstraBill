@@ -1060,7 +1060,7 @@ export function DocumentForm({
             sensible min-width so columns don't compress into unusable
             slivers on mobile. PWA mobile gets a card layout in a later PR. */}
         <div className="overflow-x-auto rounded-md border border-input bg-background">
-          <table className="w-full min-w-[860px] text-sm">
+          <table className="w-full min-w-215 text-sm">
             <thead className="bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th className="px-2 py-2 text-left font-medium">NO</th>
