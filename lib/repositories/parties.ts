@@ -166,19 +166,19 @@ export async function listPartiesWithBalanceForUser(opts: {
 
   const balanceExpr = sql<string>`COALESCE(SUM(${ledgerEntries.debitAmount}), 0) - COALESCE(SUM(${ledgerEntries.creditAmount}), 0)`;
 
+  // No filter on reversedByLedgerEntryId here: reversals set that column on
+  // the ORIGINAL row only, leaving the reversal row's value NULL. Filtering
+  // `isNull(reversedByLedgerEntryId)` excludes the original but keeps the
+  // reversal, producing a phantom −X balance for fully reversed activity.
+  // Including all rows is correct — original (+X) + reversal (−X) net to 0.
+  // Matches canonical `balanceForParty` in repositories/ledger-entries.ts.
   const rows = await db
     .select({
       party: parties,
       balance: balanceExpr,
     })
     .from(parties)
-    .leftJoin(
-      ledgerEntries,
-      and(
-        eq(ledgerEntries.partyId, parties.id),
-        isNull(ledgerEntries.reversedByLedgerEntryId),
-      ),
-    )
+    .leftJoin(ledgerEntries, eq(ledgerEntries.partyId, parties.id))
     .where(and(...whereParts))
     .groupBy(parties.id)
     .orderBy(desc(parties.createdAt))
