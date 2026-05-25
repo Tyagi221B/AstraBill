@@ -21,6 +21,7 @@ import { roleHas } from "../rbac";
 import type {
   CreateBusinessInput,
   UpdateBrandingInput,
+  UpdateBusinessProfileInput,
   UpdatePaymentSettingsInput,
 } from "../schemas/business";
 import {
@@ -175,6 +176,77 @@ export async function updateBusinessPaymentSettings(
       entityType: "business",
       entityId: businessId,
       changes: input,
+      ipAddress: ctx.ipAddress ?? null,
+      userAgent: ctx.userAgent ?? null,
+    });
+    return updated;
+  });
+}
+
+/**
+ * Update a business's profile (the Manage Business form): name, identity
+ * (GSTIN/PAN/registration), address, contact, profile metadata, signature,
+ * additional invoice details, and accounting toggles.
+ *
+ * Same auth model as branding: owner-only via `settings:edit`, 404 for
+ * not-a-member. The signature URL gets the same Cloudinary-host check as the
+ * logo — both are user-uploaded images rendered into the invoice PDF, and
+ * pointing the renderer at a 3rd-party host is the same exposure either way.
+ *
+ * When `isGstRegistered` flips false, we also clear `gstin` to keep the row
+ * coherent (the form already nulls it on the client, but enforcing it
+ * server-side closes the gap if a caller patches `isGstRegistered` alone).
+ */
+export async function updateBusinessProfile(
+  businessId: string,
+  input: UpdateBusinessProfileInput,
+  actorUserId: string,
+  ctx: ServiceContext = {},
+): Promise<Business> {
+  return db.transaction(async (tx) => {
+    const found = await getBusinessForUserTx(tx, actorUserId, businessId);
+    if (!found) throw new NotFoundError("Business not found");
+    if (!roleHas(found.role, "settings:edit")) {
+      throw new ForbiddenError(
+        `Your role (${found.role}) cannot edit business settings`,
+      );
+    }
+
+    if (
+      typeof input.signatureUrl === "string" &&
+      !isOurCloudinaryUrl(input.signatureUrl)
+    ) {
+      throw new ValidationError(
+        "Signature URL must be an uploaded image on AstraBill's media host",
+      );
+    }
+    if (
+      typeof input.logoUrl === "string" &&
+      !isOurCloudinaryUrl(input.logoUrl)
+    ) {
+      throw new ValidationError(
+        "Logo URL must be an uploaded image on AstraBill's media host",
+      );
+    }
+
+    // Keep the row coherent when GST registration is being turned off in the
+    // same PATCH that left an old GSTIN behind. The form already does this on
+    // the client; mirroring it server-side means a script/cURL caller can't
+    // leave a stale GSTIN on a now-unregistered shop.
+    const patch: UpdateBusinessProfileInput =
+      input.isGstRegistered === false && input.gstin === undefined
+        ? { ...input, gstin: null }
+        : input;
+
+    const updated = await updateBusinessRow(tx, businessId, patch);
+
+    await writeAuditEntry(tx, {
+      action: "business.update",
+      businessId,
+      actorUserId,
+      entityType: "business",
+      entityId: businessId,
+      changes: patch,
       ipAddress: ctx.ipAddress ?? null,
       userAgent: ctx.userAgent ?? null,
     });

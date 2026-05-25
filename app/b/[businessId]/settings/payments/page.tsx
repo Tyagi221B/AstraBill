@@ -12,8 +12,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
-import { PageHeader } from "@/components/app/PageHeader";
-import { SettingsNav } from "@/components/app/SettingsNav";
 import { getMembership, roleHas } from "@/lib/rbac";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
 import { requireUser } from "@/lib/session";
@@ -36,18 +34,20 @@ export default async function PaymentSettingsPage({
   if (!membership) notFound();
 
   return (
-    <>
-      <PageHeader
-        title="Settings"
-        description={`How ${business.name}’s invoices look and how customers pay you.`}
-      />
-      <SettingsNav businessId={business.id} />
+    <div className="flex flex-col gap-5">
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight">Payments</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          How customers pay {business.name} — the UPI ID that drives the
+          &ldquo;Pay&rdquo; button on every shared invoice.
+        </p>
+      </div>
       <PaymentSettingsEditor
         businessId={business.id}
         businessName={business.name}
         canEdit={roleHas(membership.role, "settings:edit")}
         initialUpiId={business.upiId}
       />
-    </>
+    </div>
   );
 }

@@ -5,6 +5,13 @@
  */
 import { z } from "zod";
 
+import {
+  BUSINESS_REGISTRATION_TYPES,
+  BUSINESS_TYPES,
+  INDUSTRY_TYPES,
+  SIGNATURE_MODES,
+} from "../constants/business-profile";
+
 /** 2-digit GST state code, e.g. "07" (Delhi), "29" (Karnataka). */
 const stateCode = z.string().regex(/^\d{2}$/, "GST state code is 2 digits");
 
@@ -123,4 +130,79 @@ export const updatePaymentSettingsSchema = z
 
 export type UpdatePaymentSettingsInput = z.infer<
   typeof updatePaymentSettingsSchema
+>;
+
+// ---- business profile (Manage Business page) ---------------------------
+
+/**
+ * Manage Business form — every field on the screenshot maps to one
+ * `businesses` column. Mirrors the existing column nullability: address
+ * fields accept null (the empty state on a freshly-onboarded shop); name +
+ * isGstRegistered are NOT NULL on the table so they have no `nullable()`.
+ *
+ * `.partial()` at the bottom means *any* subset of fields is a valid PATCH
+ * — the form sends only what changed, and onboarding can fill the same
+ * shape in stages.
+ */
+export const updateBusinessProfileSchema = z
+  .object({
+    name: trimmedNonEmpty(200, "Business name"),
+
+    // --- GST + tax identity ---
+    isGstRegistered: z.boolean(),
+    gstin: gstin.nullable(),
+    panNumber: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{5}\d{4}[A-Z]$/, "PAN is 10 chars like ABCDE1234F")
+      .nullable(),
+
+    // --- Contact ---
+    phone: z.string().trim().max(20).nullable(),
+    email: z.string().trim().email().nullable(),
+
+    // --- Address ---
+    addressLine1: z.string().trim().max(200).nullable(),
+    addressLine2: z.string().trim().max(200).nullable(),
+    city: z.string().trim().max(100).nullable(),
+    state: z.string().trim().max(100).nullable(),
+    stateCode: stateCode.nullable(),
+    pincode: pincode.nullable(),
+
+    // --- Profile metadata ---
+    businessType: z.array(z.enum(BUSINESS_TYPES)).max(BUSINESS_TYPES.length),
+    industryType: z.enum(INDUSTRY_TYPES).nullable(),
+    businessRegistrationType: z.enum(BUSINESS_REGISTRATION_TYPES).nullable(),
+
+    // --- Logo (also editable from /settings/branding; profile is the
+    //     primary surface, branding edits it via its own dedicated PATCH). ---
+    logoUrl: z.string().url().max(500).nullable(),
+
+    // --- Signature block (prints at the bottom of every invoice) ---
+    signatureUrl: z.string().url().max(500).nullable(),
+    signatureMode: z.enum(SIGNATURE_MODES),
+    signatoryName: z.string().trim().max(120).nullable(),
+
+    // --- Free-form k=v list printed on invoices (MSME no, Website, etc.) ---
+    additionalDetails: z
+      .record(z.string().trim().max(120), z.string().trim().max(500))
+      .refine(
+        (o) => Object.keys(o).length <= 20,
+        "Up to 20 additional detail rows",
+      ),
+
+    // --- Tax features (V2-gated but the toggle persists today) ---
+    enableTds: z.boolean(),
+    enableTcs: z.boolean(),
+
+    // --- Accounting / FY ---
+    fyStartMonth: z.coerce.number().int().min(1).max(12),
+  })
+  .partial()
+  .refine((o) => Object.keys(o).length > 0, {
+    message: "Provide at least one field to update",
+  });
+
+export type UpdateBusinessProfileInput = z.infer<
+  typeof updateBusinessProfileSchema
 >;

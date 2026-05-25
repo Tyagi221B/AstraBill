@@ -110,7 +110,7 @@ export function SidebarContent({
     { label: "Reports", path: b.reports, icon: BarChart3 },
   ] as const;
   const settingsItems = [
-    { label: "Settings", path: b.settings.branding, icon: Settings },
+    { label: "Settings", path: b.settings.index, icon: Settings },
   ] as const;
 
   type NavItem =

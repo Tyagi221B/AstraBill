@@ -85,6 +85,26 @@ export const routes = {
       gstr1: `${base}/reports/gstr-1`,
       gstr3b: `${base}/reports/gstr-3b`,
       settings: {
+        /** Settings index — redirects to manage-business so the rail is never empty. */
+        index: `${base}/settings`,
+        /** Phase 1A: real page (business profile form). */
+        manageBusiness: `${base}/settings/manage-business`,
+        /** Phase 2: real page (doc numbering + default T&C + signature mode). */
+        invoiceSettings: `${base}/settings/invoice-settings`,
+        /** Phase 3: real page (alias for `branding` while it's the only print surface). */
+        printSettings: `${base}/settings/print-settings`,
+        /** Phase 3: real page (user name / email / password). */
+        account: `${base}/settings/account`,
+        /** V2 paid surfaces — rail renders them with a "Soon" chip; URLs are
+         *  reserved so the chrome stays stable across launches. */
+        manageUsers: `${base}/settings/users`,
+        reminders: `${base}/settings/reminders`,
+        caReports: `${base}/settings/ca-reports`,
+        pricing: `${base}/settings/pricing`,
+        referEarn: `${base}/settings/refer-earn`,
+        help: `${base}/settings/help`,
+        /** Domain-specific surfaces — accessible from the rail's "Advanced" tray
+         *  and also from deep links inside Parties / Items pages. */
         branding: `${base}/settings/branding`,
         payments: `${base}/settings/payments`,
         itemCategories: `${base}/settings/item-categories`,

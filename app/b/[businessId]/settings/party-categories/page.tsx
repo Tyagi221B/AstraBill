@@ -1,8 +1,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
-import { PageHeader } from "@/components/app/PageHeader";
-import { SettingsNav } from "@/components/app/SettingsNav";
 import { Card, CardContent } from "@/components/ui/card";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
 import { listPartyCategoriesForUser } from "@/lib/repositories/party-categories";
@@ -30,22 +28,22 @@ export default async function PartyCategoriesPage({
   });
 
   return (
-    <>
-      <PageHeader
-        title="Party categories"
-        description="Group customers and suppliers (VIP / Wholesale / Retail …) so you can filter the Parties list. Optional — every party belongs to at most one category."
-      />
-      <SettingsNav businessId={businessId} />
-      <div className="mx-auto max-w-2xl">
-        <Card>
-          <CardContent className="pt-6">
-            <PartyCategoriesPanel
-              businessId={businessId}
-              initial={categories}
-            />
-          </CardContent>
-        </Card>
+    <div className="flex flex-col gap-5">
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight">
+          Party categories
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Group customers and suppliers (VIP / Wholesale / Retail …) so you can
+          filter the Parties list. Optional — every party belongs to at most
+          one category.
+        </p>
       </div>
-    </>
+      <Card>
+        <CardContent className="pt-6">
+          <PartyCategoriesPanel businessId={businessId} initial={categories} />
+        </CardContent>
+      </Card>
+    </div>
   );
 }

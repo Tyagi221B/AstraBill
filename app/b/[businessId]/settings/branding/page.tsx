@@ -9,8 +9,6 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
-import { PageHeader } from "@/components/app/PageHeader";
-import { SettingsNav } from "@/components/app/SettingsNav";
 import { DEFAULT_DOCUMENT_SETTINGS } from "@/lib/db/schema";
 import { getMembership, roleHas } from "@/lib/rbac";
 import { getBusinessForUser } from "@/lib/repositories/businesses";
@@ -33,12 +31,14 @@ export default async function BrandingSettingsPage({
   if (!membership) notFound();
 
   return (
-    <>
-      <PageHeader
-        title="Settings"
-        description={`How ${business.name}’s invoices look and how customers pay you.`}
-      />
-      <SettingsNav businessId={business.id} />
+    <div className="flex flex-col gap-5">
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight">Branding</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          How {business.name}&rsquo;s invoices look — template, colour, font,
+          and which columns appear on the printed bill.
+        </p>
+      </div>
       <BrandingEditor
         businessId={business.id}
         canEdit={roleHas(membership.role, "settings:edit")}
@@ -53,6 +53,6 @@ export default async function BrandingSettingsPage({
             DEFAULT_DOCUMENT_SETTINGS.columns,
         }}
       />
-    </>
+    </div>
   );
 }
