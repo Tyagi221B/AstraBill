@@ -129,9 +129,13 @@ export const createDocumentSchema = z.object({
 });
 export type CreateDocumentInput = z.infer<typeof createDocumentSchema>;
 
-/** Update: same shape, businessId / docType locked (immutable). */
+/** Update: same shape, businessId / docType locked (immutable).
+ *  firstPayment is omitted — it is only meaningful at create time. A PATCH
+ *  carrying it would have been silently dropped; reject it at the boundary
+ *  so the API surface matches behaviour. To record a payment on an existing
+ *  doc, use POST /api/payment-entries. */
 export const updateDocumentSchema = createDocumentSchema
-  .omit({ businessId: true, docType: true })
+  .omit({ businessId: true, docType: true, firstPayment: true })
   .partial({ lines: true, additionalCharges: true });
 export type UpdateDocumentInput = z.infer<typeof updateDocumentSchema>;
 
