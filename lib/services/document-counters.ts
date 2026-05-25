@@ -25,8 +25,10 @@ import { requirePermission } from "../rbac";
 import { getBusinessForUserTx } from "../repositories/businesses";
 import {
   incrementSequenceTx,
+  listCountersForBusinessTx,
   lockOrCreateCounterTx,
 } from "../repositories/document-counters";
+import { type DocumentCounter } from "../db/schema";
 
 /**
  * Indian-FY token from a calendar date + a configurable start month.
@@ -119,6 +121,30 @@ export interface CounterSeed {
  * duplicate doc numbers (the partial UQ on `documents` catches it, but the
  * service is the friendly gate).
  */
+/**
+ * List the document_counter rows for one business, scoped by membership.
+ * Read-only — used by the Invoice Settings page to render the current
+ * per-doc-type prefix + sequence + reset-each-FY state for editing.
+ *
+ * Owner-only (`settings:edit`); a non-member 404s the same way as a stranger
+ * — no existence leak.
+ */
+export async function listCountersForBusiness(opts: {
+  businessId: string;
+  actorUserId: string;
+}): Promise<DocumentCounter[]> {
+  await requirePermission(opts.actorUserId, opts.businessId, "settings:edit");
+  return db.transaction(async (tx) => {
+    const access = await getBusinessForUserTx(
+      tx,
+      opts.actorUserId,
+      opts.businessId,
+    );
+    if (!access) throw new NotFoundError("Business not found");
+    return listCountersForBusinessTx(tx, opts.businessId);
+  });
+}
+
 export async function seedCountersForBusiness(opts: {
   businessId: string;
   actorUserId: string;

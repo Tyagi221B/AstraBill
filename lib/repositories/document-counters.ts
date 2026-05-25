@@ -139,6 +139,24 @@ export async function incrementSequenceTx(
   return row.nextSequence;
 }
 
+/**
+ * List every counter row for one business — used by the Invoice Settings
+ * editor. Sorted by doc_type + fy_year so the UI can stable-iterate.
+ *
+ * Tenant scope is enforced by the caller (the service checks membership +
+ * settings:edit before invoking this).
+ */
+export async function listCountersForBusinessTx(
+  tx: Tx,
+  businessId: string,
+): Promise<DocumentCounter[]> {
+  return tx
+    .select()
+    .from(documentCounters)
+    .where(eq(documentCounters.businessId, businessId))
+    .orderBy(documentCounters.docType, desc(documentCounters.fyYear));
+}
+
 /** Lookup defaults for the per-doc-type starting prefix. */
 function defaultPrefixForType(docType: DocTypeValue): string {
   switch (docType) {

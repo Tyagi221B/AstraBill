@@ -48,7 +48,7 @@ export function SettingsRail({ businessId }: { businessId: string }) {
   const primary: RailItem[] = [
     { label: "Account", href: s.account, icon: UserCircle, soon: true },
     { label: "Manage Business", href: s.manageBusiness, icon: Building2 },
-    { label: "Invoice Settings", href: s.invoiceSettings, icon: Receipt, soon: true },
+    { label: "Invoice Settings", href: s.invoiceSettings, icon: Receipt },
     { label: "Print Settings", href: s.printSettings, icon: Printer, soon: true },
     { label: "Manage Users", href: s.manageUsers, icon: Users, soon: true },
     { label: "Reminders", href: s.reminders, icon: Bell, soon: true },

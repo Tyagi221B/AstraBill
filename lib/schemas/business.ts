@@ -197,6 +197,23 @@ export const updateBusinessProfileSchema = z
 
     // --- Accounting / FY ---
     fyStartMonth: z.coerce.number().int().min(1).max(12),
+
+    // --- Per-doc-type defaults (Invoice Settings → default T&C per type) ---
+    docTypeDefaults: z.record(
+      z.enum([
+        "sales_invoice",
+        "estimate",
+        "delivery_challan",
+        "credit_note",
+        "purchase_invoice",
+        "debit_note",
+        "quotation",
+        "proforma_invoice",
+      ]),
+      z.object({
+        termsConditions: z.string().trim().max(5000).optional(),
+      }),
+    ),
   })
   .partial()
   .refine((o) => Object.keys(o).length > 0, {
