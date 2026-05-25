@@ -30,7 +30,7 @@ Audit gates ran clean: `tsc --noEmit` exit 0, `vitest run` 30/30 pass.
 | H3 | low | Redundancy | `getPartyForUserTx` runs twice per `createDocument` w/ firstPayment (once in doc create, once in `recordPaymentTx`) |
 | S1 | **scope** | GSTR-1 | Only B2B section shipped; B2C + HSN summary required by V1 scope row 121 |
 | S2 | **scope** | Party CSV import | Required by V1 scope row 120; no UI or service found |
-| S3 | scope | Quotation → Invoice convert | Service + API route exist; **no UI surfacing the button** on quotation detail |
+| ~~S3~~ | ~~scope~~ | ~~Quotation → Invoice convert~~ | **CORRECTED 2026-05-25:** false alarm. `ConvertToInvoiceButton` is wired on `quotations/[id]/page.tsx:64` for finalised quotations. Original grep missed it (used lowercase `convertTo`, missed the capital `C` in `ConvertToInvoiceButton`). |
 | S4 | scope | WhatsApp send for non-sales docs | Scope locks send to sales_invoice only in V1 — confirmed shipped correctly |
 | S5 | scope | Doc-numbering Settings editor | Onboarding seeds; no Settings → Invoice Settings page to edit later |
 | S6 | scope | PDF templates | 2 templates shipped (modern + classic), matches V1 scope ✓ |
@@ -178,8 +178,8 @@ Current `/reports/gstr-1` page shows only B2B (`getGstr1B2b` service). GST scope
 #### S2 — Party CSV import missing
 `DECISIONS.md` row 120: "V1 ships CSV import for parties only." Searched `app/`, `components/`, `lib/services/` — no `parseCSV`, no upload UI, no import route. **A 200-customer shop will not onboard with manual entry** (the very rationale quoted in the decision). Launch-blocking for any shop bigger than ~10 customers.
 
-#### S3 — Quotation → Invoice convert UI
-Service `convertQuotationToInvoice` exists ([lib/services/documents.ts:896](lib/services/documents.ts#L896)). API route exists at `app/api/documents/[id]/convert/route.ts`. But `DocumentActions.tsx:128` is where the button *should* trigger it and looking at the file context, only the fetch wrapper is wired — needs a "Convert to Sales Invoice" button on the finalised quotation detail. Quick fix.
+#### ~~S3~~ — Quotation → Invoice convert UI **(CORRECTED 2026-05-25: false alarm)**
+Originally claimed the button wasn't surfaced. Re-check on 2026-05-25 found `ConvertToInvoiceButton` is imported and rendered for finalised quotations on `app/b/[businessId]/sales/quotations/[id]/page.tsx:64`. The convert flow is complete: service → API route → button → redirect to new draft's edit page. Root cause of the false positive: original grep used lowercase `convertTo`, which doesn't match `ConvertToInvoiceButton` (capital `C`). Verified working.
 
 #### S5 — Settings → Invoice Settings (doc-numbering editor)
 Onboarding wizard step 2 seeds counters. `DECISIONS.md` row 108: "Editable later under Settings → Invoice Settings." `app/b/[businessId]/settings/` contains: `branding`, `item-categories`, `party-categories`, `party-custom-fields`, `payments`. **No invoice-settings page.** Without it, an owner who picks the wrong prefix at onboarding can't change it.
@@ -218,8 +218,8 @@ If launch target is **~21 Sep 2026** (4-month build per memory
 weeks. Suggested order:
 
 ### Week 1 (do now)
-1. **B1** — fix party balance computation. One-line repo fix + a vitest test using the reversal scenario above. ~30 min.
-2. **S3** — wire the "Convert to Sales Invoice" button on quotation detail. Service + API already exist. ~1 hour.
+1. **B1** — fix party balance computation. One-line repo fix. ~30 min. *(Shipped 9312b87 on 2026-05-25.)*
+2. ~~**S3**~~ — *false alarm; the button was already wired. See correction above.*
 3. **H1** — `.omit({firstPayment})` from `updateDocumentSchema`. ~10 min.
 
 ### Weeks 2–3
