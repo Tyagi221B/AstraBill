@@ -7,7 +7,13 @@
  */
 import Link from "next/link";
 import type { Metadata } from "next";
-import { FileText } from "lucide-react";
+import {
+  AlertCircle,
+  Ban,
+  FileText,
+  PencilLine,
+  TrendingUp,
+} from "lucide-react";
 import Decimal from "decimal.js";
 
 import { EmptyState } from "@/components/app/EmptyState";
@@ -89,14 +95,30 @@ export default async function SalesInvoicesPage({
 
       {documents.length > 0 && (
         <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
-          <Kpi label="Total billed" value={inr(totalBilled.toFixed(2))} />
+          <Kpi
+            label="Total billed"
+            value={inr(totalBilled.toFixed(2))}
+            tone="brand"
+            icon={TrendingUp}
+          />
           <Kpi
             label="Unpaid"
             value={inr(unpaidValue.toFixed(2))}
-            tone={unpaidValue.gt(0) ? "warning" : "neutral"}
+            tone={unpaidValue.gt(0) ? "warning" : "success"}
+            icon={AlertCircle}
           />
-          <Kpi label="Drafts" value={String(counts.draft)} />
-          <Kpi label="Cancelled" value={String(counts.cancelled)} />
+          <Kpi
+            label="Drafts"
+            value={String(counts.draft)}
+            tone={counts.draft > 0 ? "info" : "neutral"}
+            icon={PencilLine}
+          />
+          <Kpi
+            label="Cancelled"
+            value={String(counts.cancelled)}
+            tone={counts.cancelled > 0 ? "danger" : "neutral"}
+            icon={Ban}
+          />
         </section>
       )}
 
@@ -120,12 +142,12 @@ export default async function SalesInvoicesPage({
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-muted-foreground">
-                    <th className="px-4 py-3 font-medium">Number</th>
-                    <th className="px-4 py-3 font-medium">Date</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 text-right font-medium">Total</th>
-                    <th className="px-4 py-3 text-right font-medium">Balance</th>
+                  <tr className="text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <th className="px-4 py-3">Number</th>
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Total</th>
+                    <th className="px-4 py-3 text-right">Balance</th>
                     <th className="px-4 py-3" />
                   </tr>
                 </thead>
@@ -139,7 +161,7 @@ export default async function SalesInvoicesPage({
                     return (
                       <tr
                         key={d.id}
-                        className="border-t border-border text-foreground"
+                        className="border-t border-border text-foreground transition-colors hover:bg-muted/40"
                       >
                         <td className="px-4 py-3 font-medium">
                           <Link
@@ -167,10 +189,10 @@ export default async function SalesInvoicesPage({
                         <td className="px-4 py-3 text-right font-medium tabular-nums">
                           {isDraft || isCancelled || Number(balance) <= 0 ? (
                             <span className="text-muted-foreground">
-                              {isDraft ? "—" : isCancelled ? "—" : "Paid"}
+                              {isDraft || isCancelled ? "—" : "Paid"}
                             </span>
                           ) : (
-                            <span className="text-red-700 dark:text-red-400">
+                            <span className="text-warning">
                               {inr(balance)}
                             </span>
                           )}

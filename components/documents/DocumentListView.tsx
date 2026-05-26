@@ -9,6 +9,13 @@
  */
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
+import {
+  AlertCircle,
+  Ban,
+  CircleCheck,
+  PencilLine,
+  TrendingUp,
+} from "lucide-react";
 import Decimal from "decimal.js";
 
 import { EmptyState } from "@/components/app/EmptyState";
@@ -88,26 +95,59 @@ export function DocumentListView({
         <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
           {isFinancial ? (
             <>
-              <Kpi label="Total" value={inr(totalBilled.toFixed(2))} />
+              <Kpi
+                label="Total"
+                value={inr(totalBilled.toFixed(2))}
+                tone="brand"
+                icon={TrendingUp}
+              />
               <Kpi
                 label="Unpaid"
                 value={inr(unpaidValue.toFixed(2))}
-                tone={unpaidValue.gt(0) ? "warning" : "neutral"}
+                tone={unpaidValue.gt(0) ? "warning" : "success"}
+                icon={AlertCircle}
               />
-              <Kpi label="Drafts" value={String(counts.draft)} />
-              <Kpi label="Cancelled" value={String(counts.cancelled)} />
+              <Kpi
+                label="Drafts"
+                value={String(counts.draft)}
+                tone={counts.draft > 0 ? "info" : "neutral"}
+                icon={PencilLine}
+              />
+              <Kpi
+                label="Cancelled"
+                value={String(counts.cancelled)}
+                tone={counts.cancelled > 0 ? "danger" : "neutral"}
+                icon={Ban}
+              />
             </>
           ) : (
             <>
-              <Kpi label="Total" value={String(documents.length)} />
-              <Kpi label="Drafts" value={String(counts.draft)} />
+              <Kpi
+                label="Total"
+                value={String(documents.length)}
+                tone="brand"
+                icon={TrendingUp}
+              />
+              <Kpi
+                label="Drafts"
+                value={String(counts.draft)}
+                tone={counts.draft > 0 ? "info" : "neutral"}
+                icon={PencilLine}
+              />
               <Kpi
                 label="Finalised"
                 value={String(
                   counts.unpaid + counts.partial_paid + counts.paid,
                 )}
+                tone="success"
+                icon={CircleCheck}
               />
-              <Kpi label="Cancelled" value={String(counts.cancelled)} />
+              <Kpi
+                label="Cancelled"
+                value={String(counts.cancelled)}
+                tone={counts.cancelled > 0 ? "danger" : "neutral"}
+                icon={Ban}
+              />
             </>
           )}
         </section>
@@ -130,15 +170,13 @@ export function DocumentListView({
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-muted-foreground">
-                    <th className="px-4 py-3 font-medium">Number</th>
-                    <th className="px-4 py-3 font-medium">Date</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 text-right font-medium">Total</th>
+                  <tr className="text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    <th className="px-4 py-3">Number</th>
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Total</th>
                     {isFinancial && (
-                      <th className="px-4 py-3 text-right font-medium">
-                        Balance
-                      </th>
+                      <th className="px-4 py-3 text-right">Balance</th>
                     )}
                     <th className="px-4 py-3" />
                   </tr>
@@ -153,7 +191,7 @@ export function DocumentListView({
                     return (
                       <tr
                         key={d.id}
-                        className="border-t border-border text-foreground"
+                        className="border-t border-border text-foreground transition-colors hover:bg-muted/40"
                       >
                         <td className="px-4 py-3 font-medium">
                           <Link
@@ -182,10 +220,10 @@ export function DocumentListView({
                           <td className="px-4 py-3 text-right font-medium tabular-nums">
                             {isDraft || isCancelled || Number(balance) <= 0 ? (
                               <span className="text-muted-foreground">
-                                {isDraft ? "—" : isCancelled ? "—" : "Paid"}
+                                {isDraft || isCancelled ? "—" : "Paid"}
                               </span>
                             ) : (
-                              <span className="text-red-700 dark:text-red-400">
+                              <span className="text-warning">
                                 {inr(balance)}
                               </span>
                             )}
