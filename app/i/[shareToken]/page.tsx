@@ -14,19 +14,18 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import type { CSSProperties } from "react";
+import { Suspense, type CSSProperties } from "react";
 import { and, eq, isNull } from "drizzle-orm";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { db } from "@/lib/db";
 import { partyAddresses, type Document } from "@/lib/db/schema";
 import { getPublicDocumentView } from "@/lib/services/public-document";
 import { buildUpiPayUrl, renderUpiQrSvg } from "@/lib/upi";
 import { cn } from "@/lib/utils";
-
-export const dynamic = "force-dynamic";
 
 const TYPE_LABEL: Record<Document["docType"], string> = {
   sales_invoice: "Tax Invoice",
@@ -107,7 +106,23 @@ export async function generateMetadata({
   };
 }
 
-export default async function PublicDocumentPage({
+export default function PublicDocumentPage({
+  params,
+}: {
+  params: Promise<{ shareToken: string }>;
+}) {
+  // Outer page is sync so Next can ship a static shell. The body resolves
+  // inside the Suspense boundary — visitors see a tasteful skeleton (single
+  // card matching the live layout's outer frame) while the document, party,
+  // and address queries run.
+  return (
+    <Suspense fallback={<PublicDocumentSkeleton />}>
+      <PublicDocumentContent params={params} />
+    </Suspense>
+  );
+}
+
+async function PublicDocumentContent({
   params,
 }: {
   params: Promise<{ shareToken: string }>;
@@ -460,6 +475,44 @@ function Row({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between">
       <span className="text-muted-foreground">{label}</span>
       <span>{value}</span>
+    </div>
+  );
+}
+
+/**
+ * Skeleton shown while the public document view is being fetched. Mirrors
+ * the live page's outer frame: brand stripe + centered card with a stack
+ * of placeholder rows. No CLS on swap.
+ */
+function PublicDocumentSkeleton() {
+  return (
+    <div className="min-h-dvh bg-background">
+      <div className="h-1 w-full bg-muted" />
+      <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6 sm:py-10">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between gap-3">
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-6 w-20 rounded-full" />
+            </div>
+            <Skeleton className="mt-4 h-4 w-32" />
+            <div className="mt-6 flex flex-col gap-2">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-4 w-56" />
+            </div>
+            <div className="mt-6 flex flex-col gap-3 border-t border-border pt-6">
+              {Array.from({ length: 4 }, (_, i) => (
+                <div key={i} className="flex justify-between">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+              ))}
+            </div>
+            <Skeleton className="mt-6 h-10 w-full" />
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

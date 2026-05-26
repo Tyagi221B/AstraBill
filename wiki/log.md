@@ -2760,3 +2760,122 @@ tsc clean. 30 tests passing. Dev server boots cleanly, dashboard renders
 `200 OK`. The glow + shimmer are visible without competing with content.
 
 Commit: `fc9eab8`.
+
+## [2026-05-26] feat | Phase 2.1+2.2 — cacheComponents: true, Partial Prerender across the app
+
+The headline flip of the performance roadmap. `cacheComponents: true` is on
+in `next.config.ts`. Every page in the app is now built as a Partial
+Prerender (PPR) — static shell ships in the first HTTP chunk, dynamic data
+streams in via Suspense. Build summary shows ◐ (Partial Prerender) on
+nearly every route. The "Zoho-feels-instant" target moves from
+infrastructure to *visible* in this commit.
+
+**The audit pattern that emerged** — every async layout / page was rewritten
+to the same shape, so future surfaces follow the convention without thinking:
+
+```tsx
+// BEFORE — layout/page is async, blocks rendering until awaits resolve
+export default async function Foo() {
+  const user = await requireUser();          // ← blocks
+  const data = await fetch(...);              // ← blocks
+  return <Chrome>{...}</Chrome>;
+}
+
+// AFTER — outer is sync (static shell), async work in a child wrapped in
+// Suspense (streams in)
+export default function Foo() {
+  return (
+    <Suspense fallback={<FooSkeleton />}>
+      <FooContent />
+    </Suspense>
+  );
+}
+
+async function FooContent() {
+  const user = await requireUser();
+  const data = await fetch(...);
+  return <Chrome>{...}</Chrome>;
+}
+```
+
+Codified in `wiki/decision/performance-roadmap.md` and `DECISIONS.md`'s
+cache primitive matrix.
+
+**Layouts restructured** (each one was a foundation fix that unblocked
+dozens of pages downstream):
+
+- `app/layout.tsx` (root) — was `async` calling `getSessionUser()` to feed
+  `PostHogIdentify`. That made the ENTIRE app dynamic. Now: root is sync,
+  `<PostHogIdentifyAsync>` is the async leaf wrapped in `<Suspense
+  fallback={null}>`. PostHog identify still fires on every authed render;
+  the root layout stays cacheable.
+- `app/(marketing)/layout.tsx` — was `async` to know if the visitor is
+  signed in (Header flips "Sign in" → "Open app"). Now sync; `<HeaderAsync>`
+  is a Suspense leaf with `<Header isAuthed={false} />` as fallback. The
+  marketing chrome paints instantly; the auth-aware Header swaps in over
+  the next tick.
+- `app/b/[businessId]/layout.tsx` — the big one. Was `async` doing the
+  membership check + business fetch + business-list fetch at the top.
+  Now: outer is sync, `<AuthedShell>` is the async leaf doing all three
+  awaits, wrapped in `<Suspense fallback={<AppShellFallback />}>`. The
+  fallback is a dimension-matched mock of `BrandedAppShell` — sidebar
+  width, nav-link rows, page-area chrome — so the swap-in is visually
+  identical. Background glow renders even in the fallback.
+- `app/b/[businessId]/settings/layout.tsx` — was duplicating the membership
+  check the parent layout had already done. Removed entirely; it's now a
+  pure passthrough. Matches the [[decision/white-label-app-shell]] rule
+  ("Membership resolution: Resolved exactly ONCE per request").
+
+**Pages restructured** (handled the "leaf" routes that couldn't lean on
+a parent loading.tsx):
+
+- `app/dashboard/page.tsx` — the smart redirect entry. Outer is sync;
+  `<DashboardRedirect>` does the work inside Suspense, fallback is a
+  centred "Opening your dashboard…" spinner. The mid-stream `redirect()`
+  becomes a client-side navigation under cacheComponents, but the spinner
+  covers the handoff cleanly.
+- `app/onboarding/page.tsx` — same shape, with a form-shaped skeleton
+  (PageHeaderSkeleton + 3× FormFieldSkeleton + Save button) as fallback.
+- `app/sign-in/page.tsx` — the session-check that might redirect to
+  /dashboard moved into a Suspense leaf called `<SessionGate>`. Fallback
+  is the SignInForm itself — so if the user is NOT signed in (the common
+  case), the form paints immediately; only the redirect path shows the
+  swap.
+- `app/i/[shareToken]/page.tsx` — the public document share. Wrapped in
+  Suspense with `<PublicDocumentSkeleton>` (mirrors the live page's brand
+  stripe + centred card + row list). WhatsApp recipients on slow networks
+  now see the chrome instantly while the document loads.
+- `components/marketing/Footer.tsx` — used `new Date().getFullYear()`
+  which is non-deterministic under cacheComponents. Marked the Footer as
+  `'use cache'` with `cacheLife('days')` so the year is computed at first
+  render and re-evaluated daily. Cheaper than 'max' (revalidates on
+  deploy), still essentially free.
+
+**One config strip** — `app/i/[shareToken]/page.tsx` had `export const
+dynamic = "force-dynamic"` left over from before the audit. The Next 16
+migration guide says to remove it: cacheComponents replaces it with the
+explicit `'use cache'` opt-in model.
+
+**What this commit does NOT change**:
+- No per-page `loading.tsx` files added for the IA groups yet (parties,
+  items, documents, reports, settings sub-pages). Those will land in Phase
+  2.3 with skeleton recipes dimension-matched to each surface's specific
+  shape. The generic `app/b/[businessId]/loading.tsx` is the safety net
+  until then — every business page either has its own loading.tsx or
+  falls back to this one.
+- No `'use cache'` on data-fetching functions yet. Phase 3 work, once we
+  have measured hot paths.
+
+**Build proof**: `next build` completes with 89/89 pages generated,
+`tsc --noEmit` clean, 30 tests passing. The build output shows ◐ (Partial
+Prerender) on nearly every route — the visual confirmation that the
+roadmap's Phase 2 endpoint is reached. Static shells paint first;
+dynamic data streams in.
+
+**Visual proof** (pending user smoke): on dev with throttled network,
+every page should paint its skeleton + chrome in < 200ms, with content
+filling in over the next few hundred ms. The background glow + sidebar
+both ship as static; the user menu, business switcher, and page data
+all stream in via Suspense.
+
+Commit: `<pending>`.

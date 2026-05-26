@@ -1,8 +1,16 @@
 /**
  * Marketing site footer. Branding lockup is "AstraBill by Opryon Labs" —
  * AstraBill is the product, Opryon Labs the company.
+ *
+ * Cache-shape: this is a fully cacheable surface (links + a copyright
+ * year). The `new Date().getFullYear()` is non-deterministic under
+ * cacheComponents, so the Footer is rendered inside a `'use cache'`
+ * scope with `cacheLife('days')` — the year is computed at build /
+ * first-render time and re-evaluated daily. Cheaper than `'max'`
+ * (which would only revalidate on deploy) but still essentially free.
  */
 import Link from "next/link";
+import { cacheLife } from "next/cache";
 
 import { Container } from "@/components/ui/Container";
 import { Logo } from "@/components/ui/Logo";
@@ -34,7 +42,9 @@ const COLUMNS: { heading: string; links: { label: string; href: string }[] }[] =
     },
   ];
 
-export function Footer() {
+export async function Footer() {
+  "use cache";
+  cacheLife("days");
   const year = new Date().getFullYear();
 
   return (

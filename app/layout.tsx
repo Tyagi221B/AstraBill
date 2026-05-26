@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 
@@ -48,15 +49,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // PostHog identify needs the user; the root layout is the one place that
-  // sees every page load. NextAuth's auth() is per-request cached.
-  const user = await getSessionUser();
-
   return (
     <html
       lang="en"
@@ -68,17 +65,34 @@ export default async function RootLayout({
     >
       <body>
         <ThemeProvider>
-          {user && (
-            <PostHogIdentify
-              userId={user.id}
-              email={user.email}
-              name={user.name}
-            />
-          )}
+          {/*
+            PostHog identify reads the session, which is dynamic per-request.
+            Under cacheComponents, dynamic access in the root layout makes
+            EVERY page dynamic — we lose all static-shell benefit.
+            Pushing the await into an async leaf wrapped in Suspense keeps
+            the root layout sync (cacheable) while still firing identify
+            on every authed render. The fallback is `null` because the
+            identify call has no visible UI.
+          */}
+          <Suspense fallback={null}>
+            <PostHogIdentifyAsync />
+          </Suspense>
           {children}
           <Toaster />
         </ThemeProvider>
       </body>
     </html>
+  );
+}
+
+async function PostHogIdentifyAsync() {
+  const user = await getSessionUser();
+  if (!user) return null;
+  return (
+    <PostHogIdentify
+      userId={user.id}
+      email={user.email}
+      name={user.name}
+    />
   );
 }

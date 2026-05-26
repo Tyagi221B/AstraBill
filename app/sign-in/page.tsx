@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Container } from "@/components/ui/Container";
@@ -21,16 +22,14 @@ function safeCallback(raw: string | undefined): string {
   return "/dashboard";
 }
 
-export default async function SignInPage({
+export default function SignInPage({
   searchParams,
 }: {
   searchParams: Promise<{ callbackUrl?: string }>;
 }) {
-  // Already signed in? Skip the form entirely.
-  const user = await getSessionUser();
-  const { callbackUrl } = await searchParams;
-  if (user) redirect(safeCallback(callbackUrl));
-
+  // Outer page is sync — header, hero copy, and Card frame all ship as the
+  // static shell. The session check ("already signed in? redirect") happens
+  // inside a Suspense leaf so it doesn't block the chrome.
   return (
     <div className="flex min-h-dvh flex-col bg-background text-foreground">
       <header className="border-b border-border">
@@ -56,7 +55,15 @@ export default async function SignInPage({
 
           <Card>
             <CardContent className="pt-6">
-              <SignInForm />
+              {/*
+                The form itself is a Client Component so it renders instantly;
+                the Suspense boundary only covers the session-check that
+                might redirect away. If the user is already signed in, the
+                redirect fires before the form ever paints.
+              */}
+              <Suspense fallback={<SignInForm />}>
+                <SessionGate searchParams={searchParams} />
+              </Suspense>
             </CardContent>
           </Card>
 
@@ -78,4 +85,15 @@ export default async function SignInPage({
       </main>
     </div>
   );
+}
+
+async function SessionGate({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string }>;
+}) {
+  const user = await getSessionUser();
+  const { callbackUrl } = await searchParams;
+  if (user) redirect(safeCallback(callbackUrl));
+  return <SignInForm />;
 }

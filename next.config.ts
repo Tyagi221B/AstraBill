@@ -4,6 +4,13 @@ const nextConfig: NextConfig = {
   // Drizzle's `postgres` driver is server-only — keep it out of the client bundle.
   serverExternalPackages: ["postgres"],
 
+  // Cache Components — Phase 2.2 of the performance roadmap.
+  // Enables Partial Prerendering: layouts ship as a static shell + dynamic
+  // content streams in via Suspense. Forces explicit Suspense boundaries
+  // around uncached dynamic data (cookies/headers/DB queries) so we never
+  // ship a blank-flash page. See wiki/decision/performance-roadmap.md.
+  cacheComponents: true,
+
   // PostHog reverse proxy. Routing client-side events through a same-origin
   // path (`/ingest/*`) sidesteps tracking blockers that would intercept
   // requests to `*.posthog.com` directly. The three rewrites cover the three
