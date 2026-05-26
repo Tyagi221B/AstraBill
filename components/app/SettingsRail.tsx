@@ -41,6 +41,7 @@ import posthog from "posthog-js";
 import { signOut } from "next-auth/react";
 import type { ComponentType } from "react";
 
+import { SidebarThemeToggle } from "@/components/theme/SidebarThemeToggle";
 import { Logo } from "@/components/ui/Logo";
 import { BusinessAvatar } from "@/components/app/Sidebar";
 import type { Business } from "@/lib/db/schema";
@@ -237,6 +238,7 @@ function UserMenu({ user }: { user: SessionUser }) {
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm">{label}</div>
       </div>
+      <SidebarThemeToggle />
       <button
         type="button"
         onClick={handleSignOut}
