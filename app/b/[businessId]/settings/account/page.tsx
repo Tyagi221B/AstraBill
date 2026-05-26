@@ -26,6 +26,7 @@ export default async function AccountPage() {
         name: user.name ?? session.name ?? "",
         email: user.email ?? session.email ?? "",
         image: user.image ?? session.image ?? null,
+        imageOverride: user.imageOverride ?? null,
       }}
     />
   );

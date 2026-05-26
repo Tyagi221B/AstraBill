@@ -226,8 +226,13 @@ function UserMenu({ user }: { user: SessionUser }) {
 
   return (
     <div className="flex items-center gap-2.5 px-1">
-      <div className="bg-muted flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold text-foreground">
-        {initials || "?"}
+      <div className="bg-muted flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold text-foreground">
+        {user.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={user.image} alt={label} className="h-full w-full object-cover" />
+        ) : (
+          <span>{initials || "?"}</span>
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm">{label}</div>

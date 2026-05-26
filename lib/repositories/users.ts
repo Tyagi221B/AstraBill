@@ -1,11 +1,15 @@
 /**
- * users repository — the auth-side of the user record. Most users data is
- * read straight from the session (set up by NextAuth); this repository
- * exists so the Account settings page can write back to it.
+ * users repository — the auth-side of the user record.
  *
- * Writes are intentionally narrow: we never touch `email`, `emailVerified`,
- * or `image` from this layer — those come from the OAuth provider on each
- * sign-in and would just be overwritten anyway.
+ * Writes are intentionally narrow:
+ *   - `name`           — editable via /settings/account
+ *   - `imageOverride`  — editable via /settings/account; takes precedence
+ *                        over `image` (the OAuth picture) when set. Pass null
+ *                        to clear and revert to the Google avatar.
+ *
+ * We never touch `email`, `emailVerified`, or `image` from this layer — those
+ * come from the OAuth provider on each sign-in and would just be overwritten
+ * anyway.
  */
 import "server-only";
 import { and, eq, isNull } from "drizzle-orm";
@@ -23,6 +27,9 @@ export async function getUserById(userId: string): Promise<User | null> {
 
 export interface UserPatch {
   name?: string;
+  /** `null` clears the override (revert to OAuth picture). `undefined` leaves
+   *  the existing value untouched. */
+  imageOverride?: string | null;
 }
 
 export async function updateUserTx(

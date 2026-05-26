@@ -200,6 +200,10 @@ export const users = pgTable("users", {
   email: text("email").unique(),
   emailVerified: timestamp("email_verified", { withTimezone: true }),
   image: text("image"),
+  // User-uploaded avatar. When set, takes precedence over `image` (the OAuth
+  // provider picture). Null = use `image` (OAuth) as the avatar; setting the
+  // override to null in /settings/account reverts to the Google picture.
+  imageOverride: text("image_override"),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   lastActiveAt: timestamp("last_active_at", { withTimezone: true }),
   ...lifecycle,

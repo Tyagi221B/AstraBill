@@ -70,6 +70,26 @@ export function signLogoUpload(businessId: string): SignedUpload {
 }
 
 /**
+ * Produce signed params for one user-avatar upload, pinned to the caller's
+ * own folder. Avatars are user-scoped (not business-scoped) — the display
+ * name + avatar in `users` are global across every business the user belongs
+ * to. The signed `asset_folder` keeps a malicious browser from re-pointing
+ * the upload at another user's folder.
+ */
+export function signUserAvatarUpload(userId: string): SignedUpload {
+  const { cloudName, apiKey, apiSecret } = config();
+  const timestamp = Math.floor(Date.now() / 1000);
+  const assetFolder = `astrabill/users/${userId}/avatar`;
+
+  const signature = cloudinary.utils.api_sign_request(
+    { timestamp, asset_folder: assetFolder },
+    apiSecret,
+  );
+
+  return { cloudName, apiKey, timestamp, signature, assetFolder };
+}
+
+/**
  * True only for an HTTPS delivery URL on *our* Cloudinary cloud. The branding
  * PATCH validates `logo_url` against this so the invoice renderer is never
  * pointed at an attacker-controlled host.
