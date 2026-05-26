@@ -2680,3 +2680,83 @@ Tsc clean. 30 tests passing. Manual smoke: Account save → sidebar
 UserMenu (name + avatar) updates in-place, no nav required.
 
 Commit: `873c47e`.
+
+## [2026-05-26] feat | Phase 2.0 — premium skeleton library + background glow
+
+The first concrete step in `[[decision/performance-roadmap]]` Phase 2 —
+the *foundation* that the cache-components flip + the page-by-page audit
+will rest on. No `cacheComponents: true` yet; this commit ships the
+visual infrastructure so when we do flip the flag, every page already
+has a polished placeholder to fall back into.
+
+**Background glow** (`components/app/BackgroundGlow.tsx` + globals.css
+`.app-glow`): two large blurred radial gradients in opposite corners of
+the authed app shell. Cool tones (deep indigo top-right, sky blue
+bottom-left) deliberately complement — not match — the warm-paper
+background, giving the surface ambient depth without competing with
+content. Numbers tuned: 56rem disc, 80px blur, ~8% effective opacity
+(0.45 layer × 18-22% gradient stop). Dark theme dims to 0.25 so the
+data area still leads. Fixed-positioned + `pointer-events: none` +
+`contain: strict` so it never blocks clicks, never scrolls, never
+triggers expensive repaints. The sidebar gets a `bg-sidebar/95
+backdrop-blur-sm` so the wash shows through subtly at its edge — same
+trick Linear / Vercel use to give the rail a sense of being *over* the
+content rather than beside it.
+
+**Shimmer animation** (globals.css `@keyframes shimmer` +
+`.animate-shimmer`): replaces the generic Tailwind `animate-pulse` as
+the default for `Skeleton`. A linear gradient (muted → 50% lighter band
+→ muted) at 200% width slides across in 1.6s. Reads as "the system is
+working" — deliberate, premium — instead of the generic Bootstrap-style
+pulse. `animate-pulse` is kept as an opt-in variant via the Skeleton
+primitive's `variant` prop for cases (tooltips, inline states) where
+the quieter fade is the right call. Both animations respect
+`prefers-reduced-motion`.
+
+**Fade-in transition** (globals.css `@keyframes fade-in` +
+`.animate-fade-in`, `components/ui/skeletons/FadeIn.tsx`): wraps
+streamed content for a 200ms ease-out cross-fade (opacity + 2px
+translate-y). Skeleton unmounts, real content fades in — single
+deliberate motion, no double-animation. The "considered" polish that
+separates premium from generic.
+
+**Skeleton recipe library**
+(`components/ui/skeletons/` — 7 compositions + index barrel):
+- `CardSkeleton` — matches the Card primitive's exact `px-6 pt-6 pb-6`
+  + `rounded-card` frame. Variable `lines` count for body rows.
+- `KpiTileSkeleton` + `KpiTileSkeletonRow` — dashboard's KPI cards.
+  Varying widths (`w-24` label / `w-32` figure / `w-20` caption) so a
+  row doesn't read as a mechanical grid of identical bars.
+- `TableRowSkeleton` — list-page rows. Deterministic width variance
+  (index mod N) so the column reads naturally without hydration warnings.
+- `ListItemSkeleton` — single-line list row (party picker, item picker,
+  business switcher dropdown). Avatar + 2-line text block.
+- `FormFieldSkeleton` — label + input pair. Heights match the live
+  Input primitive (`h-10`) exactly. `textarea` variant for taller fields.
+- `AvatarSkeleton` — circular placeholder with optional faded `User`
+  glyph hint at 40% opacity. Sizes (`xs`/`sm`/`md`/`lg`/`xl`/`2xl`)
+  mirror BusinessAvatar / UserMenu surface sizes.
+- `PageHeaderSkeleton` — the page-title row every settings sub-page +
+  list view uses (H2 + 1-line description + action button).
+
+Convention codified in `index.ts` comment + each component header:
+"Skeletons MUST match the dimensions of the content they replace.
+Reach for these BEFORE composing one-off skeletons — that's how layout
+shifts sneak in."
+
+**Validation case — dashboard `loading.tsx`**: rebuilt on the new
+recipes. PageHeaderSkeleton + KpiTileSkeletonRow + CardSkeleton. Three
+recipes, four lines of JSX, same visual result as the previous
+hand-rolled 40-line shell. When dashboard tile heights change, the
+recipe updates once and every consumer benefits.
+
+What this commit does NOT do:
+- Flip `cacheComponents: true` (Phase 2.2 — needs the layout
+  restructure to ship together)
+- Audit other pages (Phase 2.3 — staged by IA group)
+- Use Suspense anywhere yet (no benefit until 2.2)
+
+tsc clean. 30 tests passing. Dev server boots cleanly, dashboard renders
+`200 OK`. The glow + shimmer are visible without competing with content.
+
+Commit: `fc9eab8`.
