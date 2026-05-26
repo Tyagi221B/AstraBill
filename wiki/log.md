@@ -2555,3 +2555,128 @@ chrome is unchanged, but the form had been tuned against the wider
 mid-PR7 layout). One-character delta in three files.
 
 Commit: `270c078`.
+
+## [2026-05-26] feat | User-uploaded avatar — image_override column + uploader UI
+
+Adds the data + display tier for a user-uploaded avatar that takes
+precedence over the OAuth-provided picture. Owner uploads a photo via
+the Account settings page; the URL is stored on a new nullable column
+`users.image_override` and read by every UserMenu in the app.
+
+**Storage tier**:
+- `drizzle/0010_user_image_override.sql` — `ADD COLUMN image_override
+  text` (additive, nullable, applied to shared dev=prod DB)
+- `lib/schemas/user.ts` — `updateUserProfileSchema` gains
+  `imageOverride` (URL or null); `.partial()` so any subset of fields
+  is a valid PATCH
+- `lib/repositories/users.ts` — `UserPatch.imageOverride: string | null`
+  (null clears the override, undefined leaves the existing value)
+- `lib/services/users.ts` — validates `imageOverride` against the
+  Cloudinary host whitelist before persisting + writes an audit
+  entry. The patch is built field-by-field so a no-op PATCH
+  short-circuits without an audit row.
+
+**Upload pipeline**:
+- `lib/cloudinary.ts` — new `signUserAvatarUpload(userId)`: pins the
+  signed `asset_folder` to `astrabill/users/{userId}/avatar` so a
+  malicious browser can't re-point the upload at another user
+- `app/api/uploads/user-avatar/signature/route.ts` — issues the signed
+  params; gated only on `requireUser()` (no business-scope check —
+  avatars are user-scoped, not business-scoped)
+
+**UI**:
+- `AccountForm` — avatar card with three states (override set →
+  uploaded photo + "Use Google picture" clear / OAuth picture only →
+  "Upload photo" button / nothing → initials). Upload goes straight to
+  Cloudinary (matches the logo / signature pipeline from
+  `ManageBusinessForm`), then the resulting URL is sent in the next
+  save's PATCH diff.
+- `Sidebar.tsx` + `SettingsRail.tsx` UserMenus — render an `<img>`
+  when `session.user.image` is present, fall back to initials.
+
+**Known soft edge at this commit**: after save, the sidebar still
+reads `user.name` / `user.image` from the NextAuth JWT (set at
+sign-in time), so the new values appear only on the next navigation,
+not in-place. The auto-refresh is the next commit's job.
+
+Commit: `dbe5381`.
+
+## [2026-05-26] refactor | Phase 1 architecture — dual-wrapper writes + DB-authoritative session
+
+The forcing function was the Account save's sidebar-doesn't-refresh
+bug. The fix was the architecture, not the bug — three patterns
+locked into `DECISIONS.md` so future-Claude doesn't drift.
+
+**The bug, restated**: AccountForm wrote to the DB via
+`PATCH /api/users/me`, then called `useSession().update()` to trigger
+NextAuth's JWT-refresh, then `router.refresh()`. The chain looked
+right but `update()` with no args fires `trigger === "update"`
+unreliably in v5; the JWT cookie never re-signed; sidebar stayed
+stale until sign-out + sign-in. The user surfaced the symptom; doc
+search on Next 16 cache primitives surfaced both the cleaner fix and
+a longer roadmap.
+
+**Pattern 1 — dual wrappers**. Every write surface gets two thin
+wrappers around the same service:
+
+- A **Route Handler** (`app/api/.../route.ts`) for the HTTP API —
+  consumed by the future mobile app + external integrations + webhooks.
+- A **Server Action** (`actions.ts` colocated with the form) for the
+  in-process call from a React form.
+
+Both call the same `lib/services/*.ts` function; business logic stays
+there. Server Actions get `refresh()` / `updateTag()` from `next/cache`
+natively; the Route Handler stays stable HTTP for mobile.
+
+Applied here: kept `PATCH /api/users/me` exactly as-is, added
+`app/b/[businessId]/settings/account/actions.ts` with `saveAccount()`
+calling `updateUserProfile()` + `refresh()` from `next/cache`. The
+form's `save()` now calls the action via `startTransition` — single
+in-process call, no JSON round-trip, no client-side `router.refresh()`.
+
+**Pattern 2 — session helpers go DB-authoritative**. `lib/session.ts`
+`requireUser()` / `getSessionUser()` now fetch the `users` row by id
+on every authed request, returning `name` + resolved avatar
+(`imageOverride ?? image`) from the DB. The JWT carries `userId`
+only — that's the only true session claim. Display fields flow
+through the DB.
+
+Cost: +1 query per authed request (sub-millisecond PK lookup on
+Postgres; the business layout already does 2-3 queries). Benefit:
+every profile save shows everywhere instantly, no cookie-rewrite
+dance, no `useSession().update()` brittleness. **Eliminated** the
+`SessionProviderClient` mount, the `useSession()` call in
+AccountForm, and the `trigger === "update"` branch in
+`lib/auth.ts` — workaround-shaped, all gone.
+
+**Pattern 3 — cache primitive matrix**. With Next 16's `cacheTag` /
+`cacheLife` / `updateTag` / `revalidateTag` / `refresh` all stable,
+locked in `DECISIONS.md` exactly when each gets used:
+- `'use cache'` + `cacheTag` + `cacheLife` only on **measured** hot
+  read paths (no speculative caching)
+- `updateTag(tag)` from Server Actions for read-your-writes
+- `revalidateTag(tag, 'max')` from Route Handlers (where `updateTag`
+  is forbidden) for stale-while-revalidate
+- `refresh()` from Server Actions that wrote data and want the client
+  router to re-render
+- `'use cache: private'` — skip while experimental
+
+**Side artefact — locked Phase 2-4 in
+`[[decision/performance-roadmap]]`**. The "Zoho-feels-instant"
+target needs more than Phase 1. Phase 2 turns on `cacheComponents:
+true` (PPR — pre-rendered static shells, suspense-streamed dynamic
+regions) once we audit every page's dynamic-data access. Phase 3
+migrates every existing write surface to the Server Action +
+`updateTag` shape. Phase 4 wires React 19's `useOptimistic` on the
+top 4-5 write paths so a Save click flips the UI before the server
+responds. Each phase is its own session; no boil-the-ocean.
+
+**DECISIONS.md** gained 3 new rows under "Code Architecture":
+*Write surface — dual wrappers*, *Session helpers — DB-authoritative*,
+*Cache primitives — when to use what*. Reconcile date bumped to
+2026-05-26.
+
+Tsc clean. 30 tests passing. Manual smoke: Account save → sidebar
+UserMenu (name + avatar) updates in-place, no nav required.
+
+Commit: `<pending>` (filled at commit-time).

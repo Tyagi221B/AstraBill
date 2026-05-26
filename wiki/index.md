@@ -31,6 +31,7 @@
 | [decision/public-invoice-share.md](decision/public-invoice-share.md) | decision | Customer-facing `/i/[shareToken]` view + PDF download. 16-char token IS the auth; URL locked by the Meta-approved template button. The infra the 2B WhatsApp send plugs into. |
 | [decision/whatsapp-invoice-send.md](decision/whatsapp-invoice-send.md) | decision | Phase 2B hero loop — "Send on WhatsApp" on a finalised invoice. Template binding in one service, immutable send history, lazy share_token backfill, transport-layer sanitisation. |
 | [decision/ui-refinement-phase-2e.md](decision/ui-refinement-phase-2e.md) | decision | Phase 2E: 2–3 day visual-polish pass. Zoho-like, light-default, documented spacing/typography scale. Invoice creation form is the headline; patterns propagate. No flow changes, no new features. |
+| [decision/performance-roadmap.md](decision/performance-roadmap.md) | decision | "Zoho-feels-instant" target. Phase 1 (dual-wrapper + DB-authoritative session) shipped 2026-05-26; Phases 2 (PPR), 3 (full Server Action migration), 4 (`useOptimistic`) queued. |
 | **Competitors** | | |
 | [competitor/tally.md](competitor/tally.md) | competitor | The 30-year incumbent. Desktop-only, 70-90% MSME share, steep learning curve, ₹22,500+ |
 | [competitor/vyapar.md](competitor/vyapar.md) | competitor | Mobile challenger, 1Cr users, broken WhatsApp, serious RBAC privacy hole |

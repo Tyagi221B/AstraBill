@@ -4,18 +4,38 @@
  * Service-layer code never imports `auth()` directly; it calls these helpers
  * so the typed `UnauthorizedError` / `ForbiddenError` flows through the
  * standard route error pipeline (see lib/http.ts).
+ *
+ * What flows from NextAuth vs from our DB
+ * ---------------------------------------
+ * The JWT carries `userId` only — that's the load-bearing claim, the one
+ * that identifies the caller. Everything else display-related (name, the
+ * avatar URL) is fetched from `users` on every authed request. That makes
+ * the DB the authoritative source for display fields — when the owner
+ * saves their profile, the next render (after `refresh()`) reads the new
+ * values without any JWT cookie-rewriting dance.
+ *
+ * The `image` field returned here is the resolved avatar:
+ *   imageOverride ?? image
+ * — i.e. user-uploaded photo if set, otherwise the OAuth provider's
+ * picture. Every UserMenu (Sidebar, SettingsRail) just reads `user.image`
+ * and gets the right thing.
+ *
+ * Cost: +1 DB query per authed request. The business layout already does
+ * 2-3 queries; this is noise on top of that. PK lookups on `users` are
+ * sub-millisecond on Postgres.
  */
 import "server-only";
-
 import { auth } from "./auth";
 import { ForbiddenError, UnauthorizedError } from "./errors";
 import type { BusinessMember } from "./db/schema";
 import { getMembership } from "./rbac";
+import { getUserById } from "./repositories/users";
 
 export interface SessionUser {
   id: string;
   name?: string | null;
   email?: string | null;
+  /** Resolved display avatar — imageOverride if set, else OAuth picture. */
   image?: string | null;
 }
 
@@ -23,11 +43,15 @@ export interface SessionUser {
 export async function getSessionUser(): Promise<SessionUser | null> {
   const session = await auth();
   if (!session?.user?.id) return null;
+  const row = await getUserById(session.user.id);
+  // Soft-deleted or hard-missing → treat as unauthenticated. The session
+  // still has an id but the row is gone, so we can't render a real user.
+  if (!row) return null;
   return {
-    id: session.user.id,
-    name: session.user.name ?? null,
-    email: session.user.email ?? null,
-    image: session.user.image ?? null,
+    id: row.id,
+    name: row.name ?? session.user.name ?? null,
+    email: row.email ?? session.user.email ?? null,
+    image: row.imageOverride ?? row.image ?? session.user.image ?? null,
   };
 }
 

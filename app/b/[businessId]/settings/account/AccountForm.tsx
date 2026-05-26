@@ -12,16 +12,17 @@
  * Read-only: email + sign-in method (managed by the OAuth provider; NextAuth
  * pulls them on each sign-in).
  *
- * After save: the new values land in the `users` row via PATCH, but the
- * sidebar avatar / name don't auto-refresh in this build — the session
- * helpers still read display fields from the NextAuth JWT, which only
- * re-issues on sign-in. Owner sees the new values on the next navigation.
- * (The auto-refresh comes with the next architecture step: Server Action +
- * DB-authoritative session helpers.)
+ * Save flow: calls the `saveAccount` Server Action (see ./actions.ts), which
+ * wraps `updateUserProfile` + `refresh()`. Because `requireUser()` is now
+ * DB-authoritative for display fields, the sidebar UserMenu re-renders with
+ * the new name / avatar as soon as the action returns — no client-side
+ * router.refresh, no JWT round-trip.
  */
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Camera, X } from "lucide-react";
+
+import { saveAccount } from "./actions";
 
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -53,7 +54,9 @@ export function AccountForm({ initial }: { initial: AccountInitial }) {
     name: initial.name,
     imageOverride: initial.imageOverride,
   });
-  const [busy, setBusy] = useState(false);
+  // useTransition keeps the form interactive while the Server Action runs
+  // (the input isn't blocked, the button just shows "Saving…").
+  const [busy, startSave] = useTransition();
   const [uploadBusy, setUploadBusy] = useState(false);
 
   const dirty = useMemo(
@@ -115,32 +118,23 @@ export function AccountForm({ initial }: { initial: AccountInitial }) {
     }
   }
 
-  async function save() {
-    setBusy(true);
-    try {
-      // Send only fields that changed.
-      const body: { name?: string; imageOverride?: string | null } = {};
-      if (s.name.trim() !== saved.name.trim()) body.name = s.name.trim();
-      if (s.imageOverride !== saved.imageOverride) {
-        body.imageOverride = s.imageOverride;
-      }
+  function save() {
+    // Send only fields that changed — service no-ops if patch is empty.
+    const body: { name?: string; imageOverride?: string | null } = {};
+    if (s.name.trim() !== saved.name.trim()) body.name = s.name.trim();
+    if (s.imageOverride !== saved.imageOverride) {
+      body.imageOverride = s.imageOverride;
+    }
 
-      const res = await fetch("/api/users/me", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const json = (await res.json()) as
-        | { ok: true }
-        | { ok: false; error: { message: string } };
-      if (!json.ok) throw new Error(json.error.message);
+    startSave(async () => {
+      const result = await saveAccount(body);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
       setSaved({ name: s.name.trim(), imageOverride: s.imageOverride });
       toast.success("Account updated");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not save");
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   const initials = (s.name || initial.email)
