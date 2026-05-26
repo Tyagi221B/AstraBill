@@ -99,7 +99,7 @@ lib/                                   # Server-side business code + shared util
 
 components/
 ├── ui/                                # shadcn/ui primitives
-├── app/                               # In-app chrome (Sidebar, MobileNav, …)
+├── app/                               # In-app chrome (BrandedAppShell, Sidebar, SettingsRail, …)
 ├── marketing/                         # Marketing-site chrome
 └── theme/                             # next-themes provider
 ```

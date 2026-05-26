@@ -2339,3 +2339,219 @@ myBillBook layout we were trying to mimic all along).
 elements (defensive code for the stretch behavior we just disabled).
 
 Commit: `724c4b8`.
+
+## [2026-05-25] build | Settings overhaul Phase 1 — myBillBook-grade shell + Manage Business form
+
+Triggered by a myBillBook screenshot the user dropped in: "make setting
+page the most thinked of and like real product setting page like this i
+want this." The existing surface was a per-page tab strip (`SettingsNav`)
+over five mostly-empty pages — not a "settings home", more a debug menu.
+This phase rebuilds the IA and lands the marquee profile editor.
+
+**New chrome — `SettingsRail` v1**: a secondary left rail rendered by
+`app/b/[businessId]/settings/layout.tsx`, replacing the per-page
+`<SettingsNav>` tab strip across every settings page. 11 nav items
+matching myBillBook's IA, split into two groups:
+
+- **Primary** (live + V2): Account, Manage Business, Invoice Settings,
+  Print Settings (lives now), Manage Users / Reminders / CA Reports /
+  Pricing / Refer & Earn / Help (V2 — ship as live "Coming Soon" pages
+  with a "Soon" chip on the rail, URLs reserved so the chrome stays
+  stable across launches).
+- **Advanced** (domain-specific surfaces we already had): Branding (kept
+  for now — gets renamed in Phase 3), Payments, Party categories, Party
+  fields, Item categories.
+
+A reusable `_components/ComingSoon.tsx` card backs the V2 stubs so the
+copy stays consistent.
+
+**Marquee surface — Manage Business**: the dense business profile form
+the screenshot was built around. One page, three+ cards on the left
+(identity / billing address / tax identity + e-Invoicing/TDS/TCS / FY
+start month) and a right column (business type chips · industry ·
+registration type · signature with empty-box fallback for hand-signing ·
+free-form k=v additional invoice details). Local form state is one
+`EditorState` object; save sends a diff PATCH via `diffPatch(saved, s)`
+so the wire payload carries only changed fields.
+
+Server tier (new):
+
+- `updateBusinessProfileSchema` (Zod) — every form field, `.partial()`
+  so any subset is a valid PATCH. PAN, GSTIN, pincode, state code regex
+  all enforced at the boundary.
+- `updateBusinessProfile` service — owner-only via
+  `roleHas(found.role, "settings:edit")`, 404 for not-a-member,
+  Cloudinary-host check on `signatureUrl` + `logoUrl` (defence in depth
+  alongside the schema), auto-clears `gstin` when `isGstRegistered`
+  flips false (keeps the row coherent even when called from a script).
+  Wraps in `db.transaction` with an audit entry.
+- `PATCH /api/businesses/[id]/profile` — thin route, mirrors the
+  `/payment-settings` pattern.
+- New seed lists in `lib/constants/business-profile.ts` (BUSINESS_TYPES
+  6 / INDUSTRY_TYPES 20 / BUSINESS_REGISTRATION_TYPES 8 /
+  SIGNATURE_MODES 2) — kept stable so cross-row analytics make sense.
+- `lib/routes.ts` extended: `settings.index` (root redirect target) +
+  all 10 settings sub-routes wired through.
+
+**Routing**: `/settings/` now redirects to `/settings/manage-business`
+(landing the user on the most-used surface, not an empty index).
+
+**Reused infra**: existing Cloudinary signed-upload endpoint
+(`/api/uploads/signature`) serves both logo + signature uploads — same
+host invariant, no new pipeline.
+
+Commit: `e31afd9`.
+
+## [2026-05-25] build | Settings overhaul Phase 2 — Invoice Settings (numbering + default T&C)
+
+Replaces the coming-soon stub at `/settings/invoice-settings` with the
+real per-doc-type editor. Two sections, both backed by existing
+service-layer plumbing.
+
+**Numbering section**: one card per doc type (8 total — sales_invoice,
+quotation, estimate, delivery_challan, credit_note, purchase_invoice,
+debit_note, proforma_invoice) with `prefix`, `nextSequence`, sequence
+`template`, and `resetEachFy` toggle. Edits hit the existing
+`/api/document-counters/seed` route which is upsert-with-safety: the
+service refuses to reduce a sequence below already-issued numbers
+(matches the partial UQ on `documents.docNumber` and the existing
+onboarding-wizard guard). A below-min state is also surfaced inline
+*before* the user clicks save — "Cannot go below issued max N" — so it
+fails loud rather than throwing on submit.
+
+**Default T&C section**: one textarea per doc type for the seeded
+fallback that prints on every new document. Edits flow through the
+profile PATCH (`/api/businesses/[id]/profile`) — `updateBusinessProfileSchema`
+gains a `docTypeDefaults` Zod record keyed by docType. The `[CITY]`
+placeholder still substitutes at render time, so owners don't have to
+remember to type their city.
+
+**Wire shape**: Save batches both writes (one POST for changed counters
++ one PATCH if T&C changed); each section only sends if dirty, so a
+no-op save is a no-op on the wire too. Per-doc-type error pinning when
+the service returns "Cannot reduce X sequence below N".
+
+Server tier (added):
+
+- `listCountersForBusinessTx` repo helper (orders by doc_type, fy_year
+  DESC so the latest FY shows first).
+- `listCountersForBusiness` service — owner-only via `requirePermission`.
+- Page narrows to current-FY rows via `fyTokenFromDate(new Date())`.
+
+Rail polish: drops the "Soon" chip from Invoice Settings.
+
+Commit: `76764c0`.
+
+## [2026-05-25] build | Settings overhaul Phase 3 — Print Settings + Account
+
+Two new live surfaces; three coming-soon stubs leave the rail.
+
+**Phase 3A — `/settings/branding` → `/settings/print-settings`.** The
+URL was code-historical (we built it during the 2C invoice-design-system
+work) but the myBillBook IA name is "Print Settings" and that's what
+shows up on the rail. Renamed the folder via `git mv` so blame history
+follows, and renamed the component `BrandingEditor` →
+`PrintSettingsEditor` (plus `BrandingInitial` → `PrintSettingsInitial`).
+Same UX (template · colour · font · columns · logo · live PDF preview),
+more discoverable URL. The Advanced tray loses its "Branding" entry —
+the new "Print Settings" item is in the Primary group as a first-class
+surface. PostHog event name + button label ("Save branding" → "Save
+print settings") updated.
+
+**Phase 3B — `/settings/account` (new live page).** The caller's own
+profile, scoped per-user (not per-business — the form just lives under
+the business chrome for consistency). Editable: name. Read-only: email
++ sign-in method (both managed by the OAuth provider, so editing them
+in our DB would silently get overwritten on the next session refresh).
+
+Server tier (new):
+
+- `lib/schemas/user.ts` — `updateUserProfileSchema` (Zod, name-only V1).
+- `lib/repositories/users.ts` — `getUserById` + `updateUserTx` (narrow
+  patch, never touches `email` or `image` which OAuth owns).
+- `lib/services/users.ts` — `updateUserProfile` wraps in tx + writes a
+  `"user.update"` audit entry.
+- `PATCH /api/users/me` — route scoped to the caller's own id (no `:id`
+  param — you can only edit yourself).
+
+After save the form calls `router.refresh()` so the sidebar's `UserMenu`
+re-renders with the new name (NextAuth refreshes the JWT on the next
+request).
+
+**Doc-comment cleanup**: a few lingering `/settings/branding` references
+in `/i/preview/route.ts`, `lib/services/document-pdf.ts`, and
+`lib/schemas/business.ts` updated to the new URL.
+
+Commit: `54d6497`.
+
+## [2026-05-25] build | Settings overhaul Phase 4 — Sidebar takeover (one nav column, not two)
+
+User caught the architecture problem during testing: Phases 1–3 had
+shipped `/settings/*` with **two side-by-side rails** — the main app
+rail on the left (Dashboard / Parties / Items / …) PLUS the Settings
+rail on its right. Three screenshots in: ours vs myBillBook's vs our
+dashboard. myBillBook's settings page replaces its main rail with the
+settings rail; we had stacked them. The result was ~480px of horizontal
+real estate eaten by chrome and an ambiguous "what's the relationship
+between these two columns?" reading.
+
+User asked "tell me what you understand first" before any code — the
+asked-and-answered conversation locked the model: settings is a *mode*
+the app enters, not a sub-section that lives beside it. Like macOS
+System Settings, VS Code's settings tab, GitHub's `/settings/*`. One
+rail. The way back out is a "Back to Dashboard" button at the top of
+the settings rail.
+
+**`SettingsRail` rewritten** as a full-height primary rail mirroring
+`SidebarContent`'s three-region shape:
+
+- **Header**: business identity (`BusinessAvatar` + name + GST badge)
+  + the "Back to Dashboard" button (the explicit way out of settings
+  mode). Deliberately no business switcher here — settings is
+  per-business; switch from Dashboard first.
+- **Nav**: Primary group (10 items, V2 items keep their "Soon" chip)
+  + Advanced group (4 domain surfaces: Payments, Party categories,
+  Party fields, Item categories). Active-state matches the main rail
+  (rounded-md row + sidebar-accent fill).
+- **Footer**: `UserMenu` (sign out via `signOut` + `posthog.reset()`)
+  + Powered-by-AstraBill `Logo` mark.
+
+**`BrandedAppShell` converted to a client component** so it can read
+the active pathname. One slot, two modes:
+
+```tsx
+const inSettings = pathname.startsWith(`/b/${business.id}/settings`);
+// in <aside>: {inSettings ? <SettingsRail .../> : <SidebarContent .../>}
+```
+
+Mobile drawer follows the same rule — `inSettings` controls which body
+the slide-in renders. The drawer's UX (slide + body-scroll-lock + Esc
+to close) is folded into `BrandedAppShell` since the standalone
+`MobileNav.tsx` was orphaned by the rewrite — **deleted**.
+
+`Business` / `BusinessMember` / `SessionUser` imported as `import type`
+only, since the parent *server* layout still hydrates them and passes
+them in. No runtime crossing of the client/server boundary.
+
+**`app/b/[businessId]/settings/layout.tsx` shrinks** to a thin
+membership-verifier + children passthrough — the shell owns the rail
+now, the layout has no chrome of its own. Previous inline
+`<SettingsRail businessId=…>` render is gone.
+
+**The pattern is reusable**: any future sub-app context (a "Reports"
+mode with its own deep navigation, e.g.) can swap into the same slot
+the same way. Recorded as a row under "App shell & navigation" in
+`DECISIONS.md`.
+
+Commit: `00dfdbc`.
+
+## [2026-05-25] polish | DocumentForm + pickers — responsive width clamps
+
+Small follow-on after the sidebar takeover landed: the document form
+and its two pickers (PartyPicker / ItemPicker) needed their `min-w` /
+`max-w` rules nudged so the form sits cleanly inside the narrower
+content column the sidebar-takeover layout still leaves (the main
+chrome is unchanged, but the form had been tuned against the wider
+mid-PR7 layout). One-character delta in three files.
+
+Commit: `270c078`.

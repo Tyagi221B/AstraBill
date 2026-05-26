@@ -163,6 +163,12 @@ considers snapshot-at-finalise.
 
 ### Customization UI — `/settings/branding`
 
+> **Note (2026-05-25):** Route renamed to `/settings/print-settings` in
+> the Settings overhaul Phase 3 (to match the myBillBook IA the rest of
+> the Settings rail follows). The component was renamed `BrandingEditor`
+> → `PrintSettingsEditor`. Tabs and UX below are unchanged. Binding row:
+> `DECISIONS.md` → "Branding settings UI".
+
 New route under the AppShell ([[decision/frontend-architecture]]).
 Tabs:
 

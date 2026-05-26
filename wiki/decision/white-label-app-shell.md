@@ -169,6 +169,45 @@ set as a later addition. Step 4 split the sidebar body into a shared
 `SidebarContent` rendered by both the desktop `<aside>` and a mobile drawer.
 The app now feels like the owner's billing dashboard on every screen size.
 
+## Addendum — Settings overhaul (2026-05-25)
+
+Two extensions to the shell pattern landed under the Settings overhaul.
+The originals above (single `SidebarContent` body, `MobileNav` mobile
+shell) describe the V1 chrome; the additions below describe its
+elaboration. Binding rows live in `DECISIONS.md` ("App shell & navigation"
+section); rationale here.
+
+**Sidebar mode swap.** `/settings/*` was initially shipped (Phases 1–3
+of the overhaul) with the Settings rail rendered *beside* the main app
+rail — two side-by-side nav columns. The user caught the problem during
+testing: ~480px of horizontal real estate eaten by chrome, and an
+ambiguous "what's the relationship between these two?" reading.
+myBillBook, macOS System Settings, VS Code, GitHub `/settings/*` — all
+treat settings as a *mode* the app enters, not a sub-section beside it.
+One rail at a time.
+
+The fix (Phase 4, commit `00dfdbc`): `BrandedAppShell` became a client
+component reading `usePathname()`; the same `<aside>` slot renders
+`SettingsRail` when `pathname.startsWith('/b/[id]/settings')`, otherwise
+`SidebarContent`. The settings rail picks up its own three-region shape
+(business identity + a "Back to Dashboard" button / nav / UserMenu
+footer). No business switcher in the settings rail — settings is
+per-business, switch from Dashboard first.
+
+**Mobile drawer folding.** Step 4 above shipped `MobileNav` as a
+standalone component carrying the slide-in drawer + body-scroll-lock +
+Esc-to-close UX. The sidebar mode swap made it orphan code (the drawer
+now needs to render whichever rail matches `inSettings`, and that lives
+in `BrandedAppShell`'s pathname check). `MobileNav.tsx` was folded into
+`BrandedAppShell` and deleted; the drawer UX is unchanged but no longer
+lives in a separate file. Step 4 of the table still describes what
+shipped originally; the component is gone, the behaviour stays.
+
+**The pattern is reusable.** Any future sub-app context (a Reports mode
+with deep nav, a Settings-for-the-account level, etc.) can swap into
+the same slot the same way. The rule is: one nav column at a time, a
+clear way out of the mode at the top of the replacing rail.
+
 ## Related
 
 - [[decision/invoice-design-system]] — the parallel "make it theirs" move on
