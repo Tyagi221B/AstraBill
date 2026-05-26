@@ -75,9 +75,11 @@ import {
   insertDocumentLineItemsTx,
   insertDocumentTx,
   listDocumentsForUser,
+  listDocumentsWithPartyForUser,
   markCancelledTx,
   markFinalisedTx,
   updateDocumentTx,
+  type DocumentWithParty,
 } from "../repositories/documents";
 import { reserveNextNumberTx } from "./document-counters";
 import {
@@ -878,7 +880,8 @@ export async function getDocumentDetail(
   return findDocumentWithLinesForUser(actorUserId, documentId);
 }
 
-export { listDocumentsForUser };
+export { listDocumentsForUser, listDocumentsWithPartyForUser };
+export type { DocumentWithParty };
 
 // ─── Convert flows ────────────────────────────────────────────────────────
 

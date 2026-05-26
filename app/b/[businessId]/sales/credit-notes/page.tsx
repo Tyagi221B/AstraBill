@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { RotateCcw } from "lucide-react";
 
 import { DocumentListView } from "@/components/documents/DocumentListView";
-import { listDocumentsForUser } from "@/lib/services/documents";
+import { listDocumentsWithPartyForUser } from "@/lib/services/documents";
 import { routes } from "@/lib/routes";
 import { requireUser } from "@/lib/session";
 
@@ -16,7 +16,7 @@ export default async function CreditNotesPage({
   const user = await requireUser();
   const { businessId } = await params;
   const b = routes.b(businessId);
-  const documents = await listDocumentsForUser({
+  const documents = await listDocumentsWithPartyForUser({
     userId: user.id,
     businessId,
     docType: "credit_note",

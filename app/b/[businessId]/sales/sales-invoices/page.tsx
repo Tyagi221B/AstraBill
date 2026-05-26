@@ -23,9 +23,13 @@ import { Badge } from "@/components/ui/badge";
 import { buttonClasses } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { Document } from "@/lib/db/schema";
-import { listDocumentsForUser } from "@/lib/services/documents";
+import {
+  listDocumentsWithPartyForUser,
+  type DocumentWithParty,
+} from "@/lib/services/documents";
 import { routes } from "@/lib/routes";
 import { requireUser } from "@/lib/session";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Sales invoices · AstraBill",
@@ -45,6 +49,37 @@ const STATUS_TONE: Record<
 const inr = (n: string) =>
   `₹${Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
+/**
+ * "Due in N days" / "Overdue N days" / "Due today", relative to the
+ * caller-supplied today value (so every row in the list reasons against
+ * the same reference — no drift across a long list). Returns null when
+ * due-date doesn't apply (paid, cancelled, draft, or no dueDate).
+ */
+function dueLabel(
+  doc: DocumentWithParty,
+  today: string,
+): { text: string; tone: "neutral" | "warning" | "danger" } | null {
+  if (!doc.dueDate) return null;
+  if (doc.status === "paid" || doc.status === "cancelled" || doc.status === "draft") {
+    return null;
+  }
+  const dueMs = Date.parse(`${doc.dueDate}T00:00:00Z`);
+  const todayMs = Date.parse(`${today}T00:00:00Z`);
+  const diffDays = Math.round((dueMs - todayMs) / (1000 * 60 * 60 * 24));
+  if (diffDays > 0) {
+    return {
+      text: diffDays === 1 ? "Due tomorrow" : `Due in ${diffDays} days`,
+      tone: diffDays <= 7 ? "warning" : "neutral",
+    };
+  }
+  if (diffDays === 0) return { text: "Due today", tone: "warning" };
+  const overdue = -diffDays;
+  return {
+    text: overdue === 1 ? "1 day overdue" : `${overdue} days overdue`,
+    tone: "danger",
+  };
+}
+
 export default async function SalesInvoicesPage({
   params,
 }: {
@@ -54,12 +89,17 @@ export default async function SalesInvoicesPage({
   const { businessId } = await params;
   const b = routes.b(businessId);
 
-  const documents = await listDocumentsForUser({
+  const documents = await listDocumentsWithPartyForUser({
     userId: user.id,
     businessId,
     docType: "sales_invoice",
     limit: 500,
   });
+
+  // Single "today" reference for every row's due-date math — no drift
+  // across a long list (a row late in the table can't end up one day
+  // off from a row at the top).
+  const today = new Date().toISOString().slice(0, 10);
 
   let totalBilled = new Decimal(0);
   let unpaidValue = new Decimal(0);
@@ -145,7 +185,9 @@ export default async function SalesInvoicesPage({
                   <tr className="text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                     <th className="px-4 py-3">Number</th>
                     <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Party</th>
                     <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Due</th>
                     <th className="px-4 py-3 text-right">Total</th>
                     <th className="px-4 py-3 text-right">Balance</th>
                     <th className="px-4 py-3" />
@@ -158,6 +200,7 @@ export default async function SalesInvoicesPage({
                       .toFixed(2);
                     const isDraft = d.status === "draft";
                     const isCancelled = d.status === "cancelled";
+                    const due = dueLabel(d, today);
                     return (
                       <tr
                         key={d.id}
@@ -178,10 +221,28 @@ export default async function SalesInvoicesPage({
                         <td className="px-4 py-3 text-muted-foreground tabular-nums">
                           {d.docDate}
                         </td>
+                        <td className="px-4 py-3 max-w-56 truncate">
+                          {d.partyName}
+                        </td>
                         <td className="px-4 py-3">
                           <Badge tone={STATUS_TONE[d.status]}>
                             {d.status.replace("_", " ")}
                           </Badge>
+                        </td>
+                        <td className="px-4 py-3 text-xs whitespace-nowrap">
+                          {due ? (
+                            <span
+                              className={cn(
+                                due.tone === "danger" && "text-danger font-medium",
+                                due.tone === "warning" && "text-warning",
+                                due.tone === "neutral" && "text-muted-foreground",
+                              )}
+                            >
+                              {due.text}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums">
                           {inr(d.grandTotal)}

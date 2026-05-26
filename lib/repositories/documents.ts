@@ -22,6 +22,7 @@ import {
   documentAdditionalCharges,
   documentLineItems,
   documents,
+  parties,
 } from "../db/schema";
 
 export async function insertDocumentTx(
@@ -176,6 +177,58 @@ export async function listDocumentsForUser(opts: {
     .where(and(...whereParts))
     .orderBy(desc(documents.docDate), desc(documents.createdAt))
     .limit(opts.limit ?? 200);
+}
+
+/**
+ * `Document` joined with its party's display name — the shape every list
+ * page needs. Lifted out into its own helper so we don't write the same
+ * leftJoin in five list pages (sales-invoices, quotations, credit-notes,
+ * purchase-invoices, debit-notes — plus the shared `<DocumentListView>`).
+ *
+ * Returns a plain `Document` with `partyName` welded on as a sibling
+ * key — the existing callers that only use `Document` fields still work
+ * unchanged; the list views consume the extra key.
+ */
+export type DocumentWithParty = Document & {
+  partyName: string;
+};
+
+export async function listDocumentsWithPartyForUser(opts: {
+  userId: string;
+  businessId?: string;
+  docType?: Document["docType"];
+  status?: Document["status"];
+  partyId?: string;
+  limit?: number;
+}): Promise<DocumentWithParty[]> {
+  const memberBusinessIds = db
+    .select({ id: businessMembers.businessId })
+    .from(businessMembers)
+    .where(
+      and(
+        eq(businessMembers.userId, opts.userId),
+        isNull(businessMembers.deletedAt),
+      ),
+    );
+
+  const whereParts = [
+    inArray(documents.businessId, memberBusinessIds),
+    isNull(documents.deletedAt),
+  ];
+  if (opts.businessId) whereParts.push(eq(documents.businessId, opts.businessId));
+  if (opts.docType) whereParts.push(eq(documents.docType, opts.docType));
+  if (opts.status) whereParts.push(eq(documents.status, opts.status));
+  if (opts.partyId) whereParts.push(eq(documents.partyId, opts.partyId));
+
+  const rows = await db
+    .select({ document: documents, partyName: parties.name })
+    .from(documents)
+    .innerJoin(parties, eq(parties.id, documents.partyId))
+    .where(and(...whereParts))
+    .orderBy(desc(documents.docDate), desc(documents.createdAt))
+    .limit(opts.limit ?? 200);
+
+  return rows.map((r) => ({ ...r.document, partyName: r.partyName }));
 }
 
 export interface DocumentPatch {
