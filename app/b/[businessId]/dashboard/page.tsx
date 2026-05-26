@@ -12,6 +12,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import {
+  AlertCircle,
+  CircleCheck,
+  PackageOpen,
+  TrendingUp,
+} from "lucide-react";
 
 import { Kpi } from "@/components/app/Kpi";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -41,6 +47,30 @@ const STATUS_TONE: Record<
 const inr = (n: string) =>
   `₹${Number(n).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 
+/**
+ * Time-of-day greeting in IST (Indian Standard Time, UTC+5:30 — our
+ * audience). Pure UTC arithmetic so it works the same in dev, on
+ * Vercel, and inside a Docker container without depending on the
+ * server's local timezone setting.
+ */
+function getGreeting(): string {
+  const now = new Date();
+  const istMinutes = now.getUTCHours() * 60 + now.getUTCMinutes() + 330; // +5h30m
+  const istHour = Math.floor(istMinutes / 60) % 24;
+  if (istHour >= 4 && istHour < 12) return "Good morning";
+  if (istHour >= 12 && istHour < 17) return "Good afternoon";
+  if (istHour >= 17 && istHour < 21) return "Good evening";
+  return "Welcome back";
+}
+
+/** Take the first word of a display name; falls back to "there" for the
+ *  rare case where neither name nor email yields a usable handle. */
+function firstName(name: string | null | undefined): string {
+  const trimmed = name?.trim();
+  if (!trimmed) return "there";
+  return trimmed.split(/\s+/)[0]!;
+}
+
 export default async function BusinessDashboardPage({
   params,
 }: {
@@ -59,7 +89,7 @@ export default async function BusinessDashboardPage({
     <>
       <PageHeader
         title={business.name}
-        description="Welcome back"
+        description={`${getGreeting()}, ${firstName(user.name)}`}
         action={
           <Link
             href={b.newSalesInvoice}
@@ -77,16 +107,21 @@ export default async function BusinessDashboardPage({
           value={inr(data.outstanding)}
           hint={hasOutstanding ? "Yet to be collected" : "All clear"}
           tone={hasOutstanding ? "warning" : "success"}
+          icon={hasOutstanding ? AlertCircle : CircleCheck}
         />
         <Kpi
           label="Paid this month"
           value={inr(data.paidThisMonth)}
           hint="Payments received"
+          tone="success"
+          icon={CircleCheck}
         />
         <Kpi
           label="Revenue this month"
           value={inr(data.revenueThisMonth)}
           hint="Invoiced this month"
+          tone="brand"
+          icon={TrendingUp}
         />
       </section>
 
@@ -162,9 +197,10 @@ export default async function BusinessDashboardPage({
       {data.lowStock.length > 0 && (
         <Card>
           <CardContent className="pt-6">
-            <h2 className="mb-3 text-base font-semibold">
+            <h2 className="mb-3 flex items-center gap-2 text-base font-semibold">
+              <PackageOpen className="h-4 w-4 text-warning" />
               Low stock
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
+              <span className="text-sm font-normal text-muted-foreground">
                 {data.lowStock.length}{" "}
                 {data.lowStock.length === 1 ? "item" : "items"} at or below the
                 alert level
@@ -183,7 +219,7 @@ export default async function BusinessDashboardPage({
                     {item.name}
                   </Link>
                   <span className="tabular-nums text-muted-foreground">
-                    <span className="font-semibold text-destructive">
+                    <span className="font-semibold text-warning">
                       {item.currentStock}
                     </span>{" "}
                     {item.measuringUnitCode ?? ""} left · alerts at{" "}
