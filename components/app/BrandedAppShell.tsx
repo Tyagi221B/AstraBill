@@ -21,6 +21,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 
+import { BackgroundGlow } from "@/components/app/BackgroundGlow";
 import { BusinessAvatar, SidebarContent } from "@/components/app/Sidebar";
 import { SettingsRail } from "@/components/app/SettingsRail";
 import type { Business, BusinessMember } from "@/lib/db/schema";
@@ -46,9 +47,13 @@ export function BrandedAppShell({
   const inSettings = pathname.startsWith(`/b/${business.id}/settings`);
 
   return (
-    <div className="flex min-h-dvh bg-background text-foreground">
+    <div className="relative flex min-h-dvh bg-background text-foreground">
+      {/* Ambient depth wash — sits behind everything, fixed-positioned so it
+          doesn't scroll with content. See globals.css `.app-glow`. */}
+      <BackgroundGlow />
+
       {/* desktop sidebar — same slot, content swaps based on path */}
-      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 border-r border-sidebar-border md:flex">
+      <aside className="bg-sidebar/95 sticky top-0 z-10 hidden h-dvh w-64 shrink-0 border-r border-sidebar-border backdrop-blur-sm md:flex">
         {inSettings ? (
           <SettingsRail business={business} user={user} />
         ) : (
@@ -60,7 +65,7 @@ export function BrandedAppShell({
         )}
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
         <MobileTopBar
           business={business}
           businesses={businesses}

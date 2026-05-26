@@ -234,3 +234,151 @@
   background-clip: text;
   color: transparent;
 }
+
+/* ---------------------------------------------------------------------------
+   Skeleton shimmer — Phase 2.0 (Cache Components foundation)
+
+   Two animation styles available:
+     - .animate-shimmer (default for Skeleton primitive)
+         A deliberate horizontal sweep — 90% of the surface stays at the
+         `muted` token while a slightly lighter band moves across. Reads as
+         "the system is working" without the generic Bootstrap-style pulse
+         that screams cheap.
+     - .animate-pulse (legacy, kept for opt-in via Skeleton's `variant` prop)
+         The Tailwind default. Still here so a caller that explicitly wants
+         a pulsing placeholder (e.g. fast inline loading inside a tooltip)
+         can pick it. New skeletons should use shimmer.
+
+   The colors are token-driven so light + dark themes flow through without
+   any extra CSS. Animation is 1.6s — slow enough to read as deliberate,
+   fast enough to not feel sluggish on the 300ms-or-it-flashes threshold.
+
+   `prefers-reduced-motion`: animation pauses, the base muted color stays.
+--------------------------------------------------------------------------- */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-shimmer {
+  /* The gradient produces a soft sweep: base muted → slightly lighter band
+     → base muted. Background-size 200% lets keyframes slide it across. */
+  background-image: linear-gradient(
+    90deg,
+    var(--muted) 0%,
+    color-mix(in srgb, var(--muted) 50%, var(--background)) 50%,
+    var(--muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer {
+    animation: none;
+    background-image: none;
+    background-color: var(--muted);
+  }
+}
+
+/* Premium fade-in for skeleton → real-content transitions. The skeleton
+   unmounts; this is the *arriving* content easing in. 200ms is the sweet
+   spot — fast enough to feel responsive, slow enough to read as polish.
+   `animation-fill-mode: both` so the initial opacity:0 + translateY apply
+   immediately, preventing a 1-frame flash of pre-animation state. */
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 200ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Background glow — Phase 2.0
+
+   Two large blurred radial gradients positioned in opposite corners of the
+   authed app shell. Cool tones (indigo + sky) deliberately complement —
+   not match — the warm-paper background, giving the surface a sense of
+   depth without competing with content.
+
+   Numbers are intentional:
+     - `width/height: 56rem` — the wash is large enough that the falloff
+       is gentle (no visible disc edge), small enough that two of them
+       fit on a 1440px canvas without overlapping.
+     - `filter: blur(80px)` — softens the edge further so the gradient
+       reads as ambient light, not a graphic shape.
+     - `opacity: 0.45` on the pseudo-element pairs with `color-mix(... 18%)`
+       on the gradient stop to land at ~8% effective opacity — visible
+       enough to register, quiet enough to never compete with data.
+     - Dark theme dims further to 0.25 so the data area still leads.
+
+   Fixed-positioned + pointer-events:none + z-index:0 so it never blocks
+   clicks or scroll and lives behind every content surface. `contain:
+   strict` so the blur doesn't trigger expensive repaints on scroll.
+--------------------------------------------------------------------------- */
+.app-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  contain: strict;
+}
+
+.app-glow::before,
+.app-glow::after {
+  content: "";
+  position: absolute;
+  width: 56rem;
+  height: 56rem;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.45;
+}
+
+.app-glow::before {
+  /* Top-right — deep indigo brand wash. */
+  top: -20rem;
+  right: -20rem;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--brand-from) 22%, transparent) 0%,
+    transparent 60%
+  );
+}
+
+.app-glow::after {
+  /* Bottom-left — softer sky wash for visual lift on the data area. */
+  bottom: -24rem;
+  left: -20rem;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--brand-to) 18%, transparent) 0%,
+    transparent 60%
+  );
+}
+
+/* In dark mode the glow is even more restrained — both washes dim further
+   so the data area still leads. */
+.dark .app-glow::before,
+.dark .app-glow::after {
+  opacity: 0.25;
+}
