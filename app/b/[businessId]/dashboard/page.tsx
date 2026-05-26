@@ -37,8 +37,8 @@ const STATUS_TONE: Record<
   "neutral" | "info" | "success" | "warning" | "destructive"
 > = {
   draft: "neutral",
-  unpaid: "info",
-  partial_paid: "warning",
+  unpaid: "warning",
+  partial_paid: "info",
   paid: "success",
   cancelled: "destructive",
 };
