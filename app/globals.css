@@ -43,7 +43,23 @@
   --ring: #1e40af;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --success: #16a34a;
+
+  /* ----- Semantic status palette (2026-05-26) ---------------------------
+     Each semantic colour has a `--<name>` (bold — used for text, icons,
+     dots, accent strokes) and a `--<name>-soft` (soft tinted background —
+     used for KPI tile washes, badge backgrounds, alert panels). Designed
+     so `text-<name>` reads cleanly on `bg-<name>-soft` without needing a
+     third "foreground" token. Light theme uses solid pastel washes (sit
+     opaquely on the warm-paper page); dark theme uses translucent
+     overlays of the bold colour so they layer cleanly on dark cards. */
+  --success: #16a34a;                /* emerald-600 — money received, paid */
+  --success-soft: #ecfdf5;           /* emerald-50  — paid tile background */
+  --warning: #d97706;                /* amber-600   — needs action, unpaid */
+  --warning-soft: #fef3c7;           /* amber-100   — outstanding tile bg */
+  --danger: #dc2626;                 /* red-600     — overdue, cancelled, void */
+  --danger-soft: #fee2e2;            /* red-100     — overdue tile bg */
+  --info: #2563eb;                   /* blue-600    — neutral informational */
+  --info-soft: #dbeafe;              /* blue-100    — draft, info-pill bg */
 
   /* Brand gradient — the blue from the AstraBill wordmark. Kept distinct
      from --primary; the mark is brand, --primary is action. */
@@ -92,7 +108,19 @@
   --ring: #3b82f6;
   --destructive: #f87171;
   --destructive-foreground: #ffffff;
-  --success: #4ade80;
+
+  /* Dark semantic palette — bold tones lift from the dark cards; soft
+     variants are translucent overlays of the bold so the card surface
+     shows through (avoids the washed-out look opaque pastels get on
+     dark backgrounds). */
+  --success: #4ade80;                /* emerald-400 */
+  --success-soft: rgba(74, 222, 128, 0.14);
+  --warning: #fbbf24;                /* amber-400 */
+  --warning-soft: rgba(251, 191, 36, 0.14);
+  --danger: #f87171;                 /* red-400 */
+  --danger-soft: rgba(248, 113, 113, 0.14);
+  --info: #60a5fa;                   /* blue-400 */
+  --info-soft: rgba(96, 165, 250, 0.14);
 
   --brand-from: #3b82f6;
   --brand-to: #7dd3fc;
@@ -135,7 +163,16 @@
   --color-ring: var(--ring);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+
+  /* Semantic status family — bold + soft pair per name. */
   --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
 
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
