@@ -2879,3 +2879,118 @@ both ship as static; the user menu, business switcher, and page data
 all stream in via Suspense.
 
 Commit: `fe1e6ba`.
+
+## [2026-05-26] feat | Visual richness pass — semantic palette + dashboard + invoice lists
+
+Triggered by the user looking at their dashboard and saying "everything
+is just dark blue" — the data area was monochrome, no visual hierarchy
+between urgent (money owed) vs good news (paid) vs neutral context
+(revenue). Also a roadmap adjustment: the user explicitly said they
+want to be MVP-ready (minimum *usable* product) and don't want
+speculative caching slowing dev velocity, so **Phase 2.3** (per-section
+loading.tsx) and **Phase 3** (full Server Action + updateTag migration)
+are shelved until we have real users.
+
+Four-commit arc — define vocabulary once, apply top-down:
+
+**Commit `ebc6535` — semantic status palette.** Added a proper status
+colour family in globals.css with a bold + soft pair per name:
+`--success/-soft` (emerald), `--warning/-soft` (amber), `--danger/-soft`
+(red), `--info/-soft` (blue). Light theme uses solid pastel washes
+(sit opaquely on warm-paper); dark theme uses translucent overlays of
+the bold colour at 14% opacity (lets dark cards show through). Wired
+into Tailwind's `@theme inline` so `bg-success-soft text-success` etc.
+become real utilities. Convention: `text-<name>` reads cleanly on
+`bg-<name>-soft` — no third "foreground" token needed.
+
+**Commit `df39c70` — dashboard glow-up.** The headline visual change.
+
+*Kpi component upgrade*: new `tone` variants (`success`/`warning`/
+`danger`/`info`/`brand`/`neutral`) each painting a soft bg wash, a
+2px coloured top stripe, and matching the icon + value colour to the
+bold semantic. Optional `icon` prop (lucide component) placed
+top-right. Hover lift (`-translate-y-0.5 + shadow-md`, 200ms ease) on
+every tile — communicates "this matters" without making non-link
+tiles falsely clickable.
+
+*Dashboard wiring*: Outstanding KPI → amber when owed (`AlertCircle`),
+emerald when clear (`CircleCheck`). Paid this month → emerald
+(`CircleCheck`). Revenue this month → brand indigo wash
+(`TrendingUp`). Low-stock heading → `PackageOpen` icon + the count
+switched from `text-destructive` (screams broken) to `text-warning`
+(reads needs-attention).
+
+*Time-aware greeting*: page description switched from "Welcome back"
+to `${greeting}, ${firstName}` where greeting is "Good morning /
+afternoon / evening" computed in IST (the audience's timezone) via
+pure UTC arithmetic — doesn't depend on the server's local timezone.
+
+Visual result: three distinct colour temperatures on the KPI row
+(amber → emerald → indigo), icons giving each tile a focal point,
+hover lift adding life.
+
+**Commit `8e24c45` — Badge semantic-token refactor + status mapping
+update.** Two changes in one commit because they're the same idea at
+two levels.
+
+*Badge primitive*: cva variants refactored to consume the new semantic
+tokens (`bg-success-soft text-success`, etc.) instead of raw Tailwind
+palette classes (`bg-green-50 dark:bg-green-500/15`). Same visual
+family, but every future palette tweak flows through one place.
+
+*Status colour mapping (6 files, identical change)*:
+
+  Before:                          After:
+    unpaid       → info (blue)       unpaid       → warning (amber)
+    partial_paid → warning (amber)   partial_paid → info (blue)
+
+The flip puts "needs action" in amber where it belongs (action language
+should signal urgency, not information) and frees partial_paid to use
+info ("partial progress made"). Result: 5 distinct status colours
+across 5 states. Files: dashboard, sales-invoices list, sales-invoice
+detail, DocumentListView, DocumentDetailView, public share page.
+
+Known small smell: STATUS_TONE now duplicated across 6 files. Worth a
+follow-up to lift into `lib/document-status.ts`. Left as-is to keep
+the commit focused on the colour change.
+
+**Commit `f79c3a6` — list-page polish (sales-invoices + DocumentListView).**
+
+KPI tile tones — each metric gets a semantic colour + icon:
+  - Total / Total billed → brand (TrendingUp)
+  - Unpaid → warning when > 0 (AlertCircle), success when zero
+  - Drafts → info when > 0 (PencilLine), neutral when empty
+  - Finalised → success (CircleCheck)
+  - Cancelled → danger when > 0 (Ban), neutral when empty
+
+The "neutral when empty" rule means colour only shows when the
+metric is non-zero — an all-zero row looks calm; an active business
+sees the row light up with the right signal mix.
+
+Table polish:
+  - Row hover (`hover:bg-muted/40 transition-colors`) — tactile
+    feedback that wasn't there before
+  - Header row switched from `text-muted-foreground font-medium` to
+    `text-xs uppercase tracking-wider` — matches the subsection label
+    convention from Phase 2E
+  - Balance column: outstanding figures switched from `text-red-700`
+    (red = broken) to `text-warning` (amber = needs action) — matches
+    the Unpaid badge on the same row
+
+**What this arc does NOT do**:
+  - No PDF invoice template work (separate track — that's the
+    customer-facing artifact, deserves its own session)
+  - No detail page (single invoice) polish — that's where the next
+    visual pass goes, plus the WhatsApp send button area
+  - No light-mode-specific tuning (the tokens are theme-aware; both
+    themes inherit; user is testing in dark for now)
+  - No `STATUS_TONE` consolidation into `lib/document-status.ts`
+    (deferred; trivial but out of scope here)
+
+**Roadmap state after this arc**: Phase 2 is effectively "complete
+for MVP". Phases 2.3 / 3 / 4 are shelved per the dev-velocity-over-
+perceived-perf directive. Next track is **PDF invoice template
+glow-up** (the WhatsApped artifact — the moment the customer first
+sees the shop's billing system).
+
+Commits: `ebc6535` → `df39c70` → `8e24c45` → `f79c3a6`.
