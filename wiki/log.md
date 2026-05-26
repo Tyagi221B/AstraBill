@@ -2878,4 +2878,4 @@ filling in over the next few hundred ms. The background glow + sidebar
 both ship as static; the user menu, business switcher, and page data
 all stream in via Suspense.
 
-Commit: `<pending>`.
+Commit: `fe1e6ba`.
