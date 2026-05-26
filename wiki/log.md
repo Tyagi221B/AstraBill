@@ -2679,4 +2679,4 @@ responds. Each phase is its own session; no boil-the-ocean.
 Tsc clean. 30 tests passing. Manual smoke: Account save → sidebar
 UserMenu (name + avatar) updates in-place, no nav required.
 
-Commit: `<pending>` (filled at commit-time).
+Commit: `873c47e`.
